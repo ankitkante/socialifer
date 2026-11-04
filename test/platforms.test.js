@@ -123,7 +123,7 @@ test('X posts a numbered thread with the settings on the first post', async (t) 
   assert.ok(bodies.length >= 2);
   assert.equal(bodies[0].made_with_ai, true);
   assert.equal(bodies[0].reply_settings, undefined);
-  assert.match(bodies[0].text, / 1\/\d+$/);
+  assert.match(bodies[0].text, /\.\.\.\n\(1\/\d+\)$/);
   assert.equal(bodies[1].reply.in_reply_to_tweet_id, 'P1');
   assert.equal(bodies[1].made_with_ai, undefined);
   for (const b of bodies) assert.ok([...b.text].length <= 280);

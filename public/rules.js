@@ -73,7 +73,13 @@ function compressible(platform, m) {
 // ---- Threads: long posts split into numbered replies (X) ----
 
 const THREAD_MAX_POSTS = 25;
-const NUMBER_ROOM = 6; // " 25/25"
+// Each post ends with its number on a new line, e.g. "\n(1/2)". A post cut mid-sentence also ends with
+// "..." so readers know more follows; one that ends on a full stop doesn't need it.
+const NUMBER_ROOM = 8; // "\n(25/25)"
+const ELLIPSIS = '...';
+// A sentence end in roughly the last 40% of a post is "close": break there instead of mid-sentence.
+const SENTENCE_BREAK_FROM = 0.6;
+const SENTENCE_END = /[.!?…]["'”’)\]]*$/;
 
 function sliceGraphemes(text, n) {
   let out = '';
@@ -85,28 +91,59 @@ function sliceGraphemes(text, n) {
   return out;
 }
 
-// Splits text into posts that each fit `limit` once " i/n" is appended, breaking at whitespace.
+// Splits text into posts that fit `limit` once their ending is added: "\n(i/n)", plus "..." when a post
+// is cut mid-sentence. Prefers to break at the end of a sentence when one is close to the limit;
+// otherwise fills the post to the limit at a word boundary.
 export function splitThread(platformId, text, limit) {
   if (countFor(platformId, text) <= limit) return [text];
-  const room = limit - NUMBER_ROOM;
+  const roomWhole = limit - NUMBER_ROOM; // a post that ends on a sentence
+  const roomCut = roomWhole - ELLIPSIS.length; // a post cut mid-sentence
+  const len = (s) => countFor(platformId, s.trim());
+  const tokens = text.split(/(\s+)/).filter((t) => t !== '');
   const parts = [];
-  let current = '';
-  for (const token of text.split(/(\s+)/)) {
-    if (countFor(platformId, (current + token).trimEnd()) <= room) {
-      current += token;
+
+  let i = 0;
+  while (i < tokens.length) {
+    while (i < tokens.length && !/\S/.test(tokens[i])) i++; // no leading whitespace
+    if (i >= tokens.length) break;
+
+    // A single word longer than a whole post gets cut.
+    if (len(tokens[i]) > roomCut) {
+      const head = sliceGraphemes(tokens[i], roomCut);
+      parts.push({ text: head, cut: true });
+      tokens[i] = tokens[i].slice(head.length);
       continue;
     }
-    if (current.trim()) parts.push(current.trim());
-    current = token.trimStart();
-    // A single word longer than a whole post gets cut.
-    while (countFor(platformId, current) > room) {
-      const head = sliceGraphemes(current, room);
-      parts.push(head);
-      current = current.slice(head.length);
+
+    // Grow the post a word at a time, remembering the last sentence end and the last point that
+    // still leaves room for "...".
+    let current = '';
+    let sentence = null;
+    let cutAt = null;
+    let j = i;
+    for (; j < tokens.length; j++) {
+      const next = current + tokens[j];
+      if (len(next) > roomWhole) break;
+      current = next;
+      if (!/\S/.test(tokens[j])) continue;
+      if (len(current) <= roomCut) cutAt = { end: j, text: current };
+      if (SENTENCE_END.test(tokens[j])) sentence = { end: j, text: current };
+    }
+
+    if (j >= tokens.length) {
+      parts.push({ text: current.trim(), cut: false }); // the rest fits
+      break;
+    }
+    if (sentence && len(sentence.text) >= roomWhole * SENTENCE_BREAK_FROM) {
+      parts.push({ text: sentence.text.trim(), cut: false });
+      i = sentence.end + 1;
+    } else {
+      parts.push({ text: cutAt.text.trim(), cut: true });
+      i = cutAt.end + 1;
     }
   }
-  if (current.trim()) parts.push(current.trim());
-  return parts.map((part, i) => `${part} ${i + 1}/${parts.length}`);
+
+  return parts.map((part, k) => `${part.text}${part.cut ? ELLIPSIS : ''}\n(${k + 1}/${parts.length})`);
 }
 
 function threadFor(platform, text, options) {
@@ -193,6 +230,8 @@ export function problemsFor(platform, text, media, options = {}) {
   const length = countFor(platform.id, text);
   if (thread) {
     if (thread.length > THREAD_MAX_POSTS) problems.push(`Too long even for a thread (${thread.length} posts; the limit is ${THREAD_MAX_POSTS})`);
+  } else if (length > platform.limit && platform.threads) {
+    problems.push(`Too long for one post (${length.toLocaleString()} / ${platform.limit.toLocaleString()}). Turn on "Split long posts into a numbered thread", shorten it, or untick ${platform.name ?? 'it'}`);
   } else if (length > platform.limit) {
     problems.push(`Text is too long (${length.toLocaleString()} / ${platform.limit.toLocaleString()})`);
   }
