@@ -227,6 +227,8 @@
   const YOUTUBE_KEY = 'social-post:youtube';
   const SHORTS_MAX_SECONDS = 180;
   const THUMB_SIZE = 240;
+  const CONVERT_TO_JPEG = new Set(['image/png', 'image/webp']);
+  const MAX_IMAGE_SIDE = 4096;
   // Brand colours for the logos; X and Threads are black, so they follow the text colour instead.
   const BRAND_COLORS = {
     youtube: '#FF0000', instagram: '#E4405F', linkedin: '#0A66C2', discord: '#5865F2',
@@ -287,19 +289,42 @@
 
   // ---- Media ----
 
-  function addFiles(files) {
-    for (const file of files) {
+  // Instagram only takes JPEG and every platform accepts it, so PNG and WebP are converted on the way in.
+  // Transparent areas become white, and very large images are scaled to 4096px on the longest side.
+  async function toJpeg(file) {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = Object.assign(document.createElement('canvas'), {
+      width: Math.round(bitmap.width * scale),
+      height: Math.round(bitmap.height * scale),
+    });
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not convert image'))), 'image/jpeg', 0.92));
+    const name = (file.name || 'pasted-image').replace(/\.[^.]+$/, '') + '.jpg';
+    return new File([blob], name, { type: 'image/jpeg' });
+  }
+
+  async function addFiles(files) {
+    for (let file of files) {
       if (!ACCEPTED.has(file.type)) {
         setStatus(`${file.name || 'That file'} isn't supported. Use JPEG, PNG, GIF, WebP, MP4 or MOV.`, true);
         continue;
+      }
+      if (CONVERT_TO_JPEG.has(file.type)) {
+        try { file = await toJpeg(file); } catch { /* keep the original; platform checks will flag it */ }
       }
       const item = { key: crypto.randomUUID(), file, preview: URL.createObjectURL(file), status: 'uploading', progress: 0 };
       items.push(item);
       upload(item);
       makeThumbnail(item);
+      renderMedia();
+      update();
     }
-    renderMedia();
-    update();
   }
 
   function upload(item) {

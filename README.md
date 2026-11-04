@@ -22,7 +22,7 @@ npm start               # opens on http://localhost:3000
 - Each platform shows a live character count and warns you when your text or files don't fit its rules. The Post button stays disabled until every selected platform can take the post.
 - Results list a link to every new post. If some platforms fail, your post stays on the page and only the failed platforms stay selected, so you can retry them.
 
-Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos.
+Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos. PNG and WebP images are converted to high-quality JPEG when you add them, because Instagram only accepts JPEG and every platform takes it. Transparent areas become white, and images larger than 4,096 px on the longest side are scaled down. GIFs are left as they are.
 
 ## What each platform accepts
 
@@ -32,7 +32,7 @@ Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos.
 | Bluesky | 300 | 4 images or 1 video | Images up to 1 MB, video up to 100 MB. |
 | Mastodon | 500 (links count as 23) | 4 images or 1 video | Limits vary by server. |
 | Threads | 500 | Up to 20, mixed | Media needs `PUBLIC_BASE_URL`. |
-| Instagram | 2,200 | 1 to 10, mixed | **Needs an image or video.** JPEG images only. A single video becomes a Reel. Needs `PUBLIC_BASE_URL`. |
+| Instagram | 2,200 | 1 to 10, mixed | **Needs an image or video.** JPEG images only (PNG and WebP are converted automatically). A single video becomes a Reel. Needs `PUBLIC_BASE_URL`. |
 | YouTube | 5,000 (description) | **Exactly 1 video** | Needs a title (up to 100 characters; defaults to the first line of your post). No `<` or `>`. |
 | LinkedIn | 3,000 | Up to 20 images or 1 video | |
 | Facebook | 63,206 | Up to 10 images or 1 video | Posts to a Facebook Page. Facebook's API can't post to personal profiles. |

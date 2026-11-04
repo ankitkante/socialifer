@@ -54,7 +54,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 
 - **Auth:** "Instagram API with Instagram Login" token (`instagram_business_basic`, `instagram_business_content_publish`) against `graph.instagram.com`. Set `INSTAGRAM_GRAPH_HOST=https://graph.facebook.com` to use a Facebook Login token instead. Requires a Business or Creator account.
 - **Flow:** `POST /{user}/media` creates a container, then the module polls `status_code` until `FINISHED` and calls `POST /{user}/media_publish`. A single image uses `image_url`. A single video is a Reel (`media_type=REELS`, `video_url`). Carousels take 2 to 10 children (`media_type=VIDEO` for video children), then a `CAROUSEL` container.
-- **Requirements:** at least one image or video, JPEG-only images, and `PUBLIC_BASE_URL`. Captions are limited to 2,200 characters. Accounts can publish 50 posts per 24 hours.
+- **Requirements:** at least one image or video, JPEG-only images (the UI converts PNG and WebP to JPEG in the browser before upload; see `toJpeg` in `public/index.html`), and `PUBLIC_BASE_URL`. Captions are limited to 2,200 characters. Accounts can publish 50 posts per 24 hours.
 - **Not used:** resumable direct upload (`rupload.facebook.com`) only works for Facebook Login for Business apps, and images still need URLs.
 - **Docs:** https://developers.facebook.com/docs/instagram-platform/content-publishing
 
