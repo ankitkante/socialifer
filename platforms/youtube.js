@@ -28,7 +28,18 @@ export default {
   limit: 5000,
   title: { max: 100 },
   textForbids: '<>',
-  media: { maxImages: 0, maxVideos: 1, maxItems: 1, mix: false, imageMB: null, videoMB: null, requiresMedia: true },
+  media: {
+    maxImages: 0,
+    maxVideos: 1,
+    maxItems: 1,
+    mix: false,
+    imageMB: null,
+    videoMB: null,
+    requiresMedia: true,
+    // Unverified channels can upload up to 15 minutes; verified ones up to 12 hours.
+    videoMaxSeconds: (Number(process.env.YOUTUBE_MAX_MINUTES) || 15) * 60,
+    videoMaxSecondsHint: 'Verify your channel with a phone number for longer uploads, then set YOUTUBE_MAX_MINUTES in .env',
+  },
   envVars: ENV,
   isConfigured: () => hasEnv(...ENV),
   // options: { title, privacy: 'public' | 'unlisted' | 'private', madeForKids }

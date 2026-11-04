@@ -112,3 +112,16 @@ test('serves a logo for every platform and nothing else from /icons/', async () 
   assert.equal((await fetch(`${base}/icons/unknown.svg`)).status, 404);
   assert.equal((await fetch(`${base}/icons/..%2Fserver.svg`)).status, 404);
 });
+
+test('accepts media as { id, duration } and per-platform text', async () => {
+  const { id } = await (await upload(PNG, 'image/png')).json();
+  const res = await post({ text: '', platforms: ['x'], media: [{ id, duration: 12 }], options: { x: { text: 'Only for X' } } });
+  assert.equal(res.status, 200);
+  const { results } = await res.json();
+  assert.match(results[0].error, /Not configured/);
+
+  // Per-platform text alone is enough to post.
+  assert.equal((await post({ text: '', platforms: ['x'], options: { x: { text: 'Only for X' } } })).status, 200);
+  assert.equal((await post({ text: '', platforms: ['x'], media: [{ id: 42 }] })).status, 400);
+  await fetch(`${base}/api/media/${id}`, { method: 'DELETE' });
+});

@@ -49,6 +49,9 @@ export default {
   media: {                    // read by problemsFor in public/rules.js
     maxImages, maxVideos, maxItems, mix,     // counts; mix = images and videos together
     imageMB, videoMB,                        // decimal MB, null = unchecked
+    videoMinSeconds?, videoMaxSeconds?,      // length limits; omit when unsure rather than guess
+    carouselVideoMaxSeconds?,                // stricter length in multi-file posts (Instagram)
+    videoMaxSecondsHint?,                    // appended to the "too long" message, e.g. how to raise it
     imageTypes?, imageTypesLabel?,           // restrict image MIME types
     requiresMedia?, needsPublicUrl?,         // e.g. Instagram
   },
@@ -60,9 +63,11 @@ export default {
 };
 ```
 
-`options` holds per-platform extras that the UI sends as `options[platformId]` in `POST /api/post`, and it's passed both to `problemsFor` and to `post()`. Only YouTube uses it today, for `{ title, privacy, madeForKids }`. Its form lives in the `#youtube-options` card in `public/index.html`. A new platform that needs extra fields should follow the same pattern.
+`options` holds per-platform extras that the UI sends as `options[platformId]` in `POST /api/post`, and it's passed both to `problemsFor` and to `post()`:
+- `options[id].text`: the platform's own text from **Customize per platform**. The server resolves it with `effectiveText()` and passes the result to `post()` as `text`, so platform modules never need to look at it. `problemsFor` takes the *main* text plus `options` and resolves it the same way.
+- `options.youtube`: `{ title, privacy, madeForKids }` from the `#youtube-extras` block, which `renderSections()` moves into YouTube's section of the **Customize per platform** card. A new platform that needs extra fields should add its own extras block and attach it the same way.
 
-`media` items passed to `post()` are `{ id, name, type, size, url, blob(), buffer() }`. `url` is the public URL (only set when `TUNNEL_URL` is configured). Upload media in order and sequentially. To add a platform, create the module, register it in `platforms/index.js`, add its settings to `.env.example`, and add a row to `docs/platforms.md` and the README table.
+`media` items passed to `post()` are `{ id, name, type, size, duration, path, url, blob(), buffer() }`. `url` is the public URL (only set when `TUNNEL_URL` is configured). `duration` is in seconds, from ffprobe if installed, else from the browser, else `null`. A video over the platform's `videoMB` has already been swapped for a compressed copy (see `fitVideo` in `media.js`) when ffmpeg is available, so modules don't handle compression. Upload media in order and sequentially. To add a platform, create the module, register it in `platforms/index.js`, add its settings to `.env.example`, and add a row to `docs/platforms.md` and the README table.
 
 ## Invariants: don't break these
 
@@ -74,7 +79,7 @@ export default {
 
 ## Testing
 
-`npm test` covers the shared rules, X's OAuth 1.0a signature (against X's published example), Bluesky facet byte ranges, LinkedIn escaping, and the server's endpoints and guards (it starts the server on a random port). Platform `post()` flows can be traced offline by replacing `globalThis.fetch` with a stub that logs calls, which is how they were checked during development.
+`npm test` covers the shared rules (lengths, compression notes, per-platform text), X's OAuth 1.0a signature (against X's published example), Bluesky facet byte ranges, LinkedIn escaping, and the server's endpoints and guards (it starts the server on a random port). `test/compress.test.js` generates a video and compresses it with the real ffmpeg; it's skipped when ffmpeg isn't installed. Platform `post()` flows can be traced offline by replacing `globalThis.fetch` with a stub that logs calls, which is how they were checked during development.
 
 **Nothing has been tested against live platform APIs yet** (as of 2026-11-04). See the "Verification status" section of [docs/platforms.md](docs/platforms.md) before assuming a platform works, and update it when someone confirms one live.
 
@@ -83,5 +88,7 @@ export default {
 - **Substack: not supported.** It has no official posting API. An unofficial route exists (session cookie + internal `/api/v1/comment/feed` for Notes), but it may break without notice and may violate their terms. The user chose to skip it unless an official way appears.
 - **Instagram and Threads media need `TUNNEL_URL`**, because Meta fetches media from a URL. Instagram's resumable upload (direct video upload) is only available to Facebook Login for Business apps, and images still need a URL, so the tunnel approach was chosen for both.
 - **No alt text yet.** It is a possible follow-up (Bluesky, Mastodon, X and LinkedIn support it).
+- **ffmpeg is optional**, not a dependency. It is found on PATH, in `FFMPEG_DIR`, or in winget's Links folder (`%LOCALAPPDATA%\Microsoft\WinGet\Links`), because VS Code terminals opened before an install don't see the new PATH. Without it, oversized videos are rejected per platform as before.
+- **Videos are compressed, never trimmed.** A video that is too long for a platform is a problem the user must fix; only size is adjusted automatically. Compression targets the platform's `videoMB` with H.264/AAC, scaling so the shorter side is at most 1080 px (`SCALE` in `media.js`), and refusing to go below 400 kbps video (`compressionBitrate` in `public/rules.js`).
 - **YouTube uploads start private** until the user's Google Cloud project passes YouTube's API audit. This can't be worked around in code; the UI and README say so. Shorts are not a separate upload type.
 - **X limit defaults to 280**; `X_CHAR_LIMIT` exists for Premium accounts (up to 25,000).

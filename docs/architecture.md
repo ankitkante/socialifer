@@ -34,7 +34,9 @@ The server's request timeout only covers receiving the request, so a slow video 
 ## Media lifecycle
 
 - **Upload:** the browser sends `POST /api/media` with the raw file as the body (`XMLHttpRequest`, for progress events), `Content-Type` set to the file's MIME type, and `X-Filename` URI-encoded. `media.js` streams it to `uploads/<id>` through a size-limiting transform (`MAX_UPLOAD_MB`, default 1024), then writes `uploads/<id>.json` metadata. Allowed types are listed in `EXTENSIONS` in `media.js`: JPEG, PNG, GIF, WebP, MP4 and MOV.
-- **Use:** `getMedia(id)` returns metadata plus `blob()` (file-backed, via `fs.openAsBlob`, so large videos aren't loaded into memory), `buffer()`, and `url`.
+- **Use:** `getMedia(id)` returns metadata plus `path`, `blob()` (file-backed, via `fs.openAsBlob`, so large videos aren't loaded into memory), `buffer()`, and `url`.
+- **Length:** the browser reads each video's duration when it is attached and sends it with the post as `media: [{ id, duration }]`. If ffprobe is installed, the server reads the real duration and uses that instead.
+- **Compression:** after a platform passes `problemsFor`, `mediaFor()` in `server.js` swaps any video over that platform's `videoMB` for `fitVideo(m, maxBytes)`. That runs ffmpeg once per original and target size (concurrent platforms with the same limit share the run), writes the copy as a new upload with `derivedFrom` in its metadata, and retries once at 85% if the first pass overshoots. Copies are deleted with their original or by the 24-hour cleanup. The UI shows these as notes (`adjustmentsFor`), not problems.
 - **Public serving:** `GET/HEAD /media/<id>.<ext>` streams the file with Range support. The extension is cosmetic; some fetchers expect one.
 - **Deletion:** the browser deletes files on removal or after a fully successful post. Anything older than 24 hours is removed when the server starts and every hour after.
 

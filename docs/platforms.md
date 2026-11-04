@@ -2,13 +2,27 @@
 
 How each integration works, what it relies on, and what's still unverified. Limits are enforced in `public/rules.js` using the `limit` and `media` fields in each `platforms/*.js` module. If a platform changes its limits, update the module, the README table, and this file.
 
+## Video length limits
+
+Length checks only use limits we are reasonably confident in. Where a platform's current limit is unclear, it is left unchecked so valid posts aren't blocked; the platform's own error then shows in the results.
+
+| Platform | Checked | Source / confidence |
+|---|---|---|
+| Instagram | 3 s to 15 min; 60 s for videos in a carousel | Meta Reels publishing docs. The carousel limit is the least certain. |
+| YouTube | Up to 15 min (`YOUTUBE_MAX_MINUTES`) | YouTube: unverified channels are capped at 15 minutes; phone-verified channels up to 12 hours. |
+| X | Up to 20 min (`X_VIDEO_MAX_MINUTES`) | X's chunked upload docs: 20 min by default, 125 min for Premium. |
+| Threads | Up to 5 min | Threads API docs. |
+| LinkedIn | 3 s to 30 min | LinkedIn video API docs. |
+| Facebook | Up to 20 min | The simple (non-resumable) upload path used here. |
+| Bluesky, Mastodon, Telegram, Discord | Not checked | Limits changed recently or vary by server. |
+
 ## Verification status
 
 As of 2026-11-04, every flow has been checked offline: request order and payload shapes against stubbed `fetch`, and the end-to-end server path against a local mock API. YouTube has also been confirmed on a live channel; the rest haven't been run against a live account yet. Update this table as platforms are confirmed.
 
 | Platform | Live-tested | Main risk |
 |---|---|---|
-| X | Keys only (2026-11-04: `GET /2/users/me` returned `x-access-level: read-write`). Posting is untested because the account has no credits yet | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
+| X | **Text post: yes** (2026-11-04). Media untested | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
 | Bluesky | No | Video is uploaded with plain `uploadBlob`, which Bluesky's tutorial calls the easiest option. The alternative is the video service (`video.bsky.app`, `app.bsky.video.uploadVideo`). The account must have a verified email to post video. |
 | Mastodon | No | Low. The API is stable. Limits vary per server. |
 | Threads | No | Media URLs must be reachable by Meta through `TUNNEL_URL`. |

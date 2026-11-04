@@ -1,13 +1,18 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { platforms } from './platforms/index.js';
-import { problemsFor } from './public/rules.js';
-import { saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError } from './media.js';
+import { problemsFor, effectiveText, isVideo } from './public/rules.js';
+import {
+  saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError,
+  videoTools, probeDuration, fitVideo,
+} from './media.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 // Bound to loopback only: this server posts with your credentials and has no login.
 const HOST = '127.0.0.1';
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
+// With ffmpeg installed, videos too big for a platform are compressed instead of rejected.
+const canCompress = Boolean(await videoTools());
 
 const STATIC_FILES = {
   '/': { file: 'public/index.html', type: 'text/html; charset=utf-8' },
@@ -41,19 +46,29 @@ function describe(p) {
     envVars: p.envVars,
     configured: p.isConfigured(),
     publicUrlReady: Boolean(publicBaseUrl()),
+    canCompress,
   };
 }
 
-// options holds per-platform extras keyed by platform id, e.g. { youtube: { title, privacy, madeForKids } }.
+// Swaps in a compressed copy of any video that's over this platform's size limit.
+function mediaFor(p, media) {
+  const maxBytes = p.media.videoMB && p.media.videoMB * 1_000_000;
+  if (!canCompress || !maxBytes) return media;
+  return Promise.all(media.map((m) => (isVideo(m) && m.size > maxBytes ? fitVideo(m, maxBytes) : m)));
+}
+
+// options holds per-platform extras keyed by platform id, e.g.
+// { instagram: { text }, youtube: { text, title, privacy, madeForKids } }.
 async function publish(text, ids, media, options) {
   const selected = platforms.filter((p) => ids.includes(p.id));
   const settled = await Promise.allSettled(
     selected.map(async (p) => {
       if (!p.isConfigured()) throw new Error(`Not configured. Set ${p.envVars.join(', ')} in .env`);
       const own = options[p.id] ?? {};
+      // Validate before compressing, so a post that can't go anyway doesn't wait on ffmpeg.
       const problems = problemsFor(describe(p), text, media, own);
       if (problems.length) throw new Error(problems.join('. '));
-      return p.post(text, media, own);
+      return p.post(effectiveText(text, own), await mediaFor(p, media), own);
     }),
   );
   return settled.map((r, i) => ({
@@ -125,9 +140,19 @@ const server = http.createServer(async (req, res) => {
       }
       if (!Array.isArray(ids) || ids.length === 0) throw httpError(400, 'Select at least one platform');
 
-      const media = await Promise.all(mediaIds.map(getMedia));
+      // Each entry is a media id, or { id, duration } with the length the browser read from the file.
+      // ffprobe's reading wins when available; the browser's is the fallback.
+      const media = await Promise.all(mediaIds.map(async (entry) => {
+        const { id, duration } = typeof entry === 'string' ? { id: entry } : (entry ?? {});
+        const m = typeof id === 'string' ? await getMedia(id) : null;
+        if (m && isVideo(m)) {
+          m.duration = (await probeDuration(m)) ?? (Number.isFinite(duration) && duration > 0 ? duration : null);
+        }
+        return m;
+      }));
       if (media.some((m) => !m)) throw httpError(400, 'An attached file has expired. Remove it and add it again.');
-      if (!text.trim() && media.length === 0) throw httpError(400, 'Add some text, an image or a video');
+      const anyText = text.trim() || Object.values(options).some((o) => typeof o?.text === 'string' && o.text.trim());
+      if (!anyText && media.length === 0) throw httpError(400, 'Add some text, an image or a video');
 
       return sendJson(res, 200, { results: await publish(text.trim(), ids, media, options) });
     }
@@ -144,6 +169,9 @@ server.listen(PORT, HOST, () => {
   console.log(`Social Post running at http://localhost:${PORT}`);
   console.log(ready.length ? `Configured: ${ready.join(', ')}` : 'No platforms configured yet. Copy .env.example to .env and fill in the platforms you use.');
   if (publicBaseUrl()) console.log(`Uploaded files are served publicly at ${publicBaseUrl()}/media/`);
+  console.log(canCompress
+    ? 'ffmpeg found: videos too big for a platform will be compressed to fit.'
+    : 'ffmpeg not found: videos too big for a platform will be rejected for it (see README).');
 });
 
 cleanupOldMedia();

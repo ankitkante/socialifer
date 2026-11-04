@@ -16,7 +16,8 @@ export default {
   id: 'facebook',
   name: 'Facebook',
   limit: 63206,
-  media: { maxImages: 10, maxVideos: 1, maxItems: 10, mix: false, imageMB: 10, videoMB: 1000 },
+  // The simple (non-resumable) video upload used here is capped at about 1 GB and 20 minutes.
+  media: { maxImages: 10, maxVideos: 1, maxItems: 10, mix: false, imageMB: 10, videoMB: 1000, videoMaxSeconds: 20 * 60 },
   envVars: ENV,
   isConfigured: () => hasEnv(...ENV),
   async post(text, media) {

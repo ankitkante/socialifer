@@ -131,6 +131,18 @@
   .chip .problems { margin: 6px 0 0 24px; font-size: 12px; color: var(--muted); }
   .chip .problems:empty { display: none; }
   .chip.on .problems { color: var(--err); }
+  .chip .notes { margin: 4px 0 0 24px; font-size: 12px; color: var(--muted); }
+  .chip .notes:empty { display: none; }
+  .platform-section { padding: 16px 0; border-top: 1px solid var(--border); }
+  .platform-section:first-child { border-top: none; padding-top: 0; }
+  .platform-section .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-weight: 600; }
+  .platform-section .row > span { display: flex; align-items: center; }
+  .platform-section textarea {
+    min-height: 72px; font-size: 15px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  }
+  .platform-section textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .extras { margin-top: 12px; }
   .count { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
   .count.near { color: var(--warn); }
   .count.over { color: var(--err); font-weight: 600; }
@@ -189,8 +201,14 @@
     <p class="hint" id="hint" hidden></p>
   </div>
 
-  <div class="card" id="youtube-options" hidden>
-    <p class="label">YouTube</p>
+  <div class="card" id="platform-settings" hidden>
+    <p class="label">Customize per platform</p>
+    <div id="platform-sections"></div>
+    <p class="hint">Leave a text box empty to use the main post.</p>
+  </div>
+
+  <!-- YouTube's extra settings; moved into YouTube's section in "Customize per platform" when it's selected. -->
+  <div id="youtube-extras" class="extras" hidden>
     <div class="fields">
       <label class="field">Title
         <input id="yt-title" autocomplete="off">
@@ -205,7 +223,7 @@
     </div>
     <label class="check"><input type="checkbox" id="yt-kids"> Made for kids</label>
     <p class="shorts" id="yt-shorts" hidden></p>
-    <p class="hint">Your post text becomes the description. Vertical or square videos up to 3 minutes become Shorts automatically.
+    <p class="hint">The text above becomes the description. Vertical or square videos up to 3 minutes become Shorts automatically.
       Until your Google API project passes YouTube's audit, uploads stay private whatever you choose here (see README).</p>
   </div>
 
@@ -221,7 +239,7 @@
 </main>
 
 <script type="module">
-  import { countFor, problemsFor, resolveTitle } from '/rules.js';
+  import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, formatDuration } from '/rules.js';
 
   const STORAGE_KEY = 'social-post:selected';
   const YOUTUBE_KEY = 'social-post:youtube';
@@ -240,8 +258,11 @@
 
   let platforms = [];
   let selected = new Set(load());
-  let items = []; // { key, file, preview, status: 'uploading' | 'done' | 'error', progress, id, error, xhr }
+  let items = []; // { key, file, preview, status: 'uploading' | 'done' | 'error', progress, id, error, xhr, meta }
   let posting = false;
+  // Per-platform text from "Customize per platform"; an empty box means "use the main post".
+  let overrides = {};
+  let sectionsFor = '';
 
   function load() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
@@ -260,11 +281,14 @@
   function saveYoutube() {
     try { localStorage.setItem(YOUTUBE_KEY, JSON.stringify({ privacy: ytPrivacy.value, madeForKids: ytKids.checked })); } catch {}
   }
-  const platformOptions = () => ({ youtube: { title: ytTitle.value, privacy: ytPrivacy.value, madeForKids: ytKids.checked } });
-
-  function formatDuration(seconds) {
-    const s = Math.round(seconds);
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  // Extras sent per platform: its own text, plus YouTube's title and visibility.
+  function platformOptions() {
+    const options = {};
+    for (const p of platforms) {
+      options[p.id] = overrides[p.id]?.trim() ? { text: overrides[p.id] } : {};
+    }
+    Object.assign(options.youtube ??= {}, { title: ytTitle.value, privacy: ytPrivacy.value, madeForKids: ytKids.checked });
+    return options;
   }
 
   // Tells the user whether YouTube will treat the attached video as a Short.
@@ -464,6 +488,7 @@
           el('span', { className: 'count' }),
         ),
         el('div', { className: 'problems' }),
+        el('div', { className: 'notes' }),
       );
       chip.dataset.id = p.id;
       return chip;
@@ -476,42 +501,77 @@
       : `Greyed out platforms aren't set up yet. Hover over one to see which .env values it needs.`;
   }
 
-  const mediaMeta = () => items.map((i) => ({ name: i.file.name || 'pasted image', type: i.file.type, size: i.file.size }));
+  const mediaMeta = () => items.map((i) => ({
+    name: i.file.name || 'pasted image', type: i.file.type, size: i.file.size, duration: i.meta?.duration,
+  }));
   const activeTargets = () => platforms.filter((p) => p.configured && selected.has(p.id));
+
+  function counter(p, text) {
+    const n = countFor(p.id, text);
+    return { textContent: `${n.toLocaleString()} / ${p.limit.toLocaleString()}`, className: 'count' + (n > p.limit ? ' over' : n > p.limit * 0.9 ? ' near' : '') };
+  }
+
+  // One section per selected platform: its own text box, plus any platform-specific settings
+  // (YouTube's title and visibility). Only rebuilt when the set of platforms changes, so typing keeps focus.
+  const youtubeExtras = $('youtube-extras');
+  function renderSections(targets) {
+    sectionsFor = targets.map((p) => p.id).join(',');
+    $('platform-sections').replaceChildren(...targets.map((p) => {
+      const box = el('textarea', { value: overrides[p.id] ?? '', placeholder: 'Same as the main post' });
+      box.addEventListener('input', () => { overrides[p.id] = box.value; update(); });
+      const section = el('div', { className: 'platform-section' },
+        el('div', { className: 'row' }, el('span', {}, logo(p.id), p.name), el('span', { className: 'count' })),
+        box,
+      );
+      if (p.id === 'youtube') {
+        youtubeExtras.hidden = false;
+        section.append(youtubeExtras);
+      }
+      section.dataset.id = p.id;
+      return section;
+    }));
+  }
 
   function update() {
     const text = textEl.value.trim();
     const media = mediaMeta();
     const options = platformOptions();
+    const targets = activeTargets();
     let blocked = false;
 
-    const youtube = platforms.find((p) => p.id === 'youtube');
-    $('youtube-options').hidden = !(youtube?.configured && selected.has('youtube'));
-    ytTitle.placeholder = resolveTitle(text, '') ? `Defaults to: ${resolveTitle(text, '')}` : 'Defaults to the first line of your post';
+    const youtubeText = effectiveText(text, options.youtube);
+    ytTitle.placeholder = resolveTitle(youtubeText, '') ? `Defaults to: ${resolveTitle(youtubeText, '')}` : 'Defaults to the first line of your post';
     renderShortsHint();
+
+    $('platform-settings').hidden = targets.length === 0;
+    if (sectionsFor !== targets.map((p) => p.id).join(',')) renderSections(targets);
+    for (const section of $('platform-sections').children) {
+      const p = platforms.find((x) => x.id === section.dataset.id);
+      Object.assign(section.querySelector('.count'), counter(p, effectiveText(text, options[p.id])));
+    }
+
     for (const p of platforms) {
       const on = selected.has(p.id) && p.configured;
       const chip = platformsEl.querySelector(`[data-id="${p.id}"]`);
       chip.classList.toggle('on', on);
       chip.classList.toggle('disabled', !p.configured);
 
-      const n = countFor(p.id, text);
-      const countEl = chip.querySelector('.count');
-      countEl.textContent = p.configured ? `${n.toLocaleString()} / ${p.limit.toLocaleString()}` : 'not set up';
-      countEl.className = 'count' + (n > p.limit ? ' over' : n > p.limit * 0.9 ? ' near' : '');
+      const own = effectiveText(text, options[p.id]);
+      Object.assign(chip.querySelector('.count'), p.configured ? counter(p, own) : { textContent: 'not set up', className: 'count' });
 
       const problems = p.configured ? problemsFor(p, text, media, options[p.id]) : [];
       // An empty composer can't be posted anyway, so don't greet the user with warnings.
-      const started = text || media.length || options[p.id]?.title?.trim();
+      const started = own || media.length || options[p.id]?.title?.trim();
       chip.querySelector('.problems').textContent = started ? problems.join(' · ') : '';
+      chip.querySelector('.notes').textContent = p.configured && on ? adjustmentsFor(p, media).join(' · ') : '';
       if (on && problems.length) blocked = true;
     }
 
-    const targets = activeTargets();
     const uploading = items.some((i) => i.status === 'uploading');
     const failedUpload = items.some((i) => i.status === 'error');
+    const anyText = text || targets.some((p) => options[p.id]?.text);
     postBtn.textContent = uploading ? 'Uploading…' : targets.length > 1 ? `Post to ${targets.length} platforms` : 'Post';
-    postBtn.disabled = posting || uploading || failedUpload || blocked || targets.length === 0 || (!text && items.length === 0);
+    postBtn.disabled = posting || uploading || failedUpload || blocked || targets.length === 0 || (!anyText && items.length === 0);
     postBtn.title = failedUpload ? 'Remove the files that failed to upload' : blocked ? 'Fix the issues shown in red, or deselect those platforms' : '';
   }
 
@@ -541,7 +601,9 @@
     posting = true;
     update();
     const hasVideo = items.some((i) => i.file.type.startsWith('video/'));
-    setStatus(`Posting to ${targets.map((p) => p.name).join(', ')}…${hasVideo ? ' Videos can take a few minutes to process.' : ''}`);
+    const compressing = targets.some((p) => adjustmentsFor(p, mediaMeta()).length);
+    setStatus(`Posting to ${targets.map((p) => p.name).join(', ')}…`
+      + (compressing ? ' Compressing the video first, which can take several minutes.' : hasVideo ? ' Videos can take a few minutes to process.' : ''));
     try {
       const res = await fetch('/api/post', {
         method: 'POST',
@@ -549,7 +611,7 @@
         body: JSON.stringify({
           text: textEl.value,
           platforms: targets.map((p) => p.id),
-          media: items.map((i) => i.id),
+          media: items.map((i) => ({ id: i.id, duration: i.meta?.duration })),
           options: platformOptions(),
         }),
       });
@@ -561,6 +623,8 @@
         setStatus(`Posted to ${data.results.length} platform${data.results.length > 1 ? 's' : ''}.`);
         textEl.value = '';
         ytTitle.value = '';
+        overrides = {};
+        sectionsFor = '';
         clearMedia();
       } else {
         // Keep the text and media so you can fix the problem and retry just the failed platforms.

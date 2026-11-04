@@ -87,7 +87,7 @@ export default {
   id: 'linkedin',
   name: 'LinkedIn',
   limit: 3000,
-  media: { maxImages: 20, maxVideos: 1, maxItems: 20, mix: false, imageMB: null, videoMB: 5000 },
+  media: { maxImages: 20, maxVideos: 1, maxItems: 20, mix: false, imageMB: null, videoMB: 5000, videoMinSeconds: 3, videoMaxSeconds: 30 * 60 },
   envVars: ENV,
   isConfigured: () => hasEnv(...ENV),
   async post(text, media) {

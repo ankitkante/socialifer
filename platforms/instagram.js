@@ -40,6 +40,10 @@ export default {
     mix: true,
     imageMB: 8,
     videoMB: 300,
+    // Reels run 3 seconds to 15 minutes; videos inside a carousel are capped at 60 seconds.
+    videoMinSeconds: 3,
+    videoMaxSeconds: 15 * 60,
+    carouselVideoMaxSeconds: 60,
     imageTypes: ['image/jpeg'],
     imageTypesLabel: 'Instagram only accepts JPEG images',
     requiresMedia: true,

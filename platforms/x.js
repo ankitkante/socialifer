@@ -70,7 +70,12 @@ export default {
   name: 'X',
   // X Premium accounts can post up to 25,000 characters.
   limit: Number(process.env.X_CHAR_LIMIT) || 280,
-  media: { maxImages: 4, maxVideos: 1, maxItems: 4, mix: false, imageMB: 5, videoMB: 512 },
+  // X's upload docs give a 20-minute video cap by default (125 minutes for Premium).
+  media: {
+    maxImages: 4, maxVideos: 1, maxItems: 4, mix: false, imageMB: 5, videoMB: 512,
+    videoMaxSeconds: (Number(process.env.X_VIDEO_MAX_MINUTES) || 20) * 60,
+    videoMaxSecondsHint: 'X Premium allows longer videos; set X_VIDEO_MAX_MINUTES in .env',
+  },
   envVars: ENV,
   isConfigured: () => hasEnv(...ENV),
   async post(text, media) {

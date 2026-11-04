@@ -29,7 +29,7 @@ export default {
   id: 'threads',
   name: 'Threads',
   limit: 500,
-  media: { maxImages: 20, maxVideos: 20, maxItems: 20, mix: true, imageMB: 8, videoMB: 1000, needsPublicUrl: true },
+  media: { maxImages: 20, maxVideos: 20, maxItems: 20, mix: true, imageMB: 8, videoMB: 1000, videoMaxSeconds: 5 * 60, needsPublicUrl: true },
   envVars: ENV,
   isConfigured: () => hasEnv(...ENV),
   async post(text, media) {
