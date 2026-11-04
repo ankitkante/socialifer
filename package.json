@@ -1,0 +1,16 @@
+{
+  "name": "social-post",
+  "version": "1.0.0",
+  "description": "Write once, post to multiple social platforms from a single page.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --watch --env-file-if-exists=.env server.js",
+    "test": "node --test",
+    "youtube-auth": "node --env-file-if-exists=.env scripts/youtube-auth.js"
+  }
+}
