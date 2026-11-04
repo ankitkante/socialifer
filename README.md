@@ -68,7 +68,7 @@ Only uploaded files are reachable through the tunnel. The page and the posting A
 
 ## YouTube
 
-When YouTube is selected, its section in **Customize per platform** also has the title, visibility (public, unlisted or private) and the "made for kids" setting. With no title typed, the first line of your post becomes the title and the rest becomes the description. If you type a title, the whole post is the description. YouTube's box shows exactly what the description will be.
+When YouTube is selected, its tab also has the title, visibility (public, unlisted or private) and the "made for kids" setting. With no title typed, the first line of your post becomes the title and the rest becomes the description. If you type a title, the whole post is the description. YouTube's box shows exactly what the description will be.
 
 **Shorts:** YouTube has no separate Shorts upload. A video becomes a Short automatically when it's vertical or square and 3 minutes or less. After you attach a video, the panel tells you which kind it will be.
 

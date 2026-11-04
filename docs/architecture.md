@@ -3,9 +3,10 @@
 ## Overview
 
 ```
-Browser (public/index.html)
-  │  GET  /               page
+Browser (public/index.html, styles.css, js/*.js)
+  │  GET  /               page (plus /styles.css and /js/<name>.js)
   │  GET  /rules.js       shared validation module
+  │  GET  /api/status     ffmpeg available? tunnel reachable?
   │  GET  /api/platforms  platform list, limits, media rules, configured?
   │  POST /api/media      raw file body → { id, name, type, size }
   │  DELETE /api/media/:id
@@ -19,12 +20,12 @@ server.js ──► publish(): Promise.allSettled over selected platforms
 Platform fetchers (Threads, Instagram) ── GET /media/<id>.<ext> ── via TUNNEL_URL tunnel
 ```
 
-Each platform posts independently and in parallel, inside its own logging context (`log.js`), so one platform failing never blocks the others and every log line says which post and platform it belongs to. The response is streamed as one JSON event per line: live `status` events with each platform's current step, a `result` event per platform as soon as it finishes (`{ id, name, ok, url, warnings, error }`), and a final `done` event.
+Each platform posts independently and in parallel, inside its own logging context (`log.js`), so one platform failing never blocks the others and every log line says which post and platform it belongs to. The response is streamed as one JSON event per line: live `status` events with each platform's current step (and a 0 to 1 `progress` when the step reports one), a `result` event per platform as soon as it finishes (`{ id, name, ok, url, warnings, error }`), and a final `done` event.
 
 ## Posting flow
 
-1. The page loads `/api/platforms` and renders a chip per platform. It keeps the selection in `localStorage` (`social-post:selected`).
-2. On every keystroke or media change, the page runs `countFor` and `problemsFor` from `public/rules.js` for each platform. It shows the problems on the chips and disables Post while any *selected* platform has a problem, while a file is uploading, or while a file failed to upload.
+1. The page loads `/api/platforms` and renders a pill per configured platform (the others are listed under **Set up more**). It keeps the selection, the open tab and the theme in `localStorage` (`social-post:selected`, `social-post:tab`, `social-post:theme`).
+2. On every keystroke or media change, the page runs `countFor` and `problemsFor` from `public/rules.js` for each platform. It shows the problems as tab badges, under the field they concern and in the Post panel's checklist, updates the previews, and disables Post while any *selected* platform has a problem, while a file is uploading, or while a file failed to upload.
 3. `POST /api/post` trims the text, resolves media ids to files, and re-runs `problemsFor` for each platform on the server.
 4. `platform.post()` uploads media, waits for processing where the API needs it (`poll()` in `platforms/http.js`, 10-minute default timeout), then creates the post.
 5. If every platform succeeds, the page clears the text and deletes the uploads. If some fail, it keeps the post and narrows the selection to the failed platforms so the user can retry just those.
@@ -37,7 +38,7 @@ The server's request timeout only covers receiving the request, so a slow video 
 - **Use:** `getMedia(id)` returns metadata plus `path`, `blob()` (file-backed, via `fs.openAsBlob`, so large videos aren't loaded into memory), `buffer()`, and `url`.
 - **Length:** the browser reads each video's duration when it is attached and sends it with the post as `media: [{ id, duration }]`. If ffprobe is installed, the server reads the real duration and uses that instead.
 - **Compression:** after a platform passes `problemsFor`, `mediaFor()` in `server.js` swaps any video over that platform's `videoMB` for `fitVideo(m, maxBytes)`. That runs ffmpeg once per original and target size (concurrent platforms with the same limit share the run), writes the copy as a new upload with `derivedFrom` in its metadata, and retries once at 85% if the first pass overshoots. Copies are deleted with their original or by the 24-hour cleanup. The UI shows these as notes (`adjustmentsFor`), not problems.
-- **Public serving:** `GET/HEAD /media/<id>.<ext>` streams the file with Range support. The extension is cosmetic; some fetchers expect one.
+- **Public serving:** `GET/HEAD /media/<id>.<ext>` streams the file with Range support. The extension is cosmetic; some fetchers expect one. `/media/health` answers 204, so `/api/status` can check that the tunnel reaches this server.
 - **Deletion:** the browser deletes files on removal or after a fully successful post. Anything older than 24 hours is removed when the server starts and every hour after.
 
 ## Security model
