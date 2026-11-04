@@ -12,4 +12,5 @@ import youtube from './youtube.js';
 // Each platform exports:
 //   { id, name, limit, media: rules (see public/rules.js), title?, textForbids?, envVars, isConfigured(),
 //     post(text, media, options) -> { url } }
-export const platforms = [x, bluesky, mastodon, threads, instagram, youtube, linkedin, facebook, telegram, discord];
+// Display order on the page: the user's main platforms first.
+export const platforms = [x, youtube, instagram, linkedin, discord, facebook, bluesky, mastodon, threads, telegram];

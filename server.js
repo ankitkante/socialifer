@@ -93,6 +93,14 @@ const server = http.createServer(async (req, res) => {
       return res.end(body);
     }
 
+    // Platform logos from Simple Icons (CC0), one per platform id.
+    const icon = /^\/icons\/([a-z]+)\.svg$/.exec(pathname);
+    if (req.method === 'GET' && icon && platforms.some((p) => p.id === icon[1])) {
+      const body = await readFile(new URL(`public/icons/${icon[1]}.svg`, import.meta.url));
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'max-age=86400' });
+      return res.end(body);
+    }
+
     if (req.method === 'GET' && pathname === '/api/platforms') {
       return sendJson(res, 200, platforms.map(describe));
     }

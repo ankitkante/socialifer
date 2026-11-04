@@ -24,6 +24,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | `server.js` | HTTP server: routing, host/forwarding guard, `/api/*` endpoints, fan-out to platforms |
 | `media.js` | Upload storage in `uploads/`, public `/media/*` serving (with Range), 24h cleanup |
 | `public/index.html` | The whole UI (inline CSS and JS, no build step) |
+| `public/icons/` | Platform logos from Simple Icons (CC0), one `<id>.svg` per platform. LinkedIn comes from v10.0.0, because later versions removed it at LinkedIn's request |
 | `public/rules.js` | **Shared by browser and server**: character counting and per-platform validation |
 | `platforms/*.js` | One module per platform; `index.js` lists them in display order |
 | `platforms/http.js` | `request()` (fetch + error extraction + timeout), `poll()`, `env()` helpers |

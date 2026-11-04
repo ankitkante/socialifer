@@ -78,7 +78,15 @@
   .media { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 12px; }
   .media:empty { display: none; }
   .thumb { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--thumb-bg); }
-  .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .placeholder {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    padding: 8px; text-align: center; font-size: 11px; color: var(--muted); overflow-wrap: anywhere;
+  }
+  .thumb .placeholder strong { font-size: 12px; letter-spacing: 0.04em; }
+  .thumb.loading { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.55; } }
   .thumb .remove {
     position: absolute; top: 4px; right: 4px;
     width: 24px; height: 24px; padding: 0;
@@ -112,6 +120,12 @@
   .chip .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .chip input { accent-color: var(--accent); margin: 0 8px 0 0; }
   .chip .name { display: flex; align-items: center; font-weight: 500; }
+  .logo {
+    flex: none; width: 18px; height: 18px; margin-right: 8px;
+    background-color: var(--brand, var(--text));
+    -webkit-mask: var(--icon) center / contain no-repeat;
+    mask: var(--icon) center / contain no-repeat;
+  }
   .chip.on { background: var(--chip-on); border-color: var(--accent); }
   .chip.disabled { opacity: 0.5; cursor: not-allowed; }
   .chip .problems { margin: 6px 0 0 24px; font-size: 12px; color: var(--muted); }
@@ -212,6 +226,12 @@
   const STORAGE_KEY = 'social-post:selected';
   const YOUTUBE_KEY = 'social-post:youtube';
   const SHORTS_MAX_SECONDS = 180;
+  const THUMB_SIZE = 240;
+  // Brand colours for the logos; X and Threads are black, so they follow the text colour instead.
+  const BRAND_COLORS = {
+    youtube: '#FF0000', instagram: '#E4405F', linkedin: '#0A66C2', discord: '#5865F2',
+    facebook: '#0866FF', bluesky: '#0285FF', mastodon: '#6364FF', telegram: '#26A5E4',
+  };
   const ACCEPTED = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime']);
   const $ = (id) => document.getElementById(id);
   const textEl = $('text'), platformsEl = $('platforms'), postBtn = $('post'), statusEl = $('status'), mediaEl = $('media');
@@ -276,6 +296,7 @@
       const item = { key: crypto.randomUUID(), file, preview: URL.createObjectURL(file), status: 'uploading', progress: 0 };
       items.push(item);
       upload(item);
+      makeThumbnail(item);
     }
     renderMedia();
     update();
@@ -309,6 +330,48 @@
     xhr.send(item.file);
   }
 
+  function once(target, event) {
+    return new Promise((resolve, reject) => {
+      target.addEventListener(event, resolve, { once: true });
+      target.addEventListener('error', () => reject(new Error('Could not read the file')), { once: true });
+    });
+  }
+
+  // Renders a small JPEG preview. Browsers often leave a <video> blank until it plays, so for
+  // videos we seek a little way in and capture that frame; images are downscaled the same way.
+  async function makeThumbnail(item) {
+    const draw = (source, width, height) => {
+      const scale = Math.min(1, THUMB_SIZE / Math.min(width, height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.85);
+    };
+    try {
+      if (item.file.type.startsWith('video/')) {
+        const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true, preload: 'auto', src: item.preview });
+        await once(video, 'loadedmetadata');
+        // Width 0 means the browser can't decode this codec (e.g. some iPhone HEVC .mov files).
+        if (!video.videoWidth) throw new Error('Unsupported codec');
+        item.meta = { width: video.videoWidth, height: video.videoHeight, duration: video.duration };
+        video.currentTime = Math.min(1, video.duration / 2);
+        await once(video, 'seeked');
+        item.thumb = draw(video, video.videoWidth, video.videoHeight);
+        video.removeAttribute('src');
+        video.load();
+      } else {
+        const bitmap = await createImageBitmap(item.file);
+        item.thumb = draw(bitmap, bitmap.width, bitmap.height);
+        bitmap.close();
+      }
+    } catch {
+      item.thumbFailed = true;
+    }
+    renderMedia();
+    update();
+  }
+
   function removeItem(item) {
     item.xhr?.abort();
     if (item.id) fetch(`/api/media/${item.id}`, { method: 'DELETE' }).catch(() => {});
@@ -325,21 +388,22 @@
   function renderMedia() {
     mediaEl.replaceChildren(...items.map((item) => {
       const isVideo = item.file.type.startsWith('video/');
-      const preview = isVideo
-        ? el('video', { src: item.preview, muted: true, preload: 'metadata' })
-        : el('img', { src: item.preview, alt: item.file.name });
-      if (isVideo && !item.meta) {
-        preview.addEventListener('loadedmetadata', () => {
-          item.meta = { width: preview.videoWidth, height: preview.videoHeight, duration: preview.duration };
-          renderShortsHint();
-        }, { once: true });
-      }
+      const preview = item.thumb
+        ? el('img', { src: item.thumb, alt: item.file.name })
+        : item.thumbFailed
+          ? el('div', { className: 'placeholder' }, el('strong', { textContent: isVideo ? 'VIDEO' : 'IMAGE' }), item.file.name || 'pasted image')
+          : el('div', { className: 'placeholder' });
       const remove = el('button', { className: 'remove', type: 'button', textContent: '×', title: 'Remove', ariaLabel: `Remove ${item.file.name}` });
       remove.addEventListener('click', () => removeItem(item));
-      const thumb = el('div', { className: 'thumb' + (item.status === 'error' ? ' error' : ''), title: item.file.name }, preview, remove);
+      const pending = !item.thumb && !item.thumbFailed;
+      const thumb = el('div', {
+        className: 'thumb' + (item.status === 'error' ? ' error' : '') + (pending ? ' loading' : ''),
+        title: item.file.name,
+      }, preview, remove);
       thumb.dataset.key = item.key;
       if (item.status === 'error') thumb.dataset.error = item.error;
-      if (isVideo || item.file.type === 'image/gif') thumb.append(el('span', { className: 'badge', textContent: isVideo ? 'VIDEO' : 'GIF' }));
+      const badge = isVideo ? (item.meta ? `▶ ${formatDuration(item.meta.duration)}` : 'VIDEO') : item.file.type === 'image/gif' ? 'GIF' : '';
+      if (badge && !item.thumbFailed) thumb.append(el('span', { className: 'badge', textContent: badge }));
       if (item.status === 'uploading') {
         const bar = el('span');
         bar.style.width = `${item.progress * 100}%`;
@@ -350,6 +414,13 @@
   }
 
   // ---- Platforms ----
+
+  function logo(id) {
+    const span = el('span', { className: 'logo', ariaHidden: 'true' });
+    span.style.setProperty('--icon', `url(/icons/${id}.svg)`);
+    if (BRAND_COLORS[id]) span.style.setProperty('--brand', BRAND_COLORS[id]);
+    return span;
+  }
 
   function renderPlatforms() {
     platformsEl.replaceChildren(...platforms.map((p) => {
@@ -364,7 +435,7 @@
         title: p.configured ? '' : `Not configured. Add ${p.envVars.join(', ')} to .env`,
       },
         el('div', { className: 'row' },
-          el('span', { className: 'name' }, input, p.name),
+          el('span', { className: 'name' }, input, logo(p.id), p.name),
           el('span', { className: 'count' }),
         ),
         el('div', { className: 'problems' }),

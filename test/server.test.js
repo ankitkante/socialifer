@@ -101,3 +101,14 @@ test('validates posts', async () => {
   assert.equal(results[0].ok, false);
   assert.match(results[0].error, /Not configured/);
 });
+
+test('serves a logo for every platform and nothing else from /icons/', async () => {
+  const platforms = await (await fetch(`${base}/api/platforms`)).json();
+  for (const p of platforms) {
+    const res = await fetch(`${base}/icons/${p.id}.svg`);
+    assert.equal(res.status, 200, p.id);
+    assert.equal(res.headers.get('content-type'), 'image/svg+xml');
+  }
+  assert.equal((await fetch(`${base}/icons/unknown.svg`)).status, 404);
+  assert.equal((await fetch(`${base}/icons/..%2Fserver.svg`)).status, 404);
+});
