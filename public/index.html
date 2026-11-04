@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Social Post</title>
+<style>
+  :root {
+    --bg: #f6f6f3;
+    --surface: #ffffff;
+    --border: #e3e2dc;
+    --text: #1d1d1b;
+    --muted: #6d6c66;
+    --accent: #2f5bea;
+    --accent-text: #ffffff;
+    --ok: #1f8a4c;
+    --warn: #b7791f;
+    --err: #c53030;
+    --chip-on: #eef2ff;
+    --thumb-bg: #ecebe6;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --surface: #1e1e1c;
+      --border: #33332f;
+      --text: #ecebe6;
+      --muted: #9a9991;
+      --accent: #6d8cff;
+      --accent-text: #0d0d0c;
+      --ok: #4ccf86;
+      --warn: #e5b04a;
+      --err: #ff7a7a;
+      --chip-on: #232a45;
+      --thumb-bg: #2a2a27;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .composer { transition: border-color 0.15s, box-shadow 0.15s; }
+  .composer.dragging { border-color: var(--accent); box-shadow: 0 0 0 3px var(--chip-on); }
+  textarea {
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 16px;
+  }
+  .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--border); }
+  .attach {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; color: var(--accent);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .attach:hover { border-color: var(--accent); }
+  .toolbar .hint { margin: 0; }
+  .media { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .media:empty { display: none; }
+  .thumb { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--thumb-bg); }
+  .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 24px; height: 24px; padding: 0;
+    border-radius: 50%; border: none;
+    background: rgba(0, 0, 0, 0.65); color: #fff;
+    font-size: 15px; line-height: 24px; cursor: pointer;
+  }
+  .thumb .badge {
+    position: absolute; left: 4px; bottom: 4px;
+    background: rgba(0, 0, 0, 0.65); color: #fff;
+    font-size: 11px; font-weight: 600; border-radius: 4px; padding: 1px 5px;
+  }
+  .thumb .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0, 0, 0, 0.3); }
+  .thumb .progress span { display: block; height: 100%; background: var(--accent); }
+  .thumb.error::after {
+    content: attr(data-error);
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    padding: 6px; font-size: 11px; color: #fff; background: rgba(160, 30, 30, 0.85);
+  }
+  .label { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .platforms { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .chip {
+    display: block;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .chip .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .chip input { accent-color: var(--accent); margin: 0 8px 0 0; }
+  .chip .name { display: flex; align-items: center; font-weight: 500; }
+  .chip.on { background: var(--chip-on); border-color: var(--accent); }
+  .chip.disabled { opacity: 0.5; cursor: not-allowed; }
+  .chip .problems { margin: 6px 0 0 24px; font-size: 12px; color: var(--muted); }
+  .chip .problems:empty { display: none; }
+  .chip.on .problems { color: var(--err); }
+  .count { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  .count.near { color: var(--warn); }
+  .count.over { color: var(--err); font-weight: 600; }
+  .hint { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
+  .fields { display: grid; grid-template-columns: 1fr 160px; gap: 12px; }
+  @media (max-width: 520px) { .fields { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .field input, .field select {
+    font: inherit; font-size: 15px; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; min-width: 0;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .check { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; cursor: pointer; }
+  .check input { accent-color: var(--accent); margin: 0; }
+  .shorts { font-size: 13px; margin: 12px 0 0; }
+  .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .primary {
+    background: var(--accent); color: var(--accent-text);
+    border: none; border-radius: 10px;
+    padding: 11px 20px; font: inherit; font-weight: 600;
+    cursor: pointer;
+  }
+  .primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .status { color: var(--muted); font-size: 14px; }
+  .status.err { color: var(--err); }
+  .results { list-style: none; margin: 0; padding: 0; }
+  .results li { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .results li:first-child { border-top: none; }
+  .results .icon { width: 18px; flex: none; font-weight: 700; }
+  .results .ok .icon { color: var(--ok); }
+  .results .fail .icon { color: var(--err); }
+  .results .detail { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+  .results a { color: var(--accent); }
+  kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Social Post</h1>
+  <p class="sub">Write it once, then post it everywhere.</p>
+
+  <div class="card composer" id="composer">
+    <textarea id="text" placeholder="What do you want to share?" autofocus></textarea>
+    <div class="media" id="media"></div>
+    <div class="toolbar">
+      <button class="attach" id="attach" type="button">＋ Photo or video</button>
+      <input type="file" id="file" multiple hidden accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime">
+      <p class="hint">or drag and drop, or paste an image</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="label">Post to</p>
+    <div class="platforms" id="platforms"></div>
+    <p class="hint" id="hint" hidden></p>
+  </div>
+
+  <div class="card" id="youtube-options" hidden>
+    <p class="label">YouTube</p>
+    <div class="fields">
+      <label class="field">Title
+        <input id="yt-title" autocomplete="off">
+      </label>
+      <label class="field">Visibility
+        <select id="yt-privacy">
+          <option value="public">Public</option>
+          <option value="unlisted">Unlisted</option>
+          <option value="private">Private</option>
+        </select>
+      </label>
+    </div>
+    <label class="check"><input type="checkbox" id="yt-kids"> Made for kids</label>
+    <p class="shorts" id="yt-shorts" hidden></p>
+    <p class="hint">Your post text becomes the description. Vertical or square videos up to 3 minutes become Shorts automatically.
+      Until your Google API project passes YouTube's audit, uploads stay private whatever you choose here (see README).</p>
+  </div>
+
+  <div class="actions">
+    <span class="status" id="status"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to post</span>
+    <button class="primary" id="post" disabled>Post</button>
+  </div>
+
+  <div class="card" id="results-card" hidden style="margin-top:16px">
+    <p class="label">Results</p>
+    <ul class="results" id="results"></ul>
+  </div>
+</main>
+
+<script type="module">
+  import { countFor, problemsFor, resolveTitle } from '/rules.js';
+
+  const STORAGE_KEY = 'social-post:selected';
+  const YOUTUBE_KEY = 'social-post:youtube';
+  const SHORTS_MAX_SECONDS = 180;
+  const ACCEPTED = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime']);
+  const $ = (id) => document.getElementById(id);
+  const textEl = $('text'), platformsEl = $('platforms'), postBtn = $('post'), statusEl = $('status'), mediaEl = $('media');
+
+  let platforms = [];
+  let selected = new Set(load());
+  let items = []; // { key, file, preview, status: 'uploading' | 'done' | 'error', progress, id, error, xhr }
+  let posting = false;
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected])); } catch {}
+  }
+
+  // Visibility and "made for kids" are remembered; the title is per post.
+  const ytTitle = $('yt-title'), ytPrivacy = $('yt-privacy'), ytKids = $('yt-kids');
+  try {
+    const saved = JSON.parse(localStorage.getItem(YOUTUBE_KEY)) || {};
+    if (saved.privacy) ytPrivacy.value = saved.privacy;
+    ytKids.checked = Boolean(saved.madeForKids);
+  } catch {}
+  function saveYoutube() {
+    try { localStorage.setItem(YOUTUBE_KEY, JSON.stringify({ privacy: ytPrivacy.value, madeForKids: ytKids.checked })); } catch {}
+  }
+  const platformOptions = () => ({ youtube: { title: ytTitle.value, privacy: ytPrivacy.value, madeForKids: ytKids.checked } });
+
+  function formatDuration(seconds) {
+    const s = Math.round(seconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  // Tells the user whether YouTube will treat the attached video as a Short.
+  function renderShortsHint() {
+    const el = $('yt-shorts');
+    const video = items.find((i) => i.file.type.startsWith('video/'));
+    if (!video?.meta) { el.hidden = true; return; }
+    const { width, height, duration } = video.meta;
+    const shape = height > width ? 'vertical' : height === width ? 'square' : 'horizontal';
+    const isShort = height >= width && duration <= SHORTS_MAX_SECONDS;
+    el.hidden = false;
+    el.textContent = isShort
+      ? `This video is ${shape} and ${formatDuration(duration)} long, so it will be published as a Short.`
+      : `This video is ${shape} and ${formatDuration(duration)} long, so it will be a regular video. Shorts must be vertical or square and up to 3:00.`;
+  }
+
+  function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  }
+
+  // ---- Media ----
+
+  function addFiles(files) {
+    for (const file of files) {
+      if (!ACCEPTED.has(file.type)) {
+        setStatus(`${file.name || 'That file'} isn't supported. Use JPEG, PNG, GIF, WebP, MP4 or MOV.`, true);
+        continue;
+      }
+      const item = { key: crypto.randomUUID(), file, preview: URL.createObjectURL(file), status: 'uploading', progress: 0 };
+      items.push(item);
+      upload(item);
+    }
+    renderMedia();
+    update();
+  }
+
+  function upload(item) {
+    const xhr = new XMLHttpRequest();
+    item.xhr = xhr;
+    xhr.open('POST', '/api/media');
+    xhr.setRequestHeader('Content-Type', item.file.type);
+    xhr.setRequestHeader('X-Filename', encodeURIComponent(item.file.name || 'pasted-image'));
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      item.progress = e.loaded / e.total;
+      const bar = mediaEl.querySelector(`[data-key="${item.key}"] .progress span`);
+      if (bar) bar.style.width = `${item.progress * 100}%`;
+    };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status === 201) Object.assign(item, { status: 'done', id: data.id });
+      else Object.assign(item, { status: 'error', error: data.error || `Upload failed (${xhr.status})` });
+      renderMedia();
+      update();
+    };
+    xhr.onerror = () => {
+      Object.assign(item, { status: 'error', error: 'Upload failed' });
+      renderMedia();
+      update();
+    };
+    xhr.send(item.file);
+  }
+
+  function removeItem(item) {
+    item.xhr?.abort();
+    if (item.id) fetch(`/api/media/${item.id}`, { method: 'DELETE' }).catch(() => {});
+    URL.revokeObjectURL(item.preview);
+    items = items.filter((i) => i !== item);
+    renderMedia();
+    update();
+  }
+
+  function clearMedia() {
+    for (const item of [...items]) removeItem(item);
+  }
+
+  function renderMedia() {
+    mediaEl.replaceChildren(...items.map((item) => {
+      const isVideo = item.file.type.startsWith('video/');
+      const preview = isVideo
+        ? el('video', { src: item.preview, muted: true, preload: 'metadata' })
+        : el('img', { src: item.preview, alt: item.file.name });
+      if (isVideo && !item.meta) {
+        preview.addEventListener('loadedmetadata', () => {
+          item.meta = { width: preview.videoWidth, height: preview.videoHeight, duration: preview.duration };
+          renderShortsHint();
+        }, { once: true });
+      }
+      const remove = el('button', { className: 'remove', type: 'button', textContent: '×', title: 'Remove', ariaLabel: `Remove ${item.file.name}` });
+      remove.addEventListener('click', () => removeItem(item));
+      const thumb = el('div', { className: 'thumb' + (item.status === 'error' ? ' error' : ''), title: item.file.name }, preview, remove);
+      thumb.dataset.key = item.key;
+      if (item.status === 'error') thumb.dataset.error = item.error;
+      if (isVideo || item.file.type === 'image/gif') thumb.append(el('span', { className: 'badge', textContent: isVideo ? 'VIDEO' : 'GIF' }));
+      if (item.status === 'uploading') {
+        const bar = el('span');
+        bar.style.width = `${item.progress * 100}%`;
+        thumb.append(el('div', { className: 'progress' }, bar));
+      }
+      return thumb;
+    }));
+  }
+
+  // ---- Platforms ----
+
+  function renderPlatforms() {
+    platformsEl.replaceChildren(...platforms.map((p) => {
+      const input = el('input', { type: 'checkbox', checked: selected.has(p.id), disabled: !p.configured });
+      input.addEventListener('change', () => {
+        input.checked ? selected.add(p.id) : selected.delete(p.id);
+        save();
+        update();
+      });
+      const chip = el('label', {
+        className: 'chip',
+        title: p.configured ? '' : `Not configured. Add ${p.envVars.join(', ')} to .env`,
+      },
+        el('div', { className: 'row' },
+          el('span', { className: 'name' }, input, p.name),
+          el('span', { className: 'count' }),
+        ),
+        el('div', { className: 'problems' }),
+      );
+      chip.dataset.id = p.id;
+      return chip;
+    }));
+
+    const missing = platforms.filter((p) => !p.configured);
+    $('hint').hidden = missing.length === 0;
+    $('hint').textContent = missing.length === platforms.length
+      ? 'No platforms are set up yet. Copy .env.example to .env, add your credentials, and restart the server.'
+      : `Greyed out platforms aren't set up yet. Hover over one to see which .env values it needs.`;
+  }
+
+  const mediaMeta = () => items.map((i) => ({ name: i.file.name || 'pasted image', type: i.file.type, size: i.file.size }));
+  const activeTargets = () => platforms.filter((p) => p.configured && selected.has(p.id));
+
+  function update() {
+    const text = textEl.value.trim();
+    const media = mediaMeta();
+    const options = platformOptions();
+    let blocked = false;
+
+    const youtube = platforms.find((p) => p.id === 'youtube');
+    $('youtube-options').hidden = !(youtube?.configured && selected.has('youtube'));
+    ytTitle.placeholder = resolveTitle(text, '') ? `Defaults to: ${resolveTitle(text, '')}` : 'Defaults to the first line of your post';
+    renderShortsHint();
+    for (const p of platforms) {
+      const on = selected.has(p.id) && p.configured;
+      const chip = platformsEl.querySelector(`[data-id="${p.id}"]`);
+      chip.classList.toggle('on', on);
+      chip.classList.toggle('disabled', !p.configured);
+
+      const n = countFor(p.id, text);
+      const countEl = chip.querySelector('.count');
+      countEl.textContent = p.configured ? `${n.toLocaleString()} / ${p.limit.toLocaleString()}` : 'not set up';
+      countEl.className = 'count' + (n > p.limit ? ' over' : n > p.limit * 0.9 ? ' near' : '');
+
+      const problems = p.configured ? problemsFor(p, text, media, options[p.id]) : [];
+      chip.querySelector('.problems').textContent = problems.join(' · ');
+      if (on && problems.length) blocked = true;
+    }
+
+    const targets = activeTargets();
+    const uploading = items.some((i) => i.status === 'uploading');
+    const failedUpload = items.some((i) => i.status === 'error');
+    postBtn.textContent = uploading ? 'Uploading…' : targets.length > 1 ? `Post to ${targets.length} platforms` : 'Post';
+    postBtn.disabled = posting || uploading || failedUpload || blocked || targets.length === 0 || (!text && items.length === 0);
+    postBtn.title = failedUpload ? 'Remove the files that failed to upload' : blocked ? 'Fix the issues shown in red, or deselect those platforms' : '';
+  }
+
+  // ---- Posting ----
+
+  function setStatus(message, isError = false) {
+    statusEl.textContent = message;
+    statusEl.className = 'status' + (isError ? ' err' : '');
+  }
+
+  function renderResults(results) {
+    $('results-card').hidden = false;
+    $('results').replaceChildren(...results.map((r) => {
+      const detail = r.ok
+        ? (r.url ? el('a', { href: r.url, target: '_blank', rel: 'noopener', textContent: 'View post' }) : 'Posted')
+        : r.error;
+      return el('li', { className: r.ok ? 'ok' : 'fail' },
+        el('span', { className: 'icon', textContent: r.ok ? '✓' : '✕' }),
+        el('div', {}, el('div', { textContent: r.name }), el('div', { className: 'detail' }, detail)),
+      );
+    }));
+  }
+
+  async function post() {
+    if (postBtn.disabled) return;
+    const targets = activeTargets();
+    posting = true;
+    update();
+    const hasVideo = items.some((i) => i.file.type.startsWith('video/'));
+    setStatus(`Posting to ${targets.map((p) => p.name).join(', ')}…${hasVideo ? ' Videos can take a few minutes to process.' : ''}`);
+    try {
+      const res = await fetch('/api/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textEl.value,
+          platforms: targets.map((p) => p.id),
+          media: items.map((i) => i.id),
+          options: platformOptions(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      renderResults(data.results);
+      const failed = data.results.filter((r) => !r.ok).length;
+      if (failed === 0) {
+        setStatus(`Posted to ${data.results.length} platform${data.results.length > 1 ? 's' : ''}.`);
+        textEl.value = '';
+        ytTitle.value = '';
+        clearMedia();
+      } else {
+        // Keep the text and media so you can fix the problem and retry just the failed platforms.
+        setStatus(`${failed} of ${data.results.length} failed. Your post was kept so you can retry.`, true);
+        selected = new Set(data.results.filter((r) => !r.ok).map((r) => r.id));
+        save();
+        renderPlatforms();
+      }
+    } catch (err) {
+      setStatus(err.message, true);
+    } finally {
+      posting = false;
+      update();
+    }
+  }
+
+  // ---- Events ----
+
+  textEl.addEventListener('input', update);
+  textEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); post(); }
+  });
+  textEl.addEventListener('paste', (e) => {
+    const files = [...e.clipboardData.files];
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  });
+  postBtn.addEventListener('click', post);
+  ytTitle.addEventListener('input', update);
+  ytPrivacy.addEventListener('change', () => { saveYoutube(); update(); });
+  ytKids.addEventListener('change', saveYoutube);
+  $('attach').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
+
+  const composer = $('composer');
+  let dragDepth = 0;
+  composer.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; composer.classList.add('dragging'); });
+  composer.addEventListener('dragover', (e) => e.preventDefault());
+  composer.addEventListener('dragleave', () => { if (--dragDepth === 0) composer.classList.remove('dragging'); });
+  composer.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragDepth = 0;
+    composer.classList.remove('dragging');
+    addFiles([...e.dataTransfer.files]);
+  });
+
+  try {
+    platforms = await (await fetch('/api/platforms')).json();
+    renderPlatforms();
+    update();
+  } catch (err) {
+    setStatus(`Could not load platforms: ${err.message}`, true);
+  }
+</script>
+</body>
+</html>
