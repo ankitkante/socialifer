@@ -24,11 +24,12 @@ export function runWithContext(ctx, fn) {
 
 // Records what the current platform is doing right now. It's logged (unless quiet), shown live on the
 // page, and named in the error message if the platform fails at this point.
-export function step(message, { quiet = false } = {}) {
+// progress (0–1) is optional: when given, the page shows a filling bar instead of a moving one.
+export function step(message, { quiet = false, progress } = {}) {
   const c = context.getStore();
   if (!c) return;
   c.step = message;
-  c.onStep?.(message);
+  c.onStep?.(message, progress);
   if (!quiet) log.info(message);
 }
 

@@ -67,7 +67,7 @@ async function upload(m) {
   const blob = await m.blob();
   const parts = Math.ceil(m.size / CHUNK_BYTES);
   for (let index = 0, offset = 0; offset < m.size; index++, offset += CHUNK_BYTES) {
-    step(`Uploading ${m.name} (part ${index + 1} of ${parts})`, { quiet: index % 10 !== 0 && index !== parts - 1 });
+    step(`Uploading ${m.name} (part ${index + 1} of ${parts})`, { quiet: index % 10 !== 0 && index !== parts - 1, progress: index / parts });
     const form = new FormData();
     form.append('segment_index', String(index));
     form.append('media', blob.slice(offset, offset + CHUNK_BYTES), m.name);

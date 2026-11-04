@@ -139,3 +139,20 @@ test('accepts media as { id, duration } and per-platform text', async () => {
   assert.equal((await post({ text: '', platforms: ['x'], media: [{ id: 42 }] })).status, 400);
   await fetch(`${base}/api/media/${id}`, { method: 'DELETE' });
 });
+
+test('serves the page assets and only known script names', async () => {
+  assert.equal((await fetch(`${base}/styles.css`)).status, 200);
+  const main = await fetch(`${base}/js/main.js`);
+  assert.equal(main.status, 200);
+  assert.match(main.headers.get('content-type'), /javascript/);
+  assert.equal((await fetch(`${base}/js/nope.js`)).status, 404);
+  assert.equal((await fetch(`${base}/js/..%2Fserver.js`)).status, 404);
+});
+
+test('reports ffmpeg and tunnel status', async () => {
+  const status = await (await fetch(`${base}/api/status`)).json();
+  assert.equal(typeof status.ffmpeg, 'boolean');
+  assert.deepEqual(status.tunnel, { configured: false, reachable: false });
+  // The health file the tunnel check fetches is public, like other /media/ files.
+  assert.equal(await rawGet('/media/health', { Host: 'abc.trycloudflare.com', 'X-Forwarded-For': '1.2.3.4' }), 204);
+});

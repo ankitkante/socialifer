@@ -18,8 +18,27 @@ const canCompress = Boolean(await videoTools());
 
 const STATIC_FILES = {
   '/': { file: 'public/index.html', type: 'text/html; charset=utf-8' },
+  '/styles.css': { file: 'public/styles.css', type: 'text/css; charset=utf-8' },
   '/rules.js': { file: 'public/rules.js', type: 'text/javascript; charset=utf-8' },
 };
+// The page's own modules live in public/js/ and are served by name only, never by path.
+const SCRIPT_RE = /^\/js\/([a-z-]+)\.js$/;
+
+// Whether the tunnel actually reaches this server: fetch our own health file through it.
+// Cached briefly, since the page asks every minute.
+let tunnelCheck = { at: 0, reachable: false };
+async function tunnelReachable() {
+  const base = publicBaseUrl();
+  if (!base) return false;
+  if (Date.now() - tunnelCheck.at < 20_000) return tunnelCheck.reachable;
+  let reachable = false;
+  try {
+    const res = await fetch(`${base}/media/health`, { signal: AbortSignal.timeout(5000) });
+    reachable = res.status === 204;
+  } catch {}
+  tunnelCheck = { at: Date.now(), reachable };
+  return reachable;
+}
 
 // A stray error must never take the server down mid-post; log it and carry on.
 process.on('unhandledRejection', (err) => log.error('Unhandled error (the server kept running)', err?.stack ?? String(err)));
@@ -73,9 +92,10 @@ async function mediaFor(p, media) {
   if (!canCompress || !maxBytes) return media;
   return Promise.all(media.map(async (m) => {
     if (!isVideo(m) || m.size <= maxBytes) return m;
-    step(`Compressing ${m.name} from ${mb(m.size)} to fit ${p.media.videoMB} MB`);
+    const message = `Compressing ${m.name} from ${mb(m.size)} to fit ${p.media.videoMB} MB`;
+    step(message);
     const started = Date.now();
-    const fitted = await fitVideo(m, maxBytes);
+    const fitted = await fitVideo(m, maxBytes, (progress) => step(message, { quiet: true, progress }));
     log.info(`Compressed to ${mb(fitted.size)} in ${seconds(Date.now() - started)}`);
     return fitted;
   }));
@@ -114,7 +134,7 @@ async function publish(text, ids, media, options, onEvent = () => {}) {
   log.info(`[post ${postId}] Posting to ${selected.map((p) => p.name).join(', ')}${files ? ` with ${files}` : ''}`);
 
   return Promise.all(selected.map((p) => runWithContext(
-    { postId, platform: p.name, onStep: (s) => onEvent({ type: 'status', id: p.id, step: s }) },
+    { postId, platform: p.name, onStep: (s, progress) => onEvent({ type: 'status', id: p.id, step: s, ...(progress !== undefined && { progress }) }) },
     async () => {
       const started = Date.now();
       let result;
@@ -182,8 +202,26 @@ const server = http.createServer(async (req, res) => {
       return res.end(body);
     }
 
+    const script = SCRIPT_RE.exec(pathname);
+    if (req.method === 'GET' && script) {
+      try {
+        const body = await readFile(new URL(`public/js/${script[1]}.js`, import.meta.url));
+        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(body);
+      } catch {
+        return sendJson(res, 404, { error: 'Not found' });
+      }
+    }
+
     if (req.method === 'GET' && pathname === '/api/platforms') {
       return sendJson(res, 200, platforms.map(describe));
+    }
+
+    if (req.method === 'GET' && pathname === '/api/status') {
+      return sendJson(res, 200, {
+        ffmpeg: canCompress,
+        tunnel: { configured: Boolean(publicBaseUrl()), reachable: await tunnelReachable() },
+      });
     }
 
     if (req.method === 'POST' && pathname === '/api/media') {

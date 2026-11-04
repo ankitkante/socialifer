@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createReadStream, createWriteStream, openAsBlob } from 'node:fs';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -103,6 +103,45 @@ export async function deleteMedia(id) {
 // ffmpeg/ffprobe let the server read real video lengths and compress videos that are too big for a
 // platform. Without them, oversized videos are simply rejected for that platform.
 
+// Runs ffmpeg with `-progress pipe:1` and reports how far through the video it is (0–1).
+function runWithProgress(command, args, timeout, duration, onProgress) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { windowsHide: true });
+    let stderr = '';
+    let buffer = '';
+    let lastPercent = -1;
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`timed out after ${Math.round(timeout / 60_000)} minutes`));
+    }, timeout);
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      buffer += chunk;
+      let newline;
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        const match = /^out_time_us=(d+)/.exec(line);
+        if (!match || !duration || !onProgress) continue;
+        const progress = Math.min(1, Number(match[1]) / 1e6 / duration);
+        // One update per whole percent is plenty.
+        if (Math.floor(progress * 100) > lastPercent) {
+          lastPercent = Math.floor(progress * 100);
+          onProgress(progress);
+        }
+      }
+    });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-4000); });
+    child.on('error', (err) => { clearTimeout(timer); reject(err); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(stderr.trim().split('\n').pop() || `ffmpeg exited with code ${code}`));
+    });
+  });
+}
+
 function run(command, args, timeout = 10_000) {
   return new Promise((resolve, reject) => {
     execFile(command, args, { timeout, windowsHide: true, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
@@ -164,23 +203,27 @@ export async function probeDuration(m) {
 // Keeps vertical videos at most 1080 wide and horizontal ones at most 1080 tall, which is what
 // the platforms display anyway; fewer pixels means better quality at a capped bitrate.
 const SCALE = "scale='if(gte(ih,iw),min(1080,iw),-2)':'if(gte(ih,iw),-2,min(1080,ih))'";
-const fitted = new Map(); // `${id}:${maxBytes}` -> Promise of the compressed media
+const fitted = new Map(); // `${id}:${maxBytes}` -> { promise of the compressed media, progress listeners }
 const derivedIds = new Map(); // original id -> Set of compressed copy ids
 
 // Returns a copy of the video compressed to at most maxBytes. Concurrent requests for the same
-// target (e.g. two platforms with the same limit) share one ffmpeg run.
-export function fitVideo(m, maxBytes) {
+// target (e.g. two platforms with the same limit) share one ffmpeg run, and each hears its progress.
+export function fitVideo(m, maxBytes, onProgress) {
   const key = `${m.id}:${maxBytes}`;
-  if (!fitted.has(key)) {
-    fitted.set(key, compress(m, maxBytes).catch((err) => {
+  let job = fitted.get(key);
+  if (!job) {
+    job = { listeners: new Set() };
+    job.promise = compress(m, maxBytes, (p) => job.listeners.forEach((listener) => listener(p))).catch((err) => {
       fitted.delete(key);
       throw err;
-    }));
+    });
+    fitted.set(key, job);
   }
-  return fitted.get(key);
+  if (onProgress) job.listeners.add(onProgress);
+  return job.promise;
 }
 
-async function compress(m, maxBytes) {
+async function compress(m, maxBytes, onProgress) {
   const t = await videoTools();
   const limit = `${maxBytes / 1_000_000} MB`;
   if (!t) throw new ApiError(`${m.name} is over ${limit} and ffmpeg isn't installed to compress it`);
@@ -194,14 +237,14 @@ async function compress(m, maxBytes) {
   for (const aim of [1, 0.85]) {
     const kbps = compressionBitrate(maxBytes * aim, duration);
     if (!kbps) break;
-    await run(t.ffmpeg, [
-      '-y', '-v', 'error', '-i', m.path,
+    await runWithProgress(t.ffmpeg, [
+      '-y', '-v', 'error', '-nostats', '-progress', 'pipe:1', '-i', m.path,
       '-map', '0:v:0', '-map', '0:a:0?',
       '-c:v', 'libx264', '-preset', 'medium', '-b:v', `${kbps}k`, '-maxrate', `${Math.round(kbps * 1.5)}k`, '-bufsize', `${kbps * 2}k`,
       '-vf', SCALE, '-fpsmax', '60', '-pix_fmt', 'yuv420p',
       '-c:a', 'aac', '-b:a', '128k',
       '-movflags', '+faststart', '-f', 'mp4', out,
-    ], 60 * 60_000).catch(async (err) => {
+    ], 60 * 60_000, duration, onProgress).catch(async (err) => {
       await rm(out, { force: true });
       throw new ApiError(`ffmpeg couldn't compress ${m.name}: ${err.message}`);
     });
@@ -248,6 +291,11 @@ export async function cleanupOldMedia() {
 
 // Serves /media/<id>.<ext> so Threads and Instagram can fetch files through TUNNEL_URL.
 export async function serveMedia(req, res, filename) {
+  // A fixed, empty response the server fetches through the tunnel to check it's reachable.
+  if (filename === 'health') {
+    res.writeHead(204, { 'Cache-Control': 'no-store' });
+    return res.end();
+  }
   const meta = await readMeta(filename.split('.')[0]);
   if (!meta) {
     res.writeHead(404);
