@@ -4,7 +4,7 @@ How each integration works, what it relies on, and what's still unverified. Limi
 
 ## Verification status
 
-As of 2026-11-04, every flow has been checked offline: request order and payload shapes against stubbed `fetch`, and the end-to-end server path against a local mock API. **None has been run against a live account yet.** Update this table as platforms are confirmed.
+As of 2026-11-04, every flow has been checked offline: request order and payload shapes against stubbed `fetch`, and the end-to-end server path against a local mock API. YouTube has also been confirmed on a live channel; the rest haven't been run against a live account yet. Update this table as platforms are confirmed.
 
 | Platform | Live-tested | Main risk |
 |---|---|---|
@@ -13,7 +13,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 | Mastodon | No | Low. The API is stable. Limits vary per server. |
 | Threads | No | Media URLs must be reachable by Meta through `PUBLIC_BASE_URL`. |
 | Instagram | No | Same as Threads. Also, `me` as the user id is assumed to work with Instagram Login tokens; set `INSTAGRAM_USER_ID` if it doesn't. |
-| YouTube | No | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
+| YouTube | **Yes** (2026-11-04, private test upload) | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
 | LinkedIn | No | The `LinkedIn-Version` header expires after about a year (default `202510`). |
 | Facebook Page | No | Low. Uses the standard Graph endpoints. |
 | Telegram | No | Low. |

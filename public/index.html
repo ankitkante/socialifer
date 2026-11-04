@@ -405,7 +405,9 @@
       countEl.className = 'count' + (n > p.limit ? ' over' : n > p.limit * 0.9 ? ' near' : '');
 
       const problems = p.configured ? problemsFor(p, text, media, options[p.id]) : [];
-      chip.querySelector('.problems').textContent = problems.join(' · ');
+      // An empty composer can't be posted anyway, so don't greet the user with warnings.
+      const started = text || media.length || options[p.id]?.title?.trim();
+      chip.querySelector('.problems').textContent = started ? problems.join(' · ') : '';
       if (on && problems.length) blocked = true;
     }
 
