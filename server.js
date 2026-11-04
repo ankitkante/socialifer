@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { platforms } from './platforms/index.js';
-import { problemsFor, effectiveText, isVideo } from './public/rules.js';
+import { problemsFor, effectiveText, resolveTitle, isVideo } from './public/rules.js';
 import {
   saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError,
   videoTools, probeDuration, fitVideo,
@@ -43,6 +43,7 @@ function describe(p) {
     media: p.media,
     title: p.title ?? null,
     textForbids: p.textForbids ?? '',
+    threads: Boolean(p.threads),
     envVars: p.envVars,
     configured: p.isConfigured(),
     publicUrlReady: Boolean(publicBaseUrl()),
@@ -57,18 +58,33 @@ function mediaFor(p, media) {
   return Promise.all(media.map((m) => (isVideo(m) && m.size > maxBytes ? fitVideo(m, maxBytes) : m)));
 }
 
-// options holds per-platform extras keyed by platform id, e.g.
-// { instagram: { text }, youtube: { text, title, privacy, madeForKids } }.
+// Image fields (YouTube's thumbnail, Instagram's cover) arrive as upload ids; swap in the files.
+async function withFieldMedia(p, own) {
+  const resolved = { ...own };
+  for (const key of p.mediaOptions ?? []) {
+    if (!own[key]) continue;
+    const m = typeof own[key] === 'string' ? await getMedia(own[key]) : null;
+    if (!m) throw new Error(`The ${key} image has expired. Remove it and add it again.`);
+    resolved[key] = m;
+  }
+  return resolved;
+}
+
+// options holds per-platform fields keyed by platform id, e.g.
+// { instagram: { text, postAs, cover }, youtube: { text, title, privacy, tags, thumbnail } }.
 async function publish(text, ids, media, options) {
   const selected = platforms.filter((p) => ids.includes(p.id));
   const settled = await Promise.allSettled(
     selected.map(async (p) => {
       if (!p.isConfigured()) throw new Error(`Not configured. Set ${p.envVars.join(', ')} in .env`);
-      const own = options[p.id] ?? {};
+      const given = options[p.id];
+      const own = await withFieldMedia(p, given && typeof given === 'object' ? given : {});
       // Validate before compressing, so a post that can't go anyway doesn't wait on ffmpeg.
       const problems = problemsFor(describe(p), text, media, own);
       if (problems.length) throw new Error(problems.join('. '));
-      return p.post(effectiveText(text, own), await mediaFor(p, media), own);
+      // Platforms with a title get it resolved here, since it can come from the main post's first line.
+      const postOptions = p.title ? { ...own, title: resolveTitle(text, own.title) } : own;
+      return p.post(effectiveText(text, own, p.id), await mediaFor(p, media), postOptions);
     }),
   );
   return settled.map((r, i) => ({
@@ -76,6 +92,8 @@ async function publish(text, ids, media, options) {
     name: selected[i].name,
     ok: r.status === 'fulfilled',
     url: r.status === 'fulfilled' ? (r.value?.url ?? null) : null,
+    // Things that didn't work on a post that otherwise went out (e.g. a thumbnail or first comment).
+    warnings: r.status === 'fulfilled' ? (r.value?.warnings ?? []) : [],
     error: r.status === 'rejected' ? r.reason?.message || String(r.reason) : null,
   }));
 }

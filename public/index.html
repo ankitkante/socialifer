@@ -142,23 +142,33 @@
     background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
   }
   .platform-section textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .extras { margin-top: 12px; }
+  .platform-section details { margin-top: 12px; }
+  .platform-section summary { cursor: pointer; font-size: 13px; color: var(--accent); font-weight: 500; }
+  .platform-section .info { font-size: 13px; margin: 12px 0 0; }
+  .platform-section .field textarea { min-height: 56px; }
+  .platform-section > .field > textarea { min-height: 96px; }
+  .image-field { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .image-field img { width: 64px; height: 40px; object-fit: cover; border-radius: 4px; background: var(--thumb-bg); }
+  button.link { background: none; border: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; padding: 0; }
+  .platform-section .row button.reset { margin-right: 12px; }
   .count { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
   .count.near { color: var(--warn); }
   .count.over { color: var(--err); font-weight: 600; }
   .hint { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
-  .fields { display: grid; grid-template-columns: 1fr 160px; gap: 12px; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
   @media (max-width: 520px) { .fields { grid-template-columns: 1fr; } }
   .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-  .field input, .field select {
+  .field.wide, .field.check { grid-column: 1 / -1; }
+  .field[hidden] { display: none; }
+  .field input:not([type="checkbox"]), .field select, .field textarea {
     font: inherit; font-size: 15px; color: var(--text);
     background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 10px; min-width: 0;
+    padding: 8px 10px; min-width: 0; width: 100%;
   }
-  .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .check { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; cursor: pointer; }
-  .check input { accent-color: var(--accent); margin: 0; }
-  .shorts { font-size: 13px; margin: 12px 0 0; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .field .field-hint { font-size: 12px; }
+  .field.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+  .field.check input { accent-color: var(--accent); margin: 0; }
   .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .primary {
     background: var(--accent); color: var(--accent-text);
@@ -176,6 +186,7 @@
   .results .ok .icon { color: var(--ok); }
   .results .fail .icon { color: var(--err); }
   .results .detail { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+  .results .warning { color: var(--warn); font-size: 13px; overflow-wrap: anywhere; }
   .results a { color: var(--accent); }
   kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
 </style>
@@ -204,27 +215,7 @@
   <div class="card" id="platform-settings" hidden>
     <p class="label">Customize per platform</p>
     <div id="platform-sections"></div>
-    <p class="hint">Leave a text box empty to use the main post.</p>
-  </div>
-
-  <!-- YouTube's extra settings; moved into YouTube's section in "Customize per platform" when it's selected. -->
-  <div id="youtube-extras" class="extras" hidden>
-    <div class="fields">
-      <label class="field">Title
-        <input id="yt-title" autocomplete="off">
-      </label>
-      <label class="field">Visibility
-        <select id="yt-privacy">
-          <option value="public">Public</option>
-          <option value="unlisted">Unlisted</option>
-          <option value="private">Private</option>
-        </select>
-      </label>
-    </div>
-    <label class="check"><input type="checkbox" id="yt-kids"> Made for kids</label>
-    <p class="shorts" id="yt-shorts" hidden></p>
-    <p class="hint">The text above becomes the description. Vertical or square videos up to 3 minutes become Shorts automatically.
-      Until your Google API project passes YouTube's audit, uploads stay private whatever you choose here (see README).</p>
+    <p class="hint">Each box follows the main post until you edit it. What's in a box is exactly what that platform gets.</p>
   </div>
 
   <div class="actions">
@@ -239,10 +230,10 @@
 </main>
 
 <script type="module">
-  import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, formatDuration } from '/rules.js';
+  import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, formatDuration, splitThread } from '/rules.js';
 
   const STORAGE_KEY = 'social-post:selected';
-  const YOUTUBE_KEY = 'social-post:youtube';
+  const SETTINGS_KEY = 'social-post:settings';
   const SHORTS_MAX_SECONDS = 180;
   const THUMB_SIZE = 240;
   const CONVERT_TO_JPEG = new Set(['image/png', 'image/webp']);
@@ -260,7 +251,7 @@
   let selected = new Set(load());
   let items = []; // { key, file, preview, status: 'uploading' | 'done' | 'error', progress, id, error, xhr, meta }
   let posting = false;
-  // Per-platform text from "Customize per platform"; an empty box means "use the main post".
+  // Per-platform text for boxes the user has edited. Boxes not in here mirror the main post.
   let overrides = {};
   let sectionsFor = '';
 
@@ -271,29 +262,127 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected])); } catch {}
   }
 
-  // Visibility and "made for kids" are remembered; the title is per post.
-  const ytTitle = $('yt-title'), ytPrivacy = $('yt-privacy'), ytKids = $('yt-kids');
-  try {
-    const saved = JSON.parse(localStorage.getItem(YOUTUBE_KEY)) || {};
-    if (saved.privacy) ytPrivacy.value = saved.privacy;
-    ytKids.checked = Boolean(saved.madeForKids);
-  } catch {}
-  function saveYoutube() {
-    try { localStorage.setItem(YOUTUBE_KEY, JSON.stringify({ privacy: ytPrivacy.value, madeForKids: ytKids.checked })); } catch {}
-  }
-  // Extras sent per platform: its own text, plus YouTube's title and visibility.
-  function platformOptions() {
-    const options = {};
-    for (const p of platforms) {
-      options[p.id] = overrides[p.id]?.trim() ? { text: overrides[p.id] } : {};
+  // ---- Per-platform fields ----
+  // Each platform's section in "Customize per platform" is built from this list. `sticky` values are
+  // remembered between posts; `when` hides fields that don't apply to what's attached.
+
+  const YOUTUBE_CATEGORIES = [
+    ['1', 'Film & Animation'], ['2', 'Autos & Vehicles'], ['10', 'Music'], ['15', 'Pets & Animals'], ['17', 'Sports'],
+    ['19', 'Travel & Events'], ['20', 'Gaming'], ['22', 'People & Blogs'], ['23', 'Comedy'], ['24', 'Entertainment'],
+    ['25', 'News & Politics'], ['26', 'Howto & Style'], ['27', 'Education'], ['28', 'Science & Technology'], ['29', 'Nonprofits & Activism'],
+  ];
+  const LANGUAGES = [
+    ['', 'Not set'], ['en', 'English'], ['hi', 'Hindi'], ['bn', 'Bengali'], ['mr', 'Marathi'], ['ta', 'Tamil'], ['te', 'Telugu'],
+    ['ur', 'Urdu'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['ar', 'Arabic'], ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'],
+  ];
+  const singleVideo = ({ media, values }) => media.length === 1 && media[0].type.startsWith('video/') && values.postAs !== 'story';
+  const hasImage = ({ media }) => media.some((m) => !m.type.startsWith('video/'));
+
+  const FIELDS = {
+    youtube: {
+      textLabel: 'Description',
+      main: [
+        { key: 'title', type: 'text', label: 'Title', wide: true, beforeText: true },
+        { key: 'privacy', type: 'select', label: 'Visibility', sticky: true, initial: 'public',
+          choices: [['public', 'Public'], ['unlisted', 'Unlisted'], ['private', 'Private']] },
+        { key: 'publishAt', type: 'datetime-local', label: 'Schedule (optional)' },
+        { key: 'category', type: 'select', label: 'Category', initial: '', choices: [['', 'YouTube default (People & Blogs)'], ...YOUTUBE_CATEGORIES] },
+        { key: 'tags', type: 'text', label: 'Tags', placeholder: 'Comma-separated, e.g. lyric video, hindi song' },
+        { key: 'thumbnail', type: 'image', label: 'Custom thumbnail', wide: true,
+          hint: 'JPEG or PNG, ideally 1280×720, up to 2 MB. Needs a phone-verified channel.' },
+        { key: 'madeForKids', type: 'check', label: 'Made for kids', sticky: true },
+        { key: 'synthetic', type: 'check', label: 'Altered or synthetic content (realistic AI-generated or edited footage)' },
+      ],
+      more: [
+        { key: 'recordingDate', type: 'date', label: 'Recording date' },
+        { key: 'language', type: 'select', label: 'Title and description language', sticky: true, initial: 'en', choices: LANGUAGES },
+        { key: 'audioLanguage', type: 'select', label: 'Audio language', sticky: true, initial: '', choices: LANGUAGES },
+      ],
+      info: 'Until your Google API project passes YouTube\'s audit, uploads stay private whatever you choose here (see README).',
+    },
+    instagram: {
+      textLabel: 'Caption',
+      main: [
+        { key: 'postAs', type: 'select', label: 'Post as', initial: 'feed', choices: [['feed', 'Post or Reel'], ['story', 'Story']] },
+        { key: 'shareToFeed', type: 'check', label: 'Also share to Feed (your profile grid and followers\' home feeds)', sticky: true, initial: true, when: singleVideo },
+        { key: 'coverSeconds', type: 'number', label: 'Cover frame (seconds into the video)', placeholder: '0', when: singleVideo },
+        { key: 'cover', type: 'image', label: 'Or upload a cover image', hint: 'Replaces the frame above.', when: singleVideo },
+        { key: 'altText', type: 'text', label: 'Alt text (images)', wide: true, placeholder: 'Describe the image for people using screen readers', when: hasImage },
+        { key: 'aiGenerated', type: 'check', label: 'Label as AI-generated' },
+      ],
+      more: [
+        { key: 'audioName', type: 'text', label: 'Audio name (Reels)', placeholder: 'Original audio', when: singleVideo },
+        { key: 'trial', type: 'select', label: 'Trial reel', initial: 'off', when: singleVideo, choices: [
+          ['off', 'Off'], ['manual', 'Show to non-followers first; I\'ll share it later'], ['auto', 'Show to non-followers first; share it if it does well']] },
+      ],
+      info: '@mentions in the caption link to those accounts and notify them. Music from Instagram\'s library, filters and stickers can\'t be added through the API.',
+    },
+    x: {
+      main: [
+        { key: 'thread', type: 'check', label: 'Split long posts into a numbered thread', sticky: true, initial: true },
+        { key: 'altText', type: 'text', label: 'Alt text (images)', placeholder: 'Describe the image', when: hasImage },
+        { key: 'madeWithAi', type: 'check', label: 'Label as made with AI' },
+      ],
+    },
+  };
+  const fieldsOf = (id) => [...(FIELDS[id]?.main ?? []), ...(FIELDS[id]?.more ?? [])];
+
+  let settings = {};
+  function loadSettings() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch {}
+    for (const id of Object.keys(FIELDS)) {
+      settings[id] = {};
+      for (const f of fieldsOf(id)) {
+        settings[id][f.key] = f.sticky && saved[id]?.[f.key] !== undefined ? saved[id][f.key] : f.initial ?? (f.type === 'check' ? false : '');
+      }
     }
-    Object.assign(options.youtube ??= {}, { title: ytTitle.value, privacy: ytPrivacy.value, madeForKids: ytKids.checked });
+  }
+  function saveSettings() {
+    const sticky = {};
+    for (const id of Object.keys(FIELDS)) {
+      sticky[id] = Object.fromEntries(fieldsOf(id).filter((f) => f.sticky).map((f) => [f.key, settings[id][f.key]]));
+    }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(sticky)); } catch {}
+  }
+  // After a successful post, everything that isn't sticky goes back to its starting value.
+  function resetSettings() {
+    for (const id of Object.keys(FIELDS)) {
+      for (const f of fieldsOf(id)) {
+        if (f.sticky) continue;
+        const value = settings[id][f.key];
+        if (f.type === 'image' && value?.id) fetch(`/api/media/${value.id}`, { method: 'DELETE' }).catch(() => {});
+        settings[id][f.key] = f.initial ?? (f.type === 'check' ? false : '');
+      }
+    }
+  }
+  loadSettings();
+
+  // What's sent (forSend: image fields as upload ids) or checked (image fields as { type, size }).
+  function platformOptions({ forSend = false } = {}) {
+    const options = {};
+    const media = mediaMeta();
+    for (const p of platforms) {
+      const own = { ...(settings[p.id] ?? {}) };
+      for (const f of fieldsOf(p.id)) {
+        // Fields hidden for what's attached (e.g. a Reel cover with no video) aren't sent or checked.
+        if (f.when && !f.when({ media, values: own })) { delete own[f.key]; continue; }
+        if (f.type === 'image') own[f.key] = own[f.key]?.id ? (forSend ? own[f.key].id : own[f.key]) : undefined;
+      }
+      // Only platforms whose box was edited get their own text; the rest follow the main post.
+      if (p.id in overrides) own.text = overrides[p.id];
+      options[p.id] = own;
+    }
     return options;
   }
+  // What an unedited platform box shows: the main post, or on YouTube everything after the title line.
+  const mirrored = (id) => effectiveText(textEl.value, { title: settings[id]?.title }, id);
+  const fieldUploading = () => Object.values(settings).some((s) => Object.values(s).some((v) => v?.uploading));
 
   // Tells the user whether YouTube will treat the attached video as a Short.
   function renderShortsHint() {
     const el = $('yt-shorts');
+    if (!el) return;
     const video = items.find((i) => i.file.type.startsWith('video/'));
     if (!video?.meta) { el.hidden = true; return; }
     const { width, height, duration } = video.meta;
@@ -506,30 +595,141 @@
   }));
   const activeTargets = () => platforms.filter((p) => p.configured && selected.has(p.id));
 
-  function counter(p, text) {
+  // "312 / 280" normally; "312 · 2 posts" when X will split it into a thread.
+  function counter(p, text, options = {}) {
     const n = countFor(p.id, text);
+    const parts = p.threads && options.thread && n > p.limit ? splitThread(p.id, text, p.limit).length : 1;
+    if (parts > 1) return { textContent: `${n.toLocaleString()} · ${parts} posts`, className: 'count' };
     return { textContent: `${n.toLocaleString()} / ${p.limit.toLocaleString()}`, className: 'count' + (n > p.limit ? ' over' : n > p.limit * 0.9 ? ' near' : '') };
   }
 
-  // One section per selected platform: its own text box, plus any platform-specific settings
-  // (YouTube's title and visibility). Only rebuilt when the set of platforms changes, so typing keeps focus.
-  const youtubeExtras = $('youtube-extras');
+  // Uploads an image picked for a field (thumbnail, cover). PNG/WebP become JPEG like other images.
+  async function pickFieldImage(id, key, file) {
+    const previous = settings[id][key];
+    if (previous?.id) fetch(`/api/media/${previous.id}`, { method: 'DELETE' }).catch(() => {});
+    if (!file.type.startsWith('image/')) { setStatus(`${file.name} isn't an image.`, true); return; }
+    if (CONVERT_TO_JPEG.has(file.type)) {
+      try { file = await toJpeg(file); } catch {}
+    }
+    const value = { uploading: true, name: file.name, type: file.type, size: file.size, preview: URL.createObjectURL(file) };
+    settings[id][key] = value;
+    sectionsFor = '';
+    update();
+    try {
+      const res = await fetch('/api/media', {
+        method: 'POST',
+        headers: { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name) },
+        body: file,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+      Object.assign(value, { uploading: false, id: data.id });
+    } catch (err) {
+      settings[id][key] = '';
+      setStatus(err.message, true);
+    }
+    sectionsFor = '';
+    update();
+  }
+
+  function renderField(id, f) {
+    const values = settings[id];
+    const set = (value) => {
+      values[f.key] = value;
+      if (f.sticky) saveSettings();
+      update();
+    };
+    let control;
+    if (f.type === 'check') {
+      const box = el('input', { type: 'checkbox', checked: Boolean(values[f.key]) });
+      box.addEventListener('change', () => set(box.checked));
+      control = el('label', { className: 'field check' }, box, f.label);
+    } else if (f.type === 'select') {
+      const select = el('select', {}, ...f.choices.map(([value, label]) => el('option', { value, textContent: label })));
+      select.value = values[f.key];
+      select.addEventListener('change', () => set(select.value));
+      control = el('label', { className: 'field' }, f.label, select);
+    } else if (f.type === 'image') {
+      const value = values[f.key];
+      const input = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', hidden: true });
+      input.addEventListener('change', () => input.files[0] && pickFieldImage(id, f.key, input.files[0]));
+      const choose = el('button', { type: 'button', className: 'attach', textContent: value ? 'Replace image' : 'Choose image' });
+      choose.addEventListener('click', () => input.click());
+      const parts = [choose, input];
+      if (value) {
+        const remove = el('button', { type: 'button', className: 'link', textContent: 'Remove' });
+        remove.addEventListener('click', () => {
+          if (value.id) fetch(`/api/media/${value.id}`, { method: 'DELETE' }).catch(() => {});
+          set('');
+          sectionsFor = '';
+          update();
+        });
+        parts.unshift(el('img', { src: value.preview || '', alt: '' }));
+        parts.push(el('span', { textContent: value.uploading ? 'Uploading…' : value.name }), remove);
+      }
+      control = el('div', { className: 'field' }, f.label, el('div', { className: 'image-field' }, ...parts));
+    } else {
+      const input = f.type === 'textarea' ? el('textarea') : el('input', { type: f.type, autocomplete: 'off' });
+      if (f.type === 'number') Object.assign(input, { min: 0, step: 0.1 });
+      Object.assign(input, { value: values[f.key] ?? '', placeholder: f.placeholder ?? '' });
+      input.addEventListener('input', () => set(input.value));
+      control = el('label', { className: 'field' }, f.label, input);
+    }
+    if (f.wide) control.classList.add('wide');
+    if (f.hint) control.append(el('span', { className: 'field-hint', textContent: f.hint }));
+    control.dataset.key = f.key;
+    return control;
+  }
+
+  // One section per selected platform: its own text box plus its fields. Only rebuilt when the set of
+  // platforms (or an image field) changes, so typing keeps focus.
   function renderSections(targets) {
     sectionsFor = targets.map((p) => p.id).join(',');
     $('platform-sections').replaceChildren(...targets.map((p) => {
-      const box = el('textarea', { value: overrides[p.id] ?? '', placeholder: 'Same as the main post' });
+      const spec = FIELDS[p.id];
+      // The box shows the main post until it's edited; then it's this platform's own text.
+      const box = el('textarea', {
+        value: p.id in overrides ? overrides[p.id] : mirrored(p.id),
+        placeholder: 'Type in the main box above, or here for this platform only',
+        className: 'platform-text',
+      });
+      box.dataset.id = p.id;
       box.addEventListener('input', () => { overrides[p.id] = box.value; update(); });
+      const reset = el('button', { type: 'button', className: 'link reset', textContent: '↺ Use main post', title: 'Follow the main post again' });
+      reset.addEventListener('click', () => {
+        delete overrides[p.id];
+        box.value = mirrored(p.id);
+        update();
+      });
       const section = el('div', { className: 'platform-section' },
-        el('div', { className: 'row' }, el('span', {}, logo(p.id), p.name), el('span', { className: 'count' })),
-        box,
-      );
-      if (p.id === 'youtube') {
-        youtubeExtras.hidden = false;
-        section.append(youtubeExtras);
+        el('div', { className: 'row' }, el('span', {}, logo(p.id), p.name), el('span', {}, reset, el('span', { className: 'count' }))));
+      // Fields marked beforeText (YouTube's title) go above the text box, as on the platform itself.
+      const before = spec?.main.filter((f) => f.beforeText) ?? [];
+      if (before.length) section.append(el('div', { className: 'fields', style: 'margin: 0 0 12px' }, ...before.map((f) => renderField(p.id, f))));
+      section.append(spec?.textLabel ? el('label', { className: 'field' }, spec.textLabel, box) : box);
+      if (spec) {
+        section.append(el('div', { className: 'fields' }, ...spec.main.filter((f) => !f.beforeText).map((f) => renderField(p.id, f))));
+        if (spec.more?.length) {
+          section.append(el('details', {}, el('summary', { textContent: 'More options' }),
+            el('div', { className: 'fields' }, ...spec.more.map((f) => renderField(p.id, f)))));
+        }
+        if (p.id === 'youtube') section.append(el('p', { className: 'info', id: 'yt-shorts', hidden: true }));
+        if (spec.info) section.append(el('p', { className: 'hint', textContent: spec.info }));
       }
       section.dataset.id = p.id;
       return section;
     }));
+  }
+
+  // Hides fields that don't apply to what's attached (e.g. Reel options without a video).
+  function refreshFieldVisibility(media) {
+    for (const section of $('platform-sections').children) {
+      const id = section.dataset.id;
+      for (const f of fieldsOf(id)) {
+        const node = section.querySelector(`[data-key="${f.key}"]`);
+        if (node) node.hidden = f.when ? !f.when({ media, values: settings[id] }) : false;
+      }
+    }
   }
 
   function update() {
@@ -539,16 +739,24 @@
     const targets = activeTargets();
     let blocked = false;
 
-    const youtubeText = effectiveText(text, options.youtube);
-    ytTitle.placeholder = resolveTitle(youtubeText, '') ? `Defaults to: ${resolveTitle(youtubeText, '')}` : 'Defaults to the first line of your post';
-    renderShortsHint();
-
     $('platform-settings').hidden = targets.length === 0;
     if (sectionsFor !== targets.map((p) => p.id).join(',')) renderSections(targets);
+    refreshFieldVisibility(media);
     for (const section of $('platform-sections').children) {
       const p = platforms.find((x) => x.id === section.dataset.id);
-      Object.assign(section.querySelector('.count'), counter(p, effectiveText(text, options[p.id])));
+      Object.assign(section.querySelector('.count'), counter(p, effectiveText(text, options[p.id], p.id), options[p.id]));
+      // Boxes that haven't been edited follow the main post as it's typed.
+      const box = section.querySelector('.platform-text');
+      const edited = p.id in overrides;
+      if (!edited && box.value !== mirrored(p.id)) box.value = mirrored(p.id);
+      section.querySelector('.reset').hidden = !edited;
     }
+    const titleInput = $('platform-sections').querySelector('[data-key="title"] input');
+    if (titleInput) {
+      const fallback = resolveTitle(text, '');
+      titleInput.placeholder = fallback ? `Defaults to: ${fallback}` : 'Defaults to the first line of your post';
+    }
+    renderShortsHint();
 
     for (const p of platforms) {
       const on = selected.has(p.id) && p.configured;
@@ -556,18 +764,18 @@
       chip.classList.toggle('on', on);
       chip.classList.toggle('disabled', !p.configured);
 
-      const own = effectiveText(text, options[p.id]);
-      Object.assign(chip.querySelector('.count'), p.configured ? counter(p, own) : { textContent: 'not set up', className: 'count' });
+      const own = effectiveText(text, options[p.id], p.id);
+      Object.assign(chip.querySelector('.count'), p.configured ? counter(p, own, options[p.id]) : { textContent: 'not set up', className: 'count' });
 
       const problems = p.configured ? problemsFor(p, text, media, options[p.id]) : [];
       // An empty composer can't be posted anyway, so don't greet the user with warnings.
       const started = own || media.length || options[p.id]?.title?.trim();
       chip.querySelector('.problems').textContent = started ? problems.join(' · ') : '';
-      chip.querySelector('.notes').textContent = p.configured && on ? adjustmentsFor(p, media).join(' · ') : '';
+      chip.querySelector('.notes').textContent = p.configured && on ? adjustmentsFor(p, media, options[p.id], text).join(' · ') : '';
       if (on && problems.length) blocked = true;
     }
 
-    const uploading = items.some((i) => i.status === 'uploading');
+    const uploading = items.some((i) => i.status === 'uploading') || fieldUploading();
     const failedUpload = items.some((i) => i.status === 'error');
     const anyText = text || targets.some((p) => options[p.id]?.text);
     postBtn.textContent = uploading ? 'Uploading…' : targets.length > 1 ? `Post to ${targets.length} platforms` : 'Post';
@@ -590,7 +798,11 @@
         : r.error;
       return el('li', { className: r.ok ? 'ok' : 'fail' },
         el('span', { className: 'icon', textContent: r.ok ? '✓' : '✕' }),
-        el('div', {}, el('div', { textContent: r.name }), el('div', { className: 'detail' }, detail)),
+        el('div', {},
+          el('div', { textContent: r.name }),
+          el('div', { className: 'detail' }, detail),
+          ...(r.warnings ?? []).map((w) => el('div', { className: 'warning', textContent: `⚠ ${w}` })),
+        ),
       );
     }));
   }
@@ -612,7 +824,7 @@
           text: textEl.value,
           platforms: targets.map((p) => p.id),
           media: items.map((i) => ({ id: i.id, duration: i.meta?.duration })),
-          options: platformOptions(),
+          options: platformOptions({ forSend: true }),
         }),
       });
       const data = await res.json();
@@ -622,8 +834,8 @@
       if (failed === 0) {
         setStatus(`Posted to ${data.results.length} platform${data.results.length > 1 ? 's' : ''}.`);
         textEl.value = '';
-        ytTitle.value = '';
         overrides = {};
+        resetSettings();
         sectionsFor = '';
         clearMedia();
       } else {
@@ -652,9 +864,6 @@
     if (files.length) { e.preventDefault(); addFiles(files); }
   });
   postBtn.addEventListener('click', post);
-  ytTitle.addEventListener('input', update);
-  ytPrivacy.addEventListener('change', () => { saveYoutube(); update(); });
-  ytKids.addEventListener('change', saveYoutube);
   $('attach').addEventListener('click', () => $('file').click());
   $('file').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
 

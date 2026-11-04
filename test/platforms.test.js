@@ -63,7 +63,91 @@ test('YouTube refreshes the token, opens a resumable session and uploads the fil
   const metadata = JSON.parse(calls[1].opts.body);
   assert.equal(metadata.snippet.title, 'First line');
   assert.equal(metadata.snippet.description, 'First line\nDescription');
-  assert.deepEqual(metadata.status, { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false });
+  assert.deepEqual(metadata.status, {
+    privacyStatus: 'unlisted', selfDeclaredMadeForKids: false, containsSyntheticMedia: false,
+  });
   assert.equal(calls[2].url, 'https://upload.example/session');
   assert.equal(calls[2].opts.method, 'PUT');
+});
+
+// Replaces fetch with a stub that records each call and answers from `respond(url, opts)`.
+function stubFetch(t, respond) {
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, opts = {}) => {
+    calls.push({ url: String(url), opts });
+    return respond(String(url), opts) ?? Response.json({});
+  });
+  return calls;
+}
+
+test('YouTube sends scheduling, tags and extras, and sets the thumbnail', async (t) => {
+  Object.assign(process.env, { YOUTUBE_CLIENT_ID: 'id', YOUTUBE_CLIENT_SECRET: 'secret', YOUTUBE_REFRESH_TOKEN: 'refresh' });
+  const calls = stubFetch(t, (url) => {
+    if (url.includes('oauth2')) return Response.json({ access_token: 'AT' });
+    if (url.includes('uploadType=resumable')) return new Response('', { headers: { location: 'https://upload.example/session' } });
+    if (url.includes('thumbnails/set')) return new Response('{"error":{"message":"forbidden"}}', { status: 403 });
+    return Response.json({ id: 'VID' });
+  });
+  const youtube = (await import('../platforms/youtube.js')).default;
+  const blob = async () => new Blob([new Uint8Array(3)]);
+  const at = new Date(Date.now() + 86_400_000).toISOString();
+  const result = await youtube.post('Title line\nBody', [{ name: 'v.mp4', type: 'video/mp4', size: 3, blob }], {
+    privacy: 'public', publishAt: at, tags: 'lyric video, hindi', category: '10', synthetic: true,
+    thumbnail: { type: 'image/jpeg', blob },
+  });
+
+  const session = calls.find((c) => c.url.includes('uploadType=resumable'));
+  assert.doesNotMatch(session.url, /notifySubscribers/);
+  const { snippet, status } = JSON.parse(session.opts.body);
+  assert.deepEqual(snippet.tags, ['lyric video', 'hindi']);
+  assert.equal(snippet.categoryId, '10');
+  assert.equal(status.privacyStatus, 'private', 'scheduled videos stay private until publishAt');
+  assert.equal(status.publishAt, at);
+  assert.equal(status.containsSyntheticMedia, true);
+  // A rejected thumbnail doesn't fail the post.
+  assert.equal(result.url, 'https://www.youtube.com/watch?v=VID');
+  assert.match(result.warnings[0], /thumbnail wasn't set/);
+});
+
+test('X posts a numbered thread with the settings on the first post', async (t) => {
+  Object.assign(process.env, { X_API_KEY: 'k', X_API_SECRET: 's', X_ACCESS_TOKEN: 't', X_ACCESS_SECRET: 'ts' });
+  let n = 0;
+  const calls = stubFetch(t, () => Response.json({ data: { id: `P${++n}` } }));
+  const x = (await import('../platforms/x.js')).default;
+  const text = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
+  const result = await x.post(text, [], {
+    thread: true, madeWithAi: true,
+  });
+
+  const bodies = calls.map((c) => JSON.parse(c.opts.body));
+  assert.ok(bodies.length >= 2);
+  assert.equal(bodies[0].made_with_ai, true);
+  assert.equal(bodies[0].reply_settings, undefined);
+  assert.match(bodies[0].text, / 1\/\d+$/);
+  assert.equal(bodies[1].reply.in_reply_to_tweet_id, 'P1');
+  assert.equal(bodies[1].made_with_ai, undefined);
+  for (const b of bodies) assert.ok([...b.text].length <= 280);
+  assert.equal(result.url, 'https://x.com/i/web/status/P1');
+});
+
+test('Instagram builds Reel fields', async (t) => {
+  Object.assign(process.env, { INSTAGRAM_ACCESS_TOKEN: 'it', INSTAGRAM_USER_ID: '123', INSTAGRAM_GRAPH_HOST: 'https://graph.facebook.com' });
+  const calls = stubFetch(t, (url) => {
+    if (url.includes('fields=status_code')) return Response.json({ status_code: 'FINISHED' });
+    if (url.includes('fields=permalink')) return Response.json({ permalink: 'https://instagram.com/p/1' });
+    return Response.json({ id: 'C1' });
+  });
+  const instagram = (await import('../platforms/instagram.js')).default;
+  const result = await instagram.post('Caption', [{ type: 'video/mp4', url: 'https://pub/v.mp4' }], {
+    postAs: 'feed', shareToFeed: false, coverSeconds: '2.5', aiGenerated: true, trial: 'auto',
+  });
+
+  const container = new URLSearchParams(calls.find((c) => c.url.endsWith('/123/media')).opts.body);
+  assert.equal(container.get('media_type'), 'REELS');
+  assert.equal(container.get('share_to_feed'), 'false');
+  assert.equal(container.get('thumb_offset'), '2500');
+  assert.equal(container.get('is_ai_generated'), 'true');
+  assert.equal(container.get('trial_params'), '{"graduation_strategy":"SS_PERFORMANCE"}');
+  assert.ok(!calls.some((c) => c.url.endsWith('/comments')));
+  assert.equal(result.url, 'https://instagram.com/p/1');
 });

@@ -33,12 +33,25 @@ export function formatDuration(seconds) {
   return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
 }
 
-// The text a platform receives: its own override if the user wrote one, otherwise the main post.
-export function effectiveText(text, options = {}) {
-  return typeof options.text === 'string' && options.text.trim() ? options.text.trim() : text;
+// Platforms whose title comes from the post's first line when none is typed; the rest becomes the body.
+const TITLE_FROM_FIRST_LINE = new Set(['youtube']);
+
+function afterFirstLine(text) {
+  const lines = text.split('\n');
+  const first = lines.findIndex((line) => line.trim());
+  return first < 0 ? '' : lines.slice(first + 1).join('\n').trim();
 }
 
-// For platforms that need a title (YouTube): the typed title, else the post's first non-empty line.
+// The text a platform receives: its own text if the user edited that platform's box (even to empty),
+// otherwise the main post. On YouTube, with no typed title, the first line is the title, so the
+// description is everything after it.
+export function effectiveText(text, options = {}, platformId) {
+  if (typeof options.text === 'string') return options.text.trim();
+  if (TITLE_FROM_FIRST_LINE.has(platformId) && !options.title?.trim()) return afterFirstLine(text);
+  return text;
+}
+
+// For platforms that need a title (YouTube): the typed title, else the main post's first non-empty line.
 export function resolveTitle(text, title) {
   return title?.trim() || text.split('\n').map((line) => line.trim()).find(Boolean) || '';
 }
@@ -57,24 +70,137 @@ function compressible(platform, m) {
     && (!m.duration || compressionBitrate(r.videoMB * MB, m.duration) !== null);
 }
 
-// Changes the server will make so the post fits. Shown as notes, not problems.
-export function adjustmentsFor(platform, media) {
-  return media.filter((m) => isVideo(m) && compressible(platform, m))
-    .map((m) => `${m.name} will be compressed to fit ${platform.media.videoMB} MB`);
+// ---- Threads: long posts split into numbered replies (X) ----
+
+const THREAD_MAX_POSTS = 25;
+const NUMBER_ROOM = 6; // " 25/25"
+
+function sliceGraphemes(text, n) {
+  let out = '';
+  let i = 0;
+  for (const { segment } of segmenter.segment(text)) {
+    if (i++ >= n) break;
+    out += segment;
+  }
+  return out;
 }
 
-// platform: { id, limit, media: rules, title?, textForbids?, publicUrlReady, canCompress },
-// media: [{ name, type, size, duration? }], options: per-platform extras such as { text, title }.
+// Splits text into posts that each fit `limit` once " i/n" is appended, breaking at whitespace.
+export function splitThread(platformId, text, limit) {
+  if (countFor(platformId, text) <= limit) return [text];
+  const room = limit - NUMBER_ROOM;
+  const parts = [];
+  let current = '';
+  for (const token of text.split(/(\s+)/)) {
+    if (countFor(platformId, (current + token).trimEnd()) <= room) {
+      current += token;
+      continue;
+    }
+    if (current.trim()) parts.push(current.trim());
+    current = token.trimStart();
+    // A single word longer than a whole post gets cut.
+    while (countFor(platformId, current) > room) {
+      const head = sliceGraphemes(current, room);
+      parts.push(head);
+      current = current.slice(head.length);
+    }
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts.map((part, i) => `${part} ${i + 1}/${parts.length}`);
+}
+
+function threadFor(platform, text, options) {
+  return platform.threads && options.thread ? splitThread(platform.id, text, platform.limit) : null;
+}
+
+// ---- Per-platform fields ----
+
+// "a, b\nc" -> ['a', 'b', 'c']; used for YouTube tags.
+export const listOf = (value) => String(value ?? '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+
+// YouTube counts tag length with the commas between tags, plus quotes around tags that contain spaces.
+function youtubeTagsLength(tags) {
+  return tags.reduce((n, t) => n + graphemes(t) + (/\s/.test(t) ? 2 : 0), 0) + Math.max(0, tags.length - 1);
+}
+
+// Image fields (thumbnail, cover) arrive as { type, size } metadata in both the browser and the server.
+const FIELD_CHECKS = {
+  youtube(o) {
+    const problems = [];
+    const tags = listOf(o.tags);
+    if (youtubeTagsLength(tags) > 500) problems.push(`Tags are too long (${youtubeTagsLength(tags)} / 500 characters)`);
+    if (tags.some((t) => /[<>]/.test(t))) problems.push("Tags can't contain < or >");
+    if (o.publishAt) {
+      const at = Date.parse(o.publishAt);
+      if (!Number.isFinite(at)) problems.push("The schedule time isn't valid");
+      else if (at <= Date.now()) problems.push('The schedule time must be in the future');
+    }
+    if (o.thumbnail) {
+      if (!['image/jpeg', 'image/png'].includes(o.thumbnail.type)) problems.push('The thumbnail must be a JPEG or PNG');
+      if (o.thumbnail.size > 2 * MB) problems.push('The thumbnail must be 2 MB or smaller');
+    }
+    return problems;
+  },
+
+  instagram(o, media) {
+    const problems = [];
+    const story = o.postAs === 'story';
+    const reel = media.length === 1 && isVideo(media[0]) && !story;
+    if (story && media.length !== 1) problems.push('A Story takes exactly one image or video');
+    if (o.cover && !reel) problems.push('A cover image only applies to a single video posted as a Reel');
+    if (o.cover && o.cover.type !== 'image/jpeg') problems.push('The cover image must be a JPEG');
+    if (o.coverSeconds !== undefined && o.coverSeconds !== '') {
+      const seconds = Number(o.coverSeconds);
+      if (!(seconds >= 0)) problems.push("The cover frame time isn't valid");
+      else if (media[0]?.duration && seconds > media[0].duration) problems.push('The cover frame time is past the end of the video');
+    }
+    if (o.trial && o.trial !== 'off' && !reel) problems.push('Trial reels need a single video posted as a Reel');
+    if (o.altText && graphemes(o.altText) > 1000) problems.push('Alt text is too long (max 1,000 characters)');
+    return problems;
+  },
+
+  x(o) {
+    const problems = [];
+    if (o.altText && graphemes(o.altText) > 1000) problems.push('Alt text is too long (max 1,000 characters)');
+    return problems;
+  },
+};
+
+// Changes the server will make so the post fits, or effects of the chosen fields. Shown as notes, not problems.
+export function adjustmentsFor(platform, media, options = {}, text = '') {
+  const notes = media.filter((m) => isVideo(m) && compressible(platform, m))
+    .map((m) => `${m.name} will be compressed to fit ${platform.media.videoMB} MB`);
+  const thread = threadFor(platform, effectiveText(text, options, platform.id), options);
+  if (thread && thread.length > 1) notes.push(`Will be posted as a thread of ${thread.length} posts`);
+  if (platform.id === 'youtube' && options.publishAt && Number.isFinite(Date.parse(options.publishAt))) {
+    notes.push(`Stays private until ${new Date(options.publishAt).toLocaleString()}, then goes public`);
+  }
+  if (platform.id === 'instagram' && options.postAs === 'story' && effectiveText(text, options, platform.id).trim()) {
+    notes.push("Stories don't show captions, so the text won't appear");
+  }
+  return notes;
+}
+
+// platform: { id, limit, media: rules, title?, textForbids?, threads?, publicUrlReady, canCompress },
+// media: [{ name, type, size, duration? }], options: per-platform fields such as { text, title, tags }.
 // Returns a list of human-readable reasons the post can't go to this platform.
 export function problemsFor(platform, text, media, options = {}) {
   const problems = [];
   const r = platform.media;
-  text = effectiveText(text, options);
+  const mainText = text;
+  text = effectiveText(text, options, platform.id);
+  const thread = threadFor(platform, text, options);
   const length = countFor(platform.id, text);
-  if (length > platform.limit) problems.push(`Text is too long (${length.toLocaleString()} / ${platform.limit.toLocaleString()})`);
+  if (thread) {
+    if (thread.length > THREAD_MAX_POSTS) problems.push(`Too long even for a thread (${thread.length} posts; the limit is ${THREAD_MAX_POSTS})`);
+  } else if (length > platform.limit) {
+    problems.push(`Text is too long (${length.toLocaleString()} / ${platform.limit.toLocaleString()})`);
+  }
   if (!text.trim() && media.length === 0) problems.push('Add some text, an image or a video');
+  problems.push(...(FIELD_CHECKS[platform.id]?.(options, media) ?? []));
 
-  const title = platform.title ? resolveTitle(text, options.title) : '';
+  // The title defaults to the main post's first line, even when the platform's own text was edited.
+  const title = platform.title ? resolveTitle(mainText, options.title) : '';
   if (platform.title) {
     const titleLength = graphemes(title);
     if (!title) problems.push('Needs a title');

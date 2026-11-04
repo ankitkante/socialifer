@@ -57,15 +57,18 @@ export default {
   },
   title?: { max: 100 },       // platform needs a title (YouTube); see resolveTitle in rules.js
   textForbids?: '<>',         // characters the platform rejects in title/text
+  threads?: true,             // long text may be split into a numbered thread (X); see splitThread in rules.js
+  mediaOptions?: ['thumbnail'], // option fields holding an uploaded image id; the server swaps in the file
   envVars: ['EXAMPLE_TOKEN'], // required settings; shown when unconfigured
   isConfigured: () => hasEnv(...),
-  async post(text, media, options) { return { url } }, // url may be null; throw Error on failure
+  async post(text, media, options) { return { url, warnings? } }, // url may be null; throw Error on failure.
+                              // warnings: things that failed after the post went live (thumbnail, first comment)
 };
 ```
 
 `options` holds per-platform extras that the UI sends as `options[platformId]` in `POST /api/post`, and it's passed both to `problemsFor` and to `post()`:
-- `options[id].text`: the platform's own text from **Customize per platform**. The server resolves it with `effectiveText()` and passes the result to `post()` as `text`, so platform modules never need to look at it. `problemsFor` takes the *main* text plus `options` and resolves it the same way.
-- `options.youtube`: `{ title, privacy, madeForKids }` from the `#youtube-extras` block, which `renderSections()` moves into YouTube's section of the **Customize per platform** card. A new platform that needs extra fields should add its own extras block and attach it the same way.
+- `options[id].text`: the platform's own text, present only if the user edited that platform's box in **Customize per platform** (an empty string means no text). Unedited boxes just mirror the main post and send nothing. The server resolves it with `effectiveText()` and passes the result to `post()` as `text`, so platform modules never need to look at it. `problemsFor` takes the *main* text plus `options` and resolves it the same way.
+- **Platform fields** (YouTube's title, tags, schedule and thumbnail; Instagram's Story, cover, collaborators and first comment; X's thread, poll and reply settings) are declared in `FIELDS` in `public/index.html`. Each entry has a `key`, `type` (text, textarea, select, check, number, date, datetime-local, image, poll), a `label`, and optionally `sticky` (remembered between posts), `when` (hidden and *not sent* when it doesn't apply), `initial` and `hint`. Values reach the server as `options[platformId][key]` and are checked by `FIELD_CHECKS` in `public/rules.js`. To add a field: add it to `FIELDS`, add any check to `FIELD_CHECKS`, and read it in the platform's `post()`.
 
 `media` items passed to `post()` are `{ id, name, type, size, duration, path, url, blob(), buffer() }`. `url` is the public URL (only set when `TUNNEL_URL` is configured). `duration` is in seconds, from ffprobe if installed, else from the browser, else `null`. A video over the platform's `videoMB` has already been swapped for a compressed copy (see `fitVideo` in `media.js`) when ffmpeg is available, so modules don't handle compression. Upload media in order and sequentially. To add a platform, create the module, register it in `platforms/index.js`, add its settings to `.env.example`, and add a row to `docs/platforms.md` and the README table.
 

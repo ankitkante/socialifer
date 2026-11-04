@@ -50,34 +50,68 @@ export default {
     needsPublicUrl: true,
   },
   envVars: ENV,
+  // Option fields that hold an uploaded image; the server swaps the id for the file before post().
+  mediaOptions: ['cover'],
   isConfigured: () => hasEnv(...ENV),
-  async post(text, media) {
+  // options: { postAs: 'feed' | 'story', shareToFeed, coverSeconds, cover, altText, aiGenerated,
+  //            audioName, trial: 'off' | 'manual' | 'auto' }
+  async post(text, media, options = {}) {
     // Instagram downloads each file from a public URL. A single video is posted as a Reel.
-    const caption = text ? { caption: text } : {};
+    const o = options;
+    const story = o.postAs === 'story';
+    // Fields shared by single posts, Reels and the carousel parent (not carousel children or Stories).
+    const common = {
+      ...(text && { caption: text }),
+      ...(o.aiGenerated && { is_ai_generated: 'true' }),
+    };
+    const altText = o.altText?.trim() ? { alt_text: o.altText.trim() } : {};
+
     let containerId;
-    if (media.length === 1) {
+    if (story) {
       const m = media[0];
-      containerId = await createContainer(isVideo(m) ? { media_type: 'REELS', video_url: m.url, ...caption } : { image_url: m.url, ...caption });
+      containerId = await createContainer({
+        media_type: 'STORIES',
+        ...(isVideo(m) ? { video_url: m.url } : { image_url: m.url }),
+      });
+    } else if (media.length === 1 && isVideo(media[0])) {
+      containerId = await createContainer({
+        media_type: 'REELS',
+        video_url: media[0].url,
+        ...common,
+        share_to_feed: String(o.shareToFeed !== false),
+        // An uploaded cover wins over a frame from the video.
+        ...(o.cover ? { cover_url: o.cover.url } : o.coverSeconds ? { thumb_offset: String(Math.round(Number(o.coverSeconds) * 1000)) } : {}),
+        ...(o.audioName?.trim() && { audio_name: o.audioName.trim() }),
+        ...(o.trial && o.trial !== 'off' && {
+          trial_params: JSON.stringify({ graduation_strategy: o.trial === 'auto' ? 'SS_PERFORMANCE' : 'MANUAL' }),
+        }),
+      });
+    } else if (media.length === 1) {
+      containerId = await createContainer({
+        image_url: media[0].url,
+        ...common,
+        ...altText,
+      });
     } else {
       const children = [];
       for (const m of media) {
         children.push(await createContainer(isVideo(m)
           ? { media_type: 'VIDEO', video_url: m.url, is_carousel_item: 'true' }
-          : { image_url: m.url, is_carousel_item: 'true' }));
+          : { image_url: m.url, is_carousel_item: 'true', ...altText }));
       }
       for (const child of children) await waitUntilReady(child);
-      containerId = await createContainer({ media_type: 'CAROUSEL', children: children.join(','), ...caption });
+      containerId = await createContainer({ media_type: 'CAROUSEL', children: children.join(','), ...common });
     }
     await waitUntilReady(containerId);
 
+    const token = env('INSTAGRAM_ACCESS_TOKEN');
     const { data: published } = await request(`${api()}/${env('INSTAGRAM_USER_ID') || 'me'}/media_publish`, {
       method: 'POST',
-      body: new URLSearchParams({ creation_id: containerId, access_token: env('INSTAGRAM_ACCESS_TOKEN') }),
+      body: new URLSearchParams({ creation_id: containerId, access_token: token }),
     });
 
     try {
-      const token = encodeURIComponent(env('INSTAGRAM_ACCESS_TOKEN'));
-      const { data } = await request(`${api()}/${published.id}?fields=permalink&access_token=${token}`);
+      const { data } = await request(`${api()}/${published.id}?fields=permalink&access_token=${encodeURIComponent(token)}`);
       return { url: data.permalink };
     } catch {
       return { url: null };

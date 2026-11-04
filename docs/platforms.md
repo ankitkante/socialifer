@@ -22,11 +22,11 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 
 | Platform | Live-tested | Main risk |
 |---|---|---|
-| X | **Text post: yes** (2026-11-04). Media untested | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
+| X | **Text post: yes** (2026-11-04). A 447 MB video upload failed with a network error ("fetch failed"), cause not yet known | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
 | Bluesky | No | Video is uploaded with plain `uploadBlob`, which Bluesky's tutorial calls the easiest option. The alternative is the video service (`video.bsky.app`, `app.bsky.video.uploadVideo`). The account must have a verified email to post video. |
 | Mastodon | No | Low. The API is stable. Limits vary per server. |
 | Threads | No | Media URLs must be reachable by Meta through `TUNNEL_URL`. |
-| Instagram | No | Same as Threads. Also, `me` as the user id is assumed to work with Instagram Login tokens; set `INSTAGRAM_USER_ID` if it doesn't. |
+| Instagram | **Yes** (2026-11-04: Reel from a 447 MB video, compressed to fit 300 MB and fetched through the cloudflared tunnel) | Media URLs must be reachable by Meta through `TUNNEL_URL`. `me` as the user id: set `INSTAGRAM_USER_ID` (required with Unified login tokens on graph.facebook.com). |
 | YouTube | **Yes** (2026-11-04, private test upload) | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
 | LinkedIn | No | The `LinkedIn-Version` header expires after about a year (default `202510`). |
 | Facebook | No | Low. Uses the standard Graph endpoints. |
@@ -108,6 +108,14 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 - **Auth:** the webhook URL. `?wait=true` makes Discord return the created message.
 - **Post:** multipart with `payload_json` (`{ content }`) and `files[i]`. Messages are limited to 2,000 characters, and to 10 files of 10 MB each on servers without boosts.
 - **Links:** only built when `DISCORD_GUILD_ID` is set.
+
+## Per-platform fields: what's unverified
+
+These are wired to the documented API parameters but haven't been used on a live account yet:
+
+- **X:** `made_with_ai` is sent as a boolean, as listed in the create-post schema, on the first post of a thread only. Reply settings are left at X's default (everyone). Alt text uses `POST /2/media/metadata` and only produces a warning if it fails. Polls and the paid-partnership label were removed at the user's request.
+- **Instagram:** trial reels map Manual to `MANUAL` and Auto to `SS_PERFORMANCE`. Collaborators, tagging people and the first comment were removed at the user's request; @mentions in the caption still link and notify.
+- **YouTube:** scheduling forces `privacyStatus: private` and sets `publishAt`. With no category picked, `categoryId` is `YOUTUBE_CATEGORY_ID` or 22 (People & Blogs), YouTube's own default; Studio's upload defaults don't apply to API uploads. License, embedding, public stats and subscriber notifications are left at YouTube's defaults. Thumbnails use `thumbnails.set` with the existing `youtube.upload` scope, and a rejection (common on channels that aren't phone-verified) produces a warning rather than failing the upload.
 
 ## Not supported
 

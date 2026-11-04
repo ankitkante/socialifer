@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
 import { request, poll, env, hasEnv, UPLOAD_TIMEOUT } from './http.js';
-import { isVideo } from '../public/rules.js';
+import { isVideo, splitThread } from '../public/rules.js';
 
 const ENV = ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET'];
 const TWEETS = 'https://api.x.com/2/tweets';
 const UPLOAD = 'https://api.x.com/2/media/upload';
+const METADATA = 'https://api.x.com/2/media/metadata';
 const CHUNK_BYTES = 4 * 1024 * 1024;
 
 // RFC 3986 percent-encoding, as OAuth 1.0a requires.
@@ -65,11 +66,22 @@ async function upload(m) {
   return id;
 }
 
+const LIMIT = Number(process.env.X_CHAR_LIMIT) || 280;
+
+// Alt text is set on the uploaded media before it's attached to a post.
+async function setAltText(mediaId, text) {
+  await api('POST', METADATA, {
+    json: { id: mediaId, metadata: { alt_text: { text } } },
+  });
+}
+
 export default {
   id: 'x',
   name: 'X',
   // X Premium accounts can post up to 25,000 characters.
-  limit: Number(process.env.X_CHAR_LIMIT) || 280,
+  limit: LIMIT,
+  // Long text can be split into a numbered thread (see splitThread in public/rules.js).
+  threads: true,
   // X's upload docs give a 20-minute video cap by default (125 minutes for Premium).
   media: {
     maxImages: 4, maxVideos: 1, maxItems: 4, mix: false, imageMB: 5, videoMB: 512,
@@ -78,12 +90,46 @@ export default {
   },
   envVars: ENV,
   isConfigured: () => hasEnv(...ENV),
-  async post(text, media) {
+  // options: { thread, altText, madeWithAi }
+  async post(text, media, options = {}) {
+    const o = options;
+    const warnings = [];
     const mediaIds = [];
-    for (const m of media) mediaIds.push(await upload(m));
-    const { data } = await api('POST', TWEETS, {
-      json: { ...(text && { text }), ...(mediaIds.length && { media: { media_ids: mediaIds } }) },
+    for (const m of media) {
+      const id = await upload(m);
+      mediaIds.push(id);
+      if (o.altText?.trim() && !isVideo(m)) {
+        try {
+          await setAltText(id, o.altText.trim());
+        } catch (err) {
+          warnings.push(`Alt text wasn't added to ${m.name} (${err.message}).`);
+        }
+      }
+    }
+
+    const parts = o.thread ? splitThread('x', text, LIMIT) : [text];
+
+    // Media and labels go on the first post; the rest of a thread are replies to it.
+    const { data: first } = await api('POST', TWEETS, {
+      json: {
+        ...(parts[0] && { text: parts[0] }),
+        ...(mediaIds.length && { media: { media_ids: mediaIds } }),
+        ...(o.madeWithAi && { made_with_ai: true }),
+      },
     });
-    return { url: `https://x.com/i/web/status/${data.id}` };
+
+    let previous = first.id;
+    for (const [i, part] of parts.slice(1).entries()) {
+      try {
+        const { data } = await api('POST', TWEETS, {
+          json: { text: part, reply: { in_reply_to_tweet_id: previous } },
+        });
+        previous = data.id;
+      } catch (err) {
+        warnings.push(`Only ${i + 1} of ${parts.length} posts in the thread were published (${err.message}).`);
+        break;
+      }
+    }
+    return { url: `https://x.com/i/web/status/${first.id}`, warnings };
   },
 };

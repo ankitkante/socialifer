@@ -101,10 +101,64 @@ test('oversized videos become compression notes when ffmpeg is available', async
 test('per-platform text replaces the main post for that platform only', async () => {
   const { effectiveText } = await import('../public/rules.js');
   assert.equal(effectiveText('main', { text: '  own  ' }), 'own');
-  assert.equal(effectiveText('main', { text: '   ' }), 'main');
+  // An edited box is used exactly, even when it's been emptied on purpose.
+  assert.equal(effectiveText('main', { text: '   ' }), '');
   assert.equal(effectiveText('main', {}), 'main');
   const p = describe(x);
   assert.ok(problemsFor(p, 'short', [], { text: 'a'.repeat(281) }).some((m) => /too long/.test(m)));
   assert.deepEqual(problemsFor(p, 'a'.repeat(281), [], { text: 'short' }), []);
   assert.ok(problemsFor(p, '', []).some((m) => /Add some text/.test(m)));
+});
+
+test('YouTube takes the title from the first line and the description from the rest', async () => {
+  const { effectiveText, resolveTitle } = await import('../public/rules.js');
+  const post = 'Main Tera Boyfriend | Lyric video\n\nMade with Claude and DaVinci Resolve.\n#lyrics';
+  assert.equal(resolveTitle(post, ''), 'Main Tera Boyfriend | Lyric video');
+  assert.equal(effectiveText(post, {}, 'youtube'), 'Made with Claude and DaVinci Resolve.\n#lyrics');
+  // A typed title means the whole post is the description.
+  assert.equal(effectiveText(post, { title: 'Custom' }, 'youtube'), post);
+  // An edited description box is used exactly.
+  assert.equal(effectiveText(post, { text: 'Own description' }, 'youtube'), 'Own description');
+  // Other platforms get the whole post.
+  assert.equal(effectiveText(post, {}, 'instagram'), post);
+  // A one-line post is all title, with no description.
+  assert.equal(effectiveText('Just a title', {}, 'youtube'), '');
+});
+
+test('splits long text into a numbered thread that fits X', async () => {
+  const { splitThread } = await import('../public/rules.js');
+  assert.deepEqual(splitThread('x', 'short', 280), ['short']);
+  const text = Array.from({ length: 120 }, (_, i) => `word${i}`).join(' ');
+  const parts = splitThread('x', text, 280);
+  assert.ok(parts.length > 1);
+  parts.forEach((part, i) => {
+    assert.ok([...part].length <= 280, `part ${i + 1} is ${[...part].length} long`);
+    assert.ok(part.endsWith(` ${i + 1}/${parts.length}`));
+  });
+  // Nothing is lost: rejoining the parts gives back every word.
+  assert.equal(parts.map((part) => part.replace(/ \d+\/\d+$/, '')).join(' '), text);
+
+  const p = { ...describe(x), threads: true };
+  assert.deepEqual(problemsFor(p, text, [], { thread: true }), []);
+  assert.ok(problemsFor(p, text, [], { thread: false }).some((m) => /too long/.test(m)));
+});
+
+test('checks per-platform fields', async () => {
+  const { adjustmentsFor } = await import('../public/rules.js');
+  const youtube = describe((await import('../platforms/youtube.js')).default);
+  const v = [{ ...video(), duration: 30 }];
+  assert.ok(problemsFor(youtube, 'hi', v, { tags: 'a'.repeat(501) }).some((m) => /Tags are too long/.test(m)));
+  assert.ok(problemsFor(youtube, 'hi', v, { publishAt: '2000-01-01T00:00' }).some((m) => /future/.test(m)));
+  assert.ok(problemsFor(youtube, 'hi', v, { thumbnail: { type: 'image/jpeg', size: 3_000_000 } }).some((m) => /2 MB/.test(m)));
+  const later = new Date(Date.now() + 3_600_000).toISOString();
+  assert.ok(adjustmentsFor(youtube, v, { publishAt: later }).some((n) => /Stays private until/.test(n)));
+
+  const ig = describe(instagram, true);
+  assert.ok(problemsFor(ig, 'hi', [image(), image()], { postAs: 'story' }).some((m) => /exactly one/.test(m)));
+  assert.ok(problemsFor(ig, 'hi', [image()], { trial: 'auto' }).some((m) => /Trial reels/.test(m)));
+  assert.deepEqual(problemsFor(ig, 'hi', v, { trial: 'manual', coverSeconds: '3' }), []);
+  assert.ok(problemsFor(ig, 'hi', v, { coverSeconds: '45' }).some((m) => /past the end/.test(m)));
+
+  const px = describe(x);
+  assert.ok(problemsFor(px, 'hi', [image()], { altText: 'a'.repeat(1001) }).some((m) => /Alt text is too long/.test(m)));
 });
