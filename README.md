@@ -91,6 +91,15 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 - **LinkedIn** API versions expire after about a year. If you see a version error, set `LINKEDIN_VERSION` to a recent `YYYYMM` value.
 - **Substack** isn't supported because it has no official API for posting.
 
+## Ideas for later
+
+Not started; to be discussed before building.
+
+- **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
+- **Scheduling in the app** for platforms without built-in scheduling through the API (Instagram and X; YouTube already has a schedule option). The app would keep the post and publish it at the chosen time, so the server, and for Instagram the tunnel, would need to be running then. Open questions: where queued posts are stored, what happens to a missed time, and retries.
+- **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
+- **Drafts and post history:** deferred.
+
 ## Further reading
 
 - [AGENTS.md](AGENTS.md): conventions, the platform module contract, security rules that must hold, and decisions made so far. Coding agents read this first.
