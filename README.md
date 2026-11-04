@@ -17,15 +17,18 @@ npm start               # opens on http://localhost:3000
 
 ## Using it
 
-- Type your post and attach photos or videos with the **+ Photo or video** button, by dragging files onto the box, or by pasting an image.
-- Select platforms, then click **Post** (or press Ctrl+Enter).
-- Each platform shows a live character count and warns you when your text or files don't fit its rules. The Post button stays disabled until every selected platform can take the post.
-- While posting, each platform shows what it's doing (uploading, compressing, waiting for processing) and its result as soon as it finishes. The terminal logs every step, with any error's full details. Results list a link to every new post. If some platforms fail, your post stays on the page and only the failed platforms stay selected, so you can retry them.
-- **Customize per platform:** once you select platforms, a **Customize per platform** card shows a section for each one. Each section has its own text box, which shows the main post as you type until you edit it (then "↺ Use main post" switches it back), plus that platform's own options. What's in a box is exactly what that platform gets, so an emptied box means no text. Rarely used ones are under **More options**, and choices like visibility or who can reply are remembered:
-  - **YouTube:** title, visibility, schedule, category (YouTube's default, People & Blogs, unless you pick one), tags, custom thumbnail, made for kids, altered or synthetic (AI) content; more: recording date, languages (English by default).
-  - **Instagram:** post or Story, also share the Reel to Feed, cover frame or cover image, alt text, AI label; more: audio name, trial reel. @mentions in the caption link to those accounts and notify them (they're mentions, not photo tags).
-  - **X:** split long posts into a numbered thread (each part is billed as a post), alt text, made-with-AI label.
+The page has two columns: you write on the left, and the **Post panel** stays pinned on the right. On a phone or narrow window, a bar at the bottom keeps the Post button within reach.
+
+- **Your post:** type it once, and attach photos or videos with **+ Add photo or video**, by dragging files onto the box, or by pasting an image.
+- **Post to:** click the YouTube, Instagram or X pills (or any other platform you've set up) to choose where it goes. **+ Set up more** lists the platforms that aren't set up yet and the `.env` values each one needs.
+- **Platform tabs:** each chosen platform gets a tab with a badge: ✓ ready, ! with a count of issues, or i for a note such as "will be compressed". A tab has that platform's own text box (it shows your post as you type until you edit it; **↺ Use main post** switches it back), its options, problems shown right under the field they concern, and a **live preview**:
+  - **YouTube:** title (your first line unless you type one; the rest becomes the description), visibility, schedule, category, tags, custom thumbnail, made for kids, altered or synthetic (AI) content; more: recording date and languages. The preview shows the title as search results cut it and whether the video will be a Short.
+  - **Instagram:** post or Story, cover frame or cover image, also share the Reel to Feed, alt text, AI label; more: audio name and trial reel. The preview shows the Reel, post or Story shape and the caption where the feed cuts it ("… more"). @mentions in the caption link to those accounts and notify them.
+  - **X:** split long posts into a numbered thread, alt text, made-with-AI label. The preview shows every post in the thread. A thread breaks at the end of a sentence when one is close to the limit; a post cut mid-sentence ends with "...", and every post ends with its number on its own line, like `(1/2)`. Each post in a thread is billed separately.
   - Not possible through the APIs: YouTube end screens, cards and monetisation; Instagram library music, filters and stickers; X quote posts (Enterprise plan only).
+- **Post panel:** before posting, one row per platform shows ✓ Ready, a note, or its issues (click a row to open that tab), and the button says why it's disabled. While posting, each platform shows its current step with a progress bar (upload parts, compression). Afterwards you get **View post** and **Copy link** for each one. A failed post keeps your text and files, and only the failed platforms stay selected, so the button retries just those. Press **Ctrl+Enter** to post from anywhere on the page.
+- **Header:** the dots show whether the cloudflared **tunnel** reaches this server (needed for Instagram and Threads media) and whether **ffmpeg** is installed. The theme switch follows your system by default; choose Light or Dark to override it.
+- The terminal logs every step, with any error's full details.
 
 Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos. PNG and WebP images are converted to high-quality JPEG when you add them, because Instagram only accepts JPEG and every platform takes it. Transparent areas become white, and images larger than 4,096 px on the longest side are scaled down. GIFs are left as they are.
 
