@@ -27,7 +27,7 @@ const fileUrl = (id) => new URL(id, DIR);
 const metaUrl = (id) => new URL(`${id}.json`, DIR);
 
 export function publicBaseUrl() {
-  return process.env.PUBLIC_BASE_URL?.trim().replace(/\/+$/, '') || '';
+  return process.env.TUNNEL_URL?.trim().replace(/\/+$/, '') || '';
 }
 
 export async function saveUpload(req, type, name) {
@@ -102,7 +102,7 @@ export async function cleanupOldMedia() {
   }
 }
 
-// Serves /media/<id>.<ext> so Threads and Instagram can fetch files through PUBLIC_BASE_URL.
+// Serves /media/<id>.<ext> so Threads and Instagram can fetch files through TUNNEL_URL.
 export async function serveMedia(req, res, filename) {
   const meta = await readMeta(filename.split('.')[0]);
   if (!meta) {

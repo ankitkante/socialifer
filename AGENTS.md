@@ -62,11 +62,11 @@ export default {
 
 `options` holds per-platform extras that the UI sends as `options[platformId]` in `POST /api/post`, and it's passed both to `problemsFor` and to `post()`. Only YouTube uses it today, for `{ title, privacy, madeForKids }`. Its form lives in the `#youtube-options` card in `public/index.html`. A new platform that needs extra fields should follow the same pattern.
 
-`media` items passed to `post()` are `{ id, name, type, size, url, blob(), buffer() }`. `url` is the public URL (only set when `PUBLIC_BASE_URL` is configured). Upload media in order and sequentially. To add a platform, create the module, register it in `platforms/index.js`, add its settings to `.env.example`, and add a row to `docs/platforms.md` and the README table.
+`media` items passed to `post()` are `{ id, name, type, size, url, blob(), buffer() }`. `url` is the public URL (only set when `TUNNEL_URL` is configured). Upload media in order and sequentially. To add a platform, create the module, register it in `platforms/index.js`, add its settings to `.env.example`, and add a row to `docs/platforms.md` and the README table.
 
 ## Invariants: don't break these
 
-1. **Local only.** The server binds to `127.0.0.1`. Everything except `GET/HEAD /media/*` must reject requests whose `Host` isn't `localhost:PORT`/`127.0.0.1:PORT` **or** that carry `X-Forwarded-For`/`Forwarded` (that's how a tunnel is detected). This blocks DNS rebinding and stops `PUBLIC_BASE_URL` tunnels from exposing the posting API.
+1. **Local only.** The server binds to `127.0.0.1`. Everything except `GET/HEAD /media/*` must reject requests whose `Host` isn't `localhost:PORT`/`127.0.0.1:PORT` **or** that carry `X-Forwarded-For`/`Forwarded` (that's how a tunnel is detected). This blocks DNS rebinding and stops `TUNNEL_URL` tunnels from exposing the posting API.
 2. **No simple cross-site requests.** `POST /api/post` requires `application/json` and `POST /api/media` requires an `image/*`/`video/*` type, so browsers must preflight and other websites can't post on the user's behalf. There are deliberately no CORS headers.
 3. **Media ids are 128-bit random hex** and validated with `/^[a-f0-9]{32}$/` before touching the filesystem.
 4. **Server re-validates everything** the UI checks (`problemsFor`); the UI is a convenience, not the gate.
@@ -81,7 +81,7 @@ export default {
 ## Decisions on record
 
 - **Substack: not supported.** It has no official posting API. An unofficial route exists (session cookie + internal `/api/v1/comment/feed` for Notes), but it may break without notice and may violate their terms. The user chose to skip it unless an official way appears.
-- **Instagram and Threads media need `PUBLIC_BASE_URL`**, because Meta fetches media from a URL. Instagram's resumable upload (direct video upload) is only available to Facebook Login for Business apps, and images still need a URL, so the tunnel approach was chosen for both.
+- **Instagram and Threads media need `TUNNEL_URL`**, because Meta fetches media from a URL. Instagram's resumable upload (direct video upload) is only available to Facebook Login for Business apps, and images still need a URL, so the tunnel approach was chosen for both.
 - **No alt text yet.** It is a possible follow-up (Bluesky, Mastodon, X and LinkedIn support it).
 - **YouTube uploads start private** until the user's Google Cloud project passes YouTube's API audit. This can't be worked around in code; the UI and README say so. Shorts are not a separate upload type.
 - **X limit defaults to 280**; `X_CHAR_LIMIT` exists for Premium accounts (up to 25,000).

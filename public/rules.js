@@ -51,7 +51,7 @@ export function problemsFor(platform, text, media, options = {}) {
   if (videos.length > r.maxVideos) problems.push(r.maxVideos ? `Up to ${plural(r.maxVideos, 'video')}` : 'Videos not supported');
   if (!r.mix && images.length && videos.length) problems.push("Can't mix images and videos");
   if (media.length > r.maxItems) problems.push(`Up to ${r.maxItems} files per post`);
-  if (r.needsPublicUrl && media.length && !platform.publicUrlReady) problems.push('Media needs PUBLIC_BASE_URL (see README)');
+  if (r.needsPublicUrl && media.length && !platform.publicUrlReady) problems.push('Media needs TUNNEL_URL (see README)');
 
   for (const m of images) {
     if (r.imageTypes && !r.imageTypes.includes(m.type)) problems.push(`${m.name}: ${r.imageTypesLabel}`);

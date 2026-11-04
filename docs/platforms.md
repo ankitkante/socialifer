@@ -11,7 +11,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 | X | Keys only (2026-11-04: `GET /2/users/me` returned `x-access-level: read-write`). Posting is untested because the account has no credits yet | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
 | Bluesky | No | Video is uploaded with plain `uploadBlob`, which Bluesky's tutorial calls the easiest option. The alternative is the video service (`video.bsky.app`, `app.bsky.video.uploadVideo`). The account must have a verified email to post video. |
 | Mastodon | No | Low. The API is stable. Limits vary per server. |
-| Threads | No | Media URLs must be reachable by Meta through `PUBLIC_BASE_URL`. |
+| Threads | No | Media URLs must be reachable by Meta through `TUNNEL_URL`. |
 | Instagram | No | Same as Threads. Also, `me` as the user id is assumed to work with Instagram Login tokens; set `INSTAGRAM_USER_ID` if it doesn't. |
 | YouTube | **Yes** (2026-11-04, private test upload) | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
 | LinkedIn | No | The `LinkedIn-Version` header expires after about a year (default `202510`). |
@@ -47,14 +47,14 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 
 - **Auth:** `THREADS_ACCESS_TOKEN` with the `threads_basic` and `threads_content_publish` permissions. The user id defaults to `me`.
 - **Flow:** create a container with `POST /{user}/threads`, wait for `status=FINISHED` (`GET /{container}?fields=status,error_message`), then `POST /{user}/threads_publish`, then fetch the permalink.
-- **Media:** sent as `image_url` or `video_url`. **This needs `PUBLIC_BASE_URL`.** Carousels take 2 to 20 child containers (`is_carousel_item=true`), then a `CAROUSEL` container with `children`. Images and videos can be mixed.
+- **Media:** sent as `image_url` or `video_url`. **This needs `TUNNEL_URL`.** Carousels take 2 to 20 child containers (`is_carousel_item=true`), then a `CAROUSEL` container with `children`. Images and videos can be mixed.
 - **Limits:** 500 characters.
 
 ## Instagram
 
 - **Auth:** "Instagram API with Instagram Login" token (`instagram_business_basic`, `instagram_business_content_publish`) against `graph.instagram.com`. Set `INSTAGRAM_GRAPH_HOST=https://graph.facebook.com` to use a Facebook Login token instead. Requires a Business or Creator account.
 - **Flow:** `POST /{user}/media` creates a container, then the module polls `status_code` until `FINISHED` and calls `POST /{user}/media_publish`. A single image uses `image_url`. A single video is a Reel (`media_type=REELS`, `video_url`). Carousels take 2 to 10 children (`media_type=VIDEO` for video children), then a `CAROUSEL` container.
-- **Requirements:** at least one image or video, JPEG-only images (the UI converts PNG and WebP to JPEG in the browser before upload; see `toJpeg` in `public/index.html`), and `PUBLIC_BASE_URL`. Captions are limited to 2,200 characters. Accounts can publish 50 posts per 24 hours.
+- **Requirements:** at least one image or video, JPEG-only images (the UI converts PNG and WebP to JPEG in the browser before upload; see `toJpeg` in `public/index.html`), and `TUNNEL_URL`. Captions are limited to 2,200 characters. Accounts can publish 50 posts per 24 hours.
 - **Not used:** resumable direct upload (`rupload.facebook.com`) only works for Facebook Login for Business apps, and images still need URLs.
 - **Docs:** https://developers.facebook.com/docs/instagram-platform/content-publishing
 

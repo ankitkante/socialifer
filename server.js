@@ -74,7 +74,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const { pathname } = new URL(req.url, 'http://localhost');
 
-    // Uploaded files are the only thing served to the outside world (via PUBLIC_BASE_URL),
+    // Uploaded files are the only thing served to the outside world (via TUNNEL_URL),
     // so Threads and Instagram can download them. Ids are random and unguessable.
     if ((req.method === 'GET' || req.method === 'HEAD') && pathname.startsWith('/media/')) {
       return await serveMedia(req, res, pathname.slice('/media/'.length));

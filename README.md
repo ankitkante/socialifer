@@ -31,8 +31,8 @@ Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos. PNG and
 | X | 280 (links count as 23) | 4 images or 1 video | Images up to 5 MB, video up to 512 MB. Set `X_CHAR_LIMIT` for Premium. |
 | Bluesky | 300 | 4 images or 1 video | Images up to 1 MB, video up to 100 MB. |
 | Mastodon | 500 (links count as 23) | 4 images or 1 video | Limits vary by server. |
-| Threads | 500 | Up to 20, mixed | Media needs `PUBLIC_BASE_URL`. |
-| Instagram | 2,200 | 1 to 10, mixed | **Needs an image or video.** JPEG images only (PNG and WebP are converted automatically). A single video becomes a Reel. Needs `PUBLIC_BASE_URL`. |
+| Threads | 500 | Up to 20, mixed | Media needs `TUNNEL_URL`. |
+| Instagram | 2,200 | 1 to 10, mixed | **Needs an image or video.** JPEG images only (PNG and WebP are converted automatically). A single video becomes a Reel. Needs `TUNNEL_URL`. |
 | YouTube | 5,000 (description) | **Exactly 1 video** | Needs a title (up to 100 characters; defaults to the first line of your post). No `<` or `>`. |
 | LinkedIn | 3,000 | Up to 20 images or 1 video | |
 | Facebook | 63,206 | Up to 10 images or 1 video | Posts to a Facebook Page. Facebook's API can't post to personal profiles. |
@@ -46,7 +46,7 @@ You can't mix images and videos in one post on X, Bluesky, Mastodon, LinkedIn or
 Meta doesn't accept file uploads for Threads or Instagram. Instead, it downloads each file from a public web address. To make that work:
 
 1. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) and run `cloudflared tunnel --url http://localhost:3000`.
-2. Copy the `https://….trycloudflare.com` address it prints into `PUBLIC_BASE_URL` in `.env`, then restart the server.
+2. Copy the `https://….trycloudflare.com` address it prints into `TUNNEL_URL` in `.env`, then restart the server.
 
 Only uploaded files are reachable through the tunnel. The page and the posting API reject any request that arrives through it. A quick tunnel's address changes each time you start it, so update `.env` when that happens. Text-only Threads posts work without a tunnel.
 

@@ -44,7 +44,7 @@ test('enforces file sizes in decimal MB', () => {
 
 test('Instagram needs media, JPEG images and a public URL', () => {
   assert.ok(problemsFor(describe(instagram, true), 'hi', []).some((m) => /Needs an image or video/.test(m)));
-  assert.ok(problemsFor(describe(instagram, false), 'hi', [image()]).some((m) => /PUBLIC_BASE_URL/.test(m)));
+  assert.ok(problemsFor(describe(instagram, false), 'hi', [image()]).some((m) => /TUNNEL_URL/.test(m)));
   assert.ok(problemsFor(describe(instagram, true), 'hi', [image('a.png', 10, 'image/png')]).some((m) => /JPEG/.test(m)));
   assert.deepEqual(problemsFor(describe(instagram, true), 'hi', [image(), video()]), []);
 });

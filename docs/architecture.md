@@ -16,7 +16,7 @@ server.js ──► publish(): Promise.allSettled over selected platforms
                  ▼
             platforms/<name>.js ──► platform APIs (fetch)
                  ▲
-Platform fetchers (Threads, Instagram) ── GET /media/<id>.<ext> ── via PUBLIC_BASE_URL tunnel
+Platform fetchers (Threads, Instagram) ── GET /media/<id>.<ext> ── via TUNNEL_URL tunnel
 ```
 
 Each platform posts independently and in parallel. One platform failing never blocks the others. The response lists a result per platform: `{ id, name, ok, url, error }`.
@@ -46,7 +46,7 @@ There's one user on one machine, and there's no login, so the protection comes f
 - **Host allowlist:** everything except `/media/*` requires `Host` to be `localhost:PORT` or `127.0.0.1:PORT`. This defeats DNS rebinding.
 - **Tunnel detection:** requests carrying `X-Forwarded-For` or `Forwarded` are rejected outside `/media/*`. This matters because some tunnels rewrite `Host` to `localhost`.
 - **CSRF:** the write endpoints require non-simple content types (`application/json`, `image/*`, `video/*`) and the server sends no CORS headers, so cross-origin pages can't trigger them.
-- **Public media:** files under `/media/` are reachable by anyone who knows the 128-bit random id, but only while `PUBLIC_BASE_URL`'s tunnel is running and for at most 24 hours.
+- **Public media:** files under `/media/` are reachable by anyone who knows the 128-bit random id, but only while `TUNNEL_URL`'s tunnel is running and for at most 24 hours.
 - Credentials stay in `.env` (gitignored) and are only read on the server.
 
 ## Shared rules (`public/rules.js`)
