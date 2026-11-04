@@ -14,7 +14,7 @@ function form(fields, file) {
 
 export default {
   id: 'facebook',
-  name: 'Facebook Page',
+  name: 'Facebook',
   limit: 63206,
   media: { maxImages: 10, maxVideos: 1, maxItems: 10, mix: false, imageMB: 10, videoMB: 1000 },
   envVars: ENV,

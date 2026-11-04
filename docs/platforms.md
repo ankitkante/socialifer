@@ -15,7 +15,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 | Instagram | No | Same as Threads. Also, `me` as the user id is assumed to work with Instagram Login tokens; set `INSTAGRAM_USER_ID` if it doesn't. |
 | YouTube | **Yes** (2026-11-04, private test upload) | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
 | LinkedIn | No | The `LinkedIn-Version` header expires after about a year (default `202510`). |
-| Facebook Page | No | Low. Uses the standard Graph endpoints. |
+| Facebook | No | Low. Uses the standard Graph endpoints. |
 | Telegram | No | Low. |
 | Discord | Partly | The webhook multipart format matched a mock. |
 
@@ -75,7 +75,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 - **Video:** `POST /rest/videos?action=initializeUpload` (`fileSizeBytes`), then a `PUT` of each byte range from `uploadInstructions` (no auth header) while collecting the `ETag`s. Then `POST /rest/videos?action=finalizeUpload` with `uploadedPartIds`, and polling `GET /rest/videos/{urn}` until `AVAILABLE`.
 - **Post:** `POST /rest/posts`. The new post's URN comes back in the `x-restli-id` header.
 
-## Facebook Page
+## Facebook
 
 - **Auth:** a long-lived Page access token (`pages_manage_posts`, `pages_read_engagement`). The Graph version defaults to `v23.0`.
 - **Text and photos:** each photo is uploaded with `POST /{page}/photos` (multipart `source`, `published=false`), then attached to `POST /{page}/feed` with `message` and `attached_media[i]={"media_fbid":...}`.

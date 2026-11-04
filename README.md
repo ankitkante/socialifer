@@ -35,7 +35,7 @@ Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos.
 | Instagram | 2,200 | 1 to 10, mixed | **Needs an image or video.** JPEG images only. A single video becomes a Reel. Needs `PUBLIC_BASE_URL`. |
 | YouTube | 5,000 (description) | **Exactly 1 video** | Needs a title (up to 100 characters; defaults to the first line of your post). No `<` or `>`. |
 | LinkedIn | 3,000 | Up to 20 images or 1 video | |
-| Facebook Page | 63,206 | Up to 10 images or 1 video | |
+| Facebook | 63,206 | Up to 10 images or 1 video | Posts to a Facebook Page. Facebook's API can't post to personal profiles. |
 | Telegram | 4,096 | Up to 10, mixed | Captions are capped at 1,024 characters, so longer text is sent as a separate message. |
 | Discord | 2,000 | Up to 10, mixed | 10 MB per file on servers without boosts. |
 
