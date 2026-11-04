@@ -71,7 +71,7 @@ When YouTube is selected, a YouTube panel appears for the title, visibility (pub
 - Uploaded files are kept in `uploads/` and deleted after a successful post, when you remove them from the page, or after 24 hours.
 - Video posts can take a few minutes, because the app waits for each platform to finish processing.
 - On LinkedIn, simple hashtags like `#AI` become real hashtags, but `#with_underscore` is posted as plain text.
-- **X** only allows posting through its API on the free plan within a small monthly limit.
+- **X** has no free API plan for new developer accounts (pay-per-use since February 2026). Buy credits at [console.x.com](https://console.x.com) before posting; a post costs about $0.01. Set the app permissions to **Read and write** *before* generating the access token.
 - **LinkedIn** API versions expire after about a year. If you see a version error, set `LINKEDIN_VERSION` to a recent `YYYYMM` value.
 - **Substack** isn't supported because it has no official API for posting.
 

@@ -8,7 +8,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 
 | Platform | Live-tested | Main risk |
 |---|---|---|
-| X | No | Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
+| X | Keys only (2026-11-04: `GET /2/users/me` returned `x-access-level: read-write`). Posting is untested because the account has no credits yet | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
 | Bluesky | No | Video is uploaded with plain `uploadBlob`, which Bluesky's tutorial calls the easiest option. The alternative is the video service (`video.bsky.app`, `app.bsky.video.uploadVideo`). The account must have a verified email to post video. |
 | Mastodon | No | Low. The API is stable. Limits vary per server. |
 | Threads | No | Media URLs must be reachable by Meta through `PUBLIC_BASE_URL`. |
@@ -21,6 +21,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 
 ## X
 
+- **Console:** [console.x.com](https://console.x.com). It replaced developer.x.com. Set App permissions to Read and write first, then regenerate the Consumer Key and generate the Access Token. Tokens made before the change stay read-only.
 - **Auth:** OAuth 1.0a HMAC-SHA1 user context (`X_API_KEY/SECRET`, `X_ACCESS_TOKEN/SECRET`), implemented in `oauthHeader()` and tested against X's published signature example. Query parameters are signed; JSON and multipart bodies are not.
 - **Post:** `POST https://api.x.com/2/tweets` with `{ text?, media?: { media_ids } }`.
 - **Media:** a chunked v2 upload for every file. It runs `POST /2/media/upload/initialize` (`media_type`, `total_bytes`, `media_category`: `tweet_image`, `tweet_gif` or `tweet_video`), then `POST /2/media/upload/{id}/append` (multipart `segment_index` and `media`, in 4 MB chunks; the server maximum is 8 MB), then `POST /2/media/upload/{id}/finalize`. If `processing_info` is returned, it polls `GET /2/media/upload?command=STATUS&media_id=` until `succeeded`. Don't send the legacy `command=INIT` form to `/2/media/upload`.
