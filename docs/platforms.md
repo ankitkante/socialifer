@@ -22,7 +22,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 
 | Platform | Live-tested | Main risk |
 |---|---|---|
-| X | **Text post: yes** (2026-11-04). A 447 MB video upload failed with a network error ("fetch failed"), cause not yet known | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
+| X | **Text post: yes** (2026-11-04). **Video: yes** (2026-11-04: 447 MB in 107 parts; X dropped the connection once, ECONNRESET, and the part retry recovered) | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
 | Bluesky | No | Video is uploaded with plain `uploadBlob`, which Bluesky's tutorial calls the easiest option. The alternative is the video service (`video.bsky.app`, `app.bsky.video.uploadVideo`). The account must have a verified email to post video. |
 | Mastodon | No | Low. The API is stable. Limits vary per server. |
 | Threads | No | Media URLs must be reachable by Meta through `TUNNEL_URL`. |

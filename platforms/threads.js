@@ -1,4 +1,4 @@
-import { request, poll, env, hasEnv } from './http.js';
+import { request, poll, env, hasEnv, ApiError } from './http.js';
 import { isVideo } from '../public/rules.js';
 
 const ENV = ['THREADS_ACCESS_TOKEN'];
@@ -17,10 +17,10 @@ async function createContainer(userId, token, params) {
 
 function waitUntilReady(containerId, token) {
   return poll(async () => {
-    const { data } = await request(`${BASE}/${containerId}?fields=status,error_message&access_token=${encodeURIComponent(token)}`);
+    const { data } = await request(`${BASE}/${containerId}?fields=status,error_message&access_token=${encodeURIComponent(token)}`, { retries: 2 });
     if (data.status === 'FINISHED') return true;
     if (data.status === 'ERROR' || data.status === 'EXPIRED') {
-      throw new Error(`Threads could not process the media: ${data.error_message || data.status}`);
+      throw new ApiError(`Threads could not process the media: ${data.error_message || data.status}`);
     }
   }, { what: 'Threads to process the media' });
 }

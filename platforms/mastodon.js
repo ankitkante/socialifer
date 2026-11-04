@@ -10,7 +10,7 @@ async function upload(instance, headers, m) {
   if (data.url) return data.id;
   // Large files are processed in the background; the url appears once they're ready.
   return poll(async () => {
-    const { data: status } = await request(`${instance}/api/v1/media/${data.id}`, { headers });
+    const { data: status } = await request(`${instance}/api/v1/media/${data.id}`, { headers, retries: 2 });
     return status.url ? status.id : undefined;
   }, { what: `Mastodon to process ${m.name}` });
 }

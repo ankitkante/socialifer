@@ -7,6 +7,8 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { compressionBitrate } from './public/rules.js';
+import { ApiError } from './platforms/http.js';
+import { log } from './log.js';
 
 // Uploaded files live here until they're posted, removed, or older than a day.
 const DIR = new URL('./uploads/', import.meta.url);
@@ -181,9 +183,9 @@ export function fitVideo(m, maxBytes) {
 async function compress(m, maxBytes) {
   const t = await videoTools();
   const limit = `${maxBytes / 1_000_000} MB`;
-  if (!t) throw new Error(`${m.name} is over ${limit} and ffmpeg isn't installed to compress it`);
+  if (!t) throw new ApiError(`${m.name} is over ${limit} and ffmpeg isn't installed to compress it`);
   const duration = m.duration || (await probeDuration(m));
-  if (!duration) throw new Error(`Couldn't read the length of ${m.name} to compress it`);
+  if (!duration) throw new ApiError(`Couldn't read the length of ${m.name} to compress it`);
 
   await mkdir(DIR, { recursive: true });
   const id = crypto.randomBytes(16).toString('hex');
@@ -199,7 +201,10 @@ async function compress(m, maxBytes) {
       '-vf', SCALE, '-fpsmax', '60', '-pix_fmt', 'yuv420p',
       '-c:a', 'aac', '-b:a', '128k',
       '-movflags', '+faststart', '-f', 'mp4', out,
-    ], 60 * 60_000);
+    ], 60 * 60_000).catch(async (err) => {
+      await rm(out, { force: true });
+      throw new ApiError(`ffmpeg couldn't compress ${m.name}: ${err.message}`);
+    });
     const { size } = await stat(out);
     if (size <= maxBytes) {
       const meta = {
@@ -217,7 +222,7 @@ async function compress(m, maxBytes) {
     }
   }
   await rm(out, { force: true });
-  throw new Error(`${m.name} is too long to compress under ${limit} without ruining the quality`);
+  throw new ApiError(`${m.name} is too long to compress under ${limit} without ruining the quality`);
 }
 
 export async function cleanupOldMedia() {
@@ -230,7 +235,14 @@ export async function cleanupOldMedia() {
   for (const name of names.filter((n) => n.endsWith('.json'))) {
     const id = name.slice(0, -5);
     const meta = await readMeta(id);
-    if (!meta || Date.now() - meta.createdAt > MAX_AGE_MS) await deleteMedia(id);
+    if (meta && Date.now() - meta.createdAt <= MAX_AGE_MS) continue;
+    // A file that's being read (e.g. Instagram is downloading it) can't be deleted on Windows;
+    // skip it and try again on the next run.
+    try {
+      await deleteMedia(id);
+    } catch (err) {
+      log.warn(`Couldn't delete old upload ${id} (${err.code || err.message}); will retry later`);
+    }
   }
 }
 

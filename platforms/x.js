@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
-import { request, poll, env, hasEnv, UPLOAD_TIMEOUT } from './http.js';
+import { request, poll, env, hasEnv, UPLOAD_TIMEOUT, ApiError } from './http.js';
 import { isVideo, splitThread } from '../public/rules.js';
+import { step } from '../log.js';
 
 const ENV = ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET'];
 const TWEETS = 'https://api.x.com/2/tweets';
@@ -32,36 +33,53 @@ export function oauthHeader(method, url) {
   return 'OAuth ' + Object.entries(oauth).map(([k, v]) => `${enc(k)}="${enc(v)}"`).join(', ');
 }
 
-async function api(method, url, { json, form, timeout } = {}) {
-  const headers = { Authorization: oauthHeader(method, url) };
-  let body = form;
-  if (json) {
-    headers['Content-Type'] = 'application/json';
-    body = JSON.stringify(json);
+async function api(method, url, { json, form, timeout, retries = 0 } = {}) {
+  const contentType = json ? { 'Content-Type': 'application/json' } : {};
+  try {
+    const { data } = await request(url, {
+      method,
+      // Signed afresh on every attempt: X rejects a reused OAuth nonce.
+      headers: () => ({ Authorization: oauthHeader(method, url), ...contentType }),
+      body: json ? JSON.stringify(json) : form,
+      timeout,
+      retries,
+    });
+    return data;
+  } catch (err) {
+    // Pay-per-use accounts get 402 Payment Required once their credits are used up.
+    if (err.details?.status === 402 || /credit/i.test(err.message)) {
+      throw new ApiError(`${err.message}. Your X API credits may have run out; check console.x.com`, err.details);
+    }
+    throw err;
   }
-  return (await request(url, { method, headers, body, timeout })).data;
 }
 
 async function upload(m) {
   const category = m.type === 'image/gif' ? 'tweet_gif' : isVideo(m) ? 'tweet_video' : 'tweet_image';
+  step(`Starting the upload of ${m.name}`);
   const { data: init } = await api('POST', `${UPLOAD}/initialize`, {
     json: { media_type: m.type, total_bytes: m.size, media_category: category },
   });
   const id = init.id;
 
+  // Large videos go up in many 4 MB parts. Re-sending a part is safe, so a dropped connection
+  // is retried instead of failing the whole upload.
   const blob = await m.blob();
+  const parts = Math.ceil(m.size / CHUNK_BYTES);
   for (let index = 0, offset = 0; offset < m.size; index++, offset += CHUNK_BYTES) {
+    step(`Uploading ${m.name} (part ${index + 1} of ${parts})`, { quiet: index % 10 !== 0 && index !== parts - 1 });
     const form = new FormData();
     form.append('segment_index', String(index));
     form.append('media', blob.slice(offset, offset + CHUNK_BYTES), m.name);
-    await api('POST', `${UPLOAD}/${id}/append`, { form, timeout: UPLOAD_TIMEOUT });
+    await api('POST', `${UPLOAD}/${id}/append`, { form, timeout: UPLOAD_TIMEOUT, retries: 3 });
   }
 
+  step(`Waiting for X to process ${m.name}`);
   let info = (await api('POST', `${UPLOAD}/${id}/finalize`)).data?.processing_info;
   await poll(async () => {
     if (!info || info.state === 'succeeded') return true;
-    if (info.state === 'failed') throw new Error(`X could not process ${m.name}: ${info.error?.message || 'unknown error'}`);
-    info = (await api('GET', `${UPLOAD}?command=STATUS&media_id=${id}`)).data?.processing_info;
+    if (info.state === 'failed') throw new ApiError(`X could not process ${m.name}: ${info.error?.message || 'unknown error'}`);
+    info = (await api('GET', `${UPLOAD}?command=STATUS&media_id=${id}`, { retries: 2 })).data?.processing_info;
   }, { what: `X to process ${m.name}` });
   return id;
 }
@@ -110,6 +128,7 @@ export default {
     const parts = o.thread ? splitThread('x', text, LIMIT) : [text];
 
     // Media and labels go on the first post; the rest of a thread are replies to it.
+    step(parts.length > 1 ? `Publishing the thread (1 of ${parts.length})` : 'Publishing the post');
     const { data: first } = await api('POST', TWEETS, {
       json: {
         ...(parts[0] && { text: parts[0] }),
@@ -120,6 +139,7 @@ export default {
 
     let previous = first.id;
     for (const [i, part] of parts.slice(1).entries()) {
+      step(`Publishing the thread (${i + 2} of ${parts.length})`);
       try {
         const { data } = await api('POST', TWEETS, {
           json: { text: part, reply: { in_reply_to_tweet_id: previous } },

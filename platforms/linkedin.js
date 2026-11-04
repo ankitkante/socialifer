@@ -1,4 +1,4 @@
-import { request, poll, env, hasEnv, UPLOAD_TIMEOUT } from './http.js';
+import { request, poll, env, hasEnv, UPLOAD_TIMEOUT, ApiError } from './http.js';
 import { isVideo } from '../public/rules.js';
 
 const ENV = ['LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_URN'];
@@ -58,6 +58,7 @@ async function uploadVideo(m) {
       headers: { 'Content-Type': 'application/octet-stream' },
       body: blob.slice(part.firstByte, part.lastByte + 1),
       timeout: UPLOAD_TIMEOUT,
+      retries: 3,
     });
     partIds.push(res.get('etag'));
   }
@@ -70,7 +71,7 @@ async function uploadVideo(m) {
   await poll(async () => {
     const { data: status } = await request(`${API}/videos/${encodeURIComponent(video)}`, { headers: headers() });
     if (status.status === 'AVAILABLE') return true;
-    if (status.status === 'PROCESSING_FAILED') throw new Error(`LinkedIn could not process ${m.name}`);
+    if (status.status === 'PROCESSING_FAILED') throw new ApiError(`LinkedIn could not process ${m.name}`);
   }, { what: `LinkedIn to process ${m.name}` });
   return video;
 }

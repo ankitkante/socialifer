@@ -1,7 +1,9 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { platforms } from './platforms/index.js';
+import { ApiError } from './platforms/http.js';
 import { problemsFor, effectiveText, resolveTitle, isVideo } from './public/rules.js';
+import { log, runWithContext, step, currentStep } from './log.js';
 import {
   saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError,
   videoTools, probeDuration, fitVideo,
@@ -19,6 +21,13 @@ const STATIC_FILES = {
   '/rules.js': { file: 'public/rules.js', type: 'text/javascript; charset=utf-8' },
 };
 
+// A stray error must never take the server down mid-post; log it and carry on.
+process.on('unhandledRejection', (err) => log.error('Unhandled error (the server kept running)', err?.stack ?? String(err)));
+process.on('uncaughtException', (err) => {
+  log.error('Unexpected crash', err?.stack ?? String(err));
+  process.exit(1);
+});
+
 function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
@@ -32,7 +41,11 @@ async function readJsonBody(req, limit = 1_000_000) {
     if (size > limit) throw httpError(413, 'Request body too large');
     chunks.push(chunk);
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw httpError(400, "The request wasn't valid JSON");
+  }
 }
 
 function describe(p) {
@@ -51,11 +64,21 @@ function describe(p) {
   };
 }
 
+const mb = (bytes) => `${Math.round(bytes / 1_000_000)} MB`;
+const seconds = (ms) => (ms >= 60_000 ? `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s` : `${(ms / 1000).toFixed(1)}s`);
+
 // Swaps in a compressed copy of any video that's over this platform's size limit.
-function mediaFor(p, media) {
+async function mediaFor(p, media) {
   const maxBytes = p.media.videoMB && p.media.videoMB * 1_000_000;
   if (!canCompress || !maxBytes) return media;
-  return Promise.all(media.map((m) => (isVideo(m) && m.size > maxBytes ? fitVideo(m, maxBytes) : m)));
+  return Promise.all(media.map(async (m) => {
+    if (!isVideo(m) || m.size <= maxBytes) return m;
+    step(`Compressing ${m.name} from ${mb(m.size)} to fit ${p.media.videoMB} MB`);
+    const started = Date.now();
+    const fitted = await fitVideo(m, maxBytes);
+    log.info(`Compressed to ${mb(fitted.size)} in ${seconds(Date.now() - started)}`);
+    return fitted;
+  }));
 }
 
 // Image fields (YouTube's thumbnail, Instagram's cover) arrive as upload ids; swap in the files.
@@ -64,38 +87,63 @@ async function withFieldMedia(p, own) {
   for (const key of p.mediaOptions ?? []) {
     if (!own[key]) continue;
     const m = typeof own[key] === 'string' ? await getMedia(own[key]) : null;
-    if (!m) throw new Error(`The ${key} image has expired. Remove it and add it again.`);
+    if (!m) throw new ApiError(`The ${key} image has expired. Remove it and add it again.`);
     resolved[key] = m;
   }
   return resolved;
 }
 
+// Expected failures (API and network errors, our own checks) keep their message, prefixed with the
+// step they happened in. Anything else is a bug: the user gets a short note, the terminal the stack.
+function failureMessage(err, where) {
+  if (err instanceof ApiError) return where ? `${where}: ${err.message}` : err.message;
+  const during = where ? ` while ${where[0].toLowerCase()}${where.slice(1)}` : '';
+  return `Something went wrong in the app${during}. The details are in the terminal.`;
+}
+
+let postCount = 0;
+
+// Posts to each selected platform in parallel. onEvent gets { type: 'status', id, step } as each
+// platform moves along and { type: 'result', ... } as each one finishes.
 // options holds per-platform fields keyed by platform id, e.g.
 // { instagram: { text, postAs, cover }, youtube: { text, title, privacy, tags, thumbnail } }.
-async function publish(text, ids, media, options) {
+async function publish(text, ids, media, options, onEvent = () => {}) {
+  const postId = ++postCount;
   const selected = platforms.filter((p) => ids.includes(p.id));
-  const settled = await Promise.allSettled(
-    selected.map(async (p) => {
-      if (!p.isConfigured()) throw new Error(`Not configured. Set ${p.envVars.join(', ')} in .env`);
-      const given = options[p.id];
-      const own = await withFieldMedia(p, given && typeof given === 'object' ? given : {});
-      // Validate before compressing, so a post that can't go anyway doesn't wait on ffmpeg.
-      const problems = problemsFor(describe(p), text, media, own);
-      if (problems.length) throw new Error(problems.join('. '));
-      // Platforms with a title get it resolved here, since it can come from the main post's first line.
-      const postOptions = p.title ? { ...own, title: resolveTitle(text, own.title) } : own;
-      return p.post(effectiveText(text, own, p.id), await mediaFor(p, media), postOptions);
-    }),
-  );
-  return settled.map((r, i) => ({
-    id: selected[i].id,
-    name: selected[i].name,
-    ok: r.status === 'fulfilled',
-    url: r.status === 'fulfilled' ? (r.value?.url ?? null) : null,
-    // Things that didn't work on a post that otherwise went out (e.g. a thumbnail or first comment).
-    warnings: r.status === 'fulfilled' ? (r.value?.warnings ?? []) : [],
-    error: r.status === 'rejected' ? r.reason?.message || String(r.reason) : null,
-  }));
+  const files = media.map((m) => `${m.name} (${mb(m.size)})`).join(', ');
+  log.info(`[post ${postId}] Posting to ${selected.map((p) => p.name).join(', ')}${files ? ` with ${files}` : ''}`);
+
+  return Promise.all(selected.map((p) => runWithContext(
+    { postId, platform: p.name, onStep: (s) => onEvent({ type: 'status', id: p.id, step: s }) },
+    async () => {
+      const started = Date.now();
+      let result;
+      try {
+        if (!p.isConfigured()) throw new ApiError(`Not configured. Set ${p.envVars.join(', ')} in .env`);
+        const given = options[p.id];
+        const own = await withFieldMedia(p, given && typeof given === 'object' ? given : {});
+        // Validate before compressing, so a post that can't go anyway doesn't wait on ffmpeg.
+        const problems = problemsFor(describe(p), text, media, own);
+        if (problems.length) throw new ApiError(problems.join('. '));
+        // Platforms with a title get it resolved here, since it can come from the main post's first line.
+        const postOptions = p.title ? { ...own, title: resolveTitle(text, own.title) } : own;
+        const ownMedia = await mediaFor(p, media);
+        step('Posting', { quiet: true });
+        const value = await p.post(effectiveText(text, own, p.id), ownMedia, postOptions);
+        result = { id: p.id, name: p.name, ok: true, url: value?.url ?? null, warnings: value?.warnings ?? [], error: null };
+        log.info(`Posted in ${seconds(Date.now() - started)}${result.url ? `: ${result.url}` : ''}`);
+        for (const w of result.warnings) log.warn(w);
+      } catch (err) {
+        const where = currentStep();
+        const error = failureMessage(err, where);
+        // API errors were already logged in full by request(); bugs get their stack trace here.
+        log.error(`Failed after ${seconds(Date.now() - started)}: ${err.message}`, err instanceof ApiError ? '' : err?.stack);
+        result = { id: p.id, name: p.name, ok: false, url: null, warnings: [], error };
+      }
+      onEvent({ type: 'result', ...result });
+      return result;
+    },
+  )));
 }
 
 // Anything other than application/json or a file upload would be a "simple" cross-site request.
@@ -172,14 +220,31 @@ const server = http.createServer(async (req, res) => {
       const anyText = text.trim() || Object.values(options).some((o) => typeof o?.text === 'string' && o.text.trim());
       if (!anyText && media.length === 0) throw httpError(400, 'Add some text, an image or a video');
 
-      return sendJson(res, 200, { results: await publish(text.trim(), ids, media, options) });
+      // Streamed as one JSON event per line, so the page can show each platform's progress and result
+      // as it happens instead of waiting for the slowest one.
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' });
+      const send = (event) => {
+        if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
+      };
+      const results = await publish(text.trim(), ids, media, options, send);
+      send({ type: 'done', results });
+      return res.end();
     }
 
     sendJson(res, 404, { error: 'Not found' });
   } catch (err) {
+    if (!err.status) log.error(`${req.method} ${req.url} failed`, err?.stack ?? String(err));
     if (res.headersSent) return res.destroy();
-    sendJson(res, err.status || 500, { error: err.message });
+    sendJson(res, err.status || 500, { error: err.status ? err.message : 'Something went wrong in the app. The details are in the terminal.' });
   }
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Is another Social Post server running? Stop it, or set a different PORT in .env.`);
+    process.exit(1);
+  }
+  throw err;
 });
 
 server.listen(PORT, HOST, () => {
@@ -192,5 +257,6 @@ server.listen(PORT, HOST, () => {
     : 'ffmpeg not found: videos too big for a platform will be rejected for it (see README).');
 });
 
-cleanupOldMedia();
-setInterval(cleanupOldMedia, 60 * 60 * 1000).unref();
+const cleanup = () => cleanupOldMedia().catch((err) => log.warn(`Couldn't clean up old uploads: ${err.message}`));
+cleanup();
+setInterval(cleanup, 60 * 60 * 1000).unref();

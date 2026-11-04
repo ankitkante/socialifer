@@ -1,4 +1,5 @@
-import { request, env, hasEnv } from './http.js';
+import { request, env, hasEnv, ApiError } from './http.js';
+import { step } from '../log.js';
 import { resolveTitle, listOf } from '../public/rules.js';
 
 const ENV = ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN'];
@@ -10,16 +11,25 @@ const VIDEO_UPLOAD_TIMEOUT = 60 * 60_000;
 
 // Uploads need OAuth; the refresh token comes from `npm run youtube-auth`.
 async function accessToken() {
-  const { data } = await request('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    body: new URLSearchParams({
-      client_id: env('YOUTUBE_CLIENT_ID'),
-      client_secret: env('YOUTUBE_CLIENT_SECRET'),
-      refresh_token: env('YOUTUBE_REFRESH_TOKEN'),
-      grant_type: 'refresh_token',
-    }),
-  });
-  return data.access_token;
+  try {
+    const { data } = await request('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      body: new URLSearchParams({
+        client_id: env('YOUTUBE_CLIENT_ID'),
+        client_secret: env('YOUTUBE_CLIENT_SECRET'),
+        refresh_token: env('YOUTUBE_REFRESH_TOKEN'),
+        grant_type: 'refresh_token',
+      }),
+      retries: 2,
+    });
+    return data.access_token;
+  } catch (err) {
+    // invalid_grant: the refresh token expired or was revoked (or the Google app is still in Testing mode).
+    if (err.details?.data?.error === 'invalid_grant') {
+      throw new ApiError('Your YouTube sign-in has expired or was revoked. Run `npm run youtube-auth`, then restart the server.', err.details);
+    }
+    throw err;
+  }
 }
 
 export default {
@@ -51,6 +61,7 @@ export default {
   async post(text, media, options = {}) {
     const video = media[0];
     const o = options;
+    step('Signing in to YouTube', { quiet: true });
     const auth = { Authorization: `Bearer ${await accessToken()}` };
 
     // A scheduled video must be private until publishAt; YouTube then makes it public.
@@ -74,6 +85,7 @@ export default {
     const parts = ['snippet', 'status', ...(recordingDetails ? ['recordingDetails'] : [])].join(',');
 
     // Resumable upload: send the metadata first, then the file to the session URL it returns.
+    step(`Uploading ${video.name} (${Math.round(video.size / 1_000_000)} MB)`);
     const { headers } = await request(`${UPLOAD}?uploadType=resumable&part=${parts}`, {
       method: 'POST',
       headers: {
@@ -96,6 +108,7 @@ export default {
     // thumbnails yet) is reported as a warning rather than failing the post.
     const warnings = [];
     if (o.thumbnail) {
+      step('Setting the custom thumbnail');
       try {
         await request(`${THUMBNAIL}?videoId=${encodeURIComponent(data.id)}`, {
           method: 'POST',

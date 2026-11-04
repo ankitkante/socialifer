@@ -185,6 +185,8 @@
   .results .icon { width: 18px; flex: none; font-weight: 700; }
   .results .ok .icon { color: var(--ok); }
   .results .fail .icon { color: var(--err); }
+  .results .unknown .icon { color: var(--warn); }
+  .results .working .icon { color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
   .results .detail { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
   .results .warning { color: var(--warn); font-size: 13px; overflow-wrap: anywhere; }
   .results a { color: var(--accent); }
@@ -461,7 +463,7 @@
       update();
     };
     xhr.onerror = () => {
-      Object.assign(item, { status: 'error', error: 'Upload failed' });
+      Object.assign(item, { status: 'error', error: "Upload failed: couldn't reach the server. Is it still running?" });
       renderMedia();
       update();
     };
@@ -790,14 +792,18 @@
     statusEl.className = 'status' + (isError ? ' err' : '');
   }
 
-  function renderResults(results) {
+  // One row per platform: 'working' with its current step while posting, then 'ok' or 'fail'.
+  // 'unknown' means the page lost the server before hearing back, so the post may or may not be out.
+  const ICONS = { working: '…', ok: '✓', fail: '✕', unknown: '?' };
+  function renderResults(rows) {
     $('results-card').hidden = false;
-    $('results').replaceChildren(...results.map((r) => {
-      const detail = r.ok
+    $('results').replaceChildren(...rows.map((r) => {
+      const detail = r.state === 'ok'
         ? (r.url ? el('a', { href: r.url, target: '_blank', rel: 'noopener', textContent: 'View post' }) : 'Posted')
+        : r.state === 'working' ? (r.step ? `${r.step}…` : 'Starting…')
         : r.error;
-      return el('li', { className: r.ok ? 'ok' : 'fail' },
-        el('span', { className: 'icon', textContent: r.ok ? '✓' : '✕' }),
+      return el('li', { className: r.state },
+        el('span', { className: 'icon', textContent: ICONS[r.state] }),
         el('div', {},
           el('div', { textContent: r.name }),
           el('div', { className: 'detail' }, detail),
@@ -807,15 +813,38 @@
     }));
   }
 
+  // Reads the server's stream of { type: 'status' | 'result' | 'done' } events, one JSON object per line.
+  async function readEvents(res, onEvent) {
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return;
+      buffer += value;
+      let newline;
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        if (line) onEvent(JSON.parse(line));
+      }
+    }
+  }
+
   async function post() {
     if (postBtn.disabled) return;
     const targets = activeTargets();
     posting = true;
     update();
-    const hasVideo = items.some((i) => i.file.type.startsWith('video/'));
-    const compressing = targets.some((p) => adjustmentsFor(p, mediaMeta()).length);
-    setStatus(`Posting to ${targets.map((p) => p.name).join(', ')}…`
-      + (compressing ? ' Compressing the video first, which can take several minutes.' : hasVideo ? ' Videos can take a few minutes to process.' : ''));
+    const rows = targets.map((p) => ({ id: p.id, name: p.name, state: 'working', step: '' }));
+    const row = (id) => rows.find((r) => r.id === id);
+    const progress = () => {
+      const finished = rows.filter((r) => r.state !== 'working').length;
+      setStatus(`Posting… ${finished} of ${rows.length} done. You can leave this page open; slow steps are shown below.`);
+    };
+    renderResults(rows);
+    progress();
+
+    let done = false;
     try {
       const res = await fetch('/api/post', {
         method: 'POST',
@@ -827,28 +856,56 @@
           options: platformOptions({ forSend: true }),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      renderResults(data.results);
-      const failed = data.results.filter((r) => !r.ok).length;
-      if (failed === 0) {
-        setStatus(`Posted to ${data.results.length} platform${data.results.length > 1 ? 's' : ''}.`);
-        textEl.value = '';
-        overrides = {};
-        resetSettings();
-        sectionsFor = '';
-        clearMedia();
-      } else {
-        // Keep the text and media so you can fix the problem and retry just the failed platforms.
-        setStatus(`${failed} of ${data.results.length} failed. Your post was kept so you can retry.`, true);
-        selected = new Set(data.results.filter((r) => !r.ok).map((r) => r.id));
-        save();
-        renderPlatforms();
+      // Problems found before posting starts (an expired file, a bad request) come back as plain JSON.
+      if (!res.headers.get('content-type')?.includes('ndjson')) {
+        let data = {};
+        try { data = await res.json(); } catch {}
+        throw Object.assign(new Error(data.error || `The server returned an error (HTTP ${res.status}). Check the terminal.`), { beforePosting: true });
       }
+      await readEvents(res, (event) => {
+        if (event.type === 'status') Object.assign(row(event.id), { step: event.step });
+        if (event.type === 'result') Object.assign(row(event.id), { ...event, state: event.ok ? 'ok' : 'fail' });
+        if (event.type === 'done') done = true;
+        renderResults(rows);
+        if (!done) progress();
+      });
+      if (!done) throw new Error('lost');
     } catch (err) {
-      setStatus(err.message, true);
+      if (err.beforePosting) {
+        $('results-card').hidden = true;
+        setStatus(err.message, true);
+      } else {
+        // The page lost the server mid-post. Anything still in progress may or may not have gone out,
+        // so say so rather than inviting a retry that could post twice.
+        for (const r of rows) {
+          if (r.state === 'working') Object.assign(r, { state: 'unknown', error: 'Unknown: the connection to the server was lost. Check this platform before retrying.' });
+        }
+        renderResults(rows);
+        setStatus('Lost the connection to the server. Some posts may already be published, so check each platform before retrying. Details are in the terminal.', true);
+      }
+      return;
     } finally {
       posting = false;
+      update();
+    }
+
+    const failed = rows.filter((r) => r.state === 'fail');
+    const warnings = rows.reduce((n, r) => n + (r.warnings?.length ?? 0), 0);
+    const warned = warnings ? `, with ${warnings} warning${warnings > 1 ? 's' : ''}` : '';
+    if (failed.length === 0) {
+      setStatus(`Posted to ${rows.length} platform${rows.length > 1 ? 's' : ''}${warned}.`);
+      textEl.value = '';
+      overrides = {};
+      resetSettings();
+      sectionsFor = '';
+      clearMedia();
+      update();
+    } else {
+      // Keep the text and media so you can fix the problem and retry just the failed platforms.
+      setStatus(`${failed.length} of ${rows.length} failed${warned}. Your post was kept, and only the failed platforms are still selected, so you can retry them.`, true);
+      selected = new Set(failed.map((r) => r.id));
+      save();
+      renderPlatforms();
       update();
     }
   }
@@ -884,7 +941,7 @@
     renderPlatforms();
     update();
   } catch (err) {
-    setStatus(`Could not load platforms: ${err.message}`, true);
+    setStatus("Couldn't reach the Social Post server. Check that it's running (npm start), then refresh.", true);
   }
 </script>
 </body>

@@ -19,7 +19,7 @@ server.js ──► publish(): Promise.allSettled over selected platforms
 Platform fetchers (Threads, Instagram) ── GET /media/<id>.<ext> ── via TUNNEL_URL tunnel
 ```
 
-Each platform posts independently and in parallel. One platform failing never blocks the others. The response lists a result per platform: `{ id, name, ok, url, error }`.
+Each platform posts independently and in parallel, inside its own logging context (`log.js`), so one platform failing never blocks the others and every log line says which post and platform it belongs to. The response is streamed as one JSON event per line: live `status` events with each platform's current step, a `result` event per platform as soon as it finishes (`{ id, name, ok, url, warnings, error }`), and a final `done` event.
 
 ## Posting flow
 

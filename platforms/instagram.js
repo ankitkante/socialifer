@@ -1,5 +1,10 @@
-import { request, poll, env, hasEnv } from './http.js';
+import { request, poll, env, hasEnv, ApiError } from './http.js';
 import { isVideo } from '../public/rules.js';
+import { step } from '../log.js';
+
+// Meta downloads each file from TUNNEL_URL, so a stopped tunnel (or a stale address) shows up as a
+// download or URL error.
+const TUNNEL_HINT = "If Instagram couldn't download the file, check that the cloudflared tunnel is still running and TUNNEL_URL matches its address.";
 
 const ENV = ['INSTAGRAM_ACCESS_TOKEN'];
 
@@ -11,20 +16,25 @@ function api() {
 }
 
 async function createContainer(params) {
-  const { data } = await request(`${api()}/${env('INSTAGRAM_USER_ID') || 'me'}/media`, {
-    method: 'POST',
-    body: new URLSearchParams({ ...params, access_token: env('INSTAGRAM_ACCESS_TOKEN') }),
-  });
-  return data.id;
+  try {
+    const { data } = await request(`${api()}/${env('INSTAGRAM_USER_ID') || 'me'}/media`, {
+      method: 'POST',
+      body: new URLSearchParams({ ...params, access_token: env('INSTAGRAM_ACCESS_TOKEN') }),
+    });
+    return data.id;
+  } catch (err) {
+    if (/download|fetch|uri|url/i.test(err.message)) throw new ApiError(`${err.message}. ${TUNNEL_HINT}`, err.details);
+    throw err;
+  }
 }
 
 function waitUntilReady(containerId) {
   const token = encodeURIComponent(env('INSTAGRAM_ACCESS_TOKEN'));
   return poll(async () => {
-    const { data } = await request(`${api()}/${containerId}?fields=status_code,status&access_token=${token}`);
+    const { data } = await request(`${api()}/${containerId}?fields=status_code,status&access_token=${token}`, { retries: 2 });
     if (data.status_code === 'FINISHED') return true;
     if (data.status_code === 'ERROR' || data.status_code === 'EXPIRED') {
-      throw new Error(`Instagram could not process the media: ${data.status || data.status_code}`);
+      throw new ApiError(`Instagram could not process the media: ${data.status || data.status_code}. ${TUNNEL_HINT}`);
     }
   }, { what: 'Instagram to process the media' });
 }
@@ -66,6 +76,7 @@ export default {
     };
     const altText = o.altText?.trim() ? { alt_text: o.altText.trim() } : {};
 
+    step(story ? 'Creating the Story' : media.length > 1 ? `Creating the carousel (${media.length} files)` : isVideo(media[0]) ? 'Creating the Reel' : 'Creating the post');
     let containerId;
     if (story) {
       const m = media[0];
@@ -99,11 +110,14 @@ export default {
           ? { media_type: 'VIDEO', video_url: m.url, is_carousel_item: 'true' }
           : { image_url: m.url, is_carousel_item: 'true', ...altText }));
       }
+      step('Waiting for Instagram to download and process the files');
       for (const child of children) await waitUntilReady(child);
       containerId = await createContainer({ media_type: 'CAROUSEL', children: children.join(','), ...common });
     }
+    step('Waiting for Instagram to download and process the media');
     await waitUntilReady(containerId);
 
+    step('Publishing');
     const token = env('INSTAGRAM_ACCESS_TOKEN');
     const { data: published } = await request(`${api()}/${env('INSTAGRAM_USER_ID') || 'me'}/media_publish`, {
       method: 'POST',

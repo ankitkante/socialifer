@@ -30,6 +30,12 @@ function rawGet(path, headers) {
 const upload = (body, type, name = 'a.png') =>
   fetch(`${base}/api/media`, { method: 'POST', headers: { 'Content-Type': type, 'X-Filename': encodeURIComponent(name) }, body });
 
+// /api/post streams one JSON event per line; returns them all once the stream ends.
+async function events(res) {
+  assert.match(res.headers.get('content-type'), /ndjson/);
+  return (await res.text()).trim().split(/\r?\n/).map((line) => JSON.parse(line));
+}
+
 const post = (body) =>
   fetch(`${base}/api/post`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
@@ -97,9 +103,17 @@ test('validates posts', async () => {
   assert.equal((await post({ text: ' ', platforms: ['x'] })).status, 400);
   assert.equal((await post({ text: 'hi', platforms: ['x'], media: ['0'.repeat(32)] })).status, 400);
 
-  const { results } = await (await post({ text: 'hi', platforms: ['x'] })).json();
-  assert.equal(results[0].ok, false);
-  assert.match(results[0].error, /Not configured/);
+  const all = await events(await post({ text: 'hi', platforms: ['x'] }));
+  const result = all.find((e) => e.type === 'result');
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Not configured/);
+  assert.deepEqual(all.at(-1).results.map((r) => r.id), ['x']);
+  assert.equal(all.at(-1).type, 'done');
+
+  // A malformed body is the client's mistake: a 400 with a plain message, not a 500.
+  const bad = await fetch(`${base}/api/post`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{oops' });
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /valid JSON/);
 });
 
 test('serves a logo for every platform and nothing else from /icons/', async () => {
@@ -117,8 +131,8 @@ test('accepts media as { id, duration } and per-platform text', async () => {
   const { id } = await (await upload(PNG, 'image/png')).json();
   const res = await post({ text: '', platforms: ['x'], media: [{ id, duration: 12 }], options: { x: { text: 'Only for X' } } });
   assert.equal(res.status, 200);
-  const { results } = await res.json();
-  assert.match(results[0].error, /Not configured/);
+  const result = (await events(res)).find((e) => e.type === 'result');
+  assert.match(result.error, /Not configured/);
 
   // Per-platform text alone is enough to post.
   assert.equal((await post({ text: '', platforms: ['x'], options: { x: { text: 'Only for X' } } })).status, 200);
