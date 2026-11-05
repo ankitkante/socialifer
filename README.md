@@ -93,8 +93,9 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 
 ## Ideas for later
 
-Not started; to be discussed before building.
+Not started; to be discussed before building. Listed in priority order.
 
+- **Posting to Reddit (top priority):** a new platform, ahead of everything below.
 - **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
 - **Scheduling in the app** for platforms without built-in scheduling through the API (Instagram and X; YouTube already has a schedule option). The app would keep the post and publish it at the chosen time, so the server, and for Instagram the tunnel, would need to be running then. Open questions: where queued posts are stored, what happens to a missed time, and retries.
 - **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
