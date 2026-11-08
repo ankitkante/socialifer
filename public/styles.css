@@ -288,11 +288,32 @@ details.more .fields { margin-top: 12px; }
 .chip-tag.warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
 .reel { width: 220px; max-width: 100%; }
 .reel .preview-media { aspect-ratio: 9 / 16; align-items: flex-end; }
-.reel .overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 12px; text-align: left; white-space: pre-line; overflow-wrap: anywhere; }
-.short-views { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-.short-view { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.short-view figcaption { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); max-width: 200px; }
-.short-view figcaption strong { color: var(--text); font-weight: 600; }
+.ig-reel { width: 220px; }
+.ig-tile { width: 120px; }
+.ig-square { width: 160px; }
+.ig-feed { width: 300px; max-width: 100%; }
+.ig-reel .preview-media { aspect-ratio: 9 / 16; border-radius: 12px; border: 1px solid var(--border); }
+.ig-tile .preview-media { border-radius: 4px; border: 1px solid var(--border); }
+/* Measured on a 9:16 cover: the grid kept rows 19-94% (top cut 3x the bottom); the Reels tab
+   kept rows 19-93% and about 85% of the width. */
+.ig-tile.grid img, .ig-tile.reels-tab img { object-position: 50% 75%; }
+.ig-tile.reels-tab img { transform: scale(1.176); transform-origin: 50% 58%; }
+.ig-square .preview-media { border-radius: 8px; border: 1px solid var(--border); }
+.preview-media.fit { background: #000; }
+.preview-media.fit img { object-fit: contain; }
+/* Where Instagram's header and caption sit over a Reel, and the middle square every crop keeps. */
+.ig-band { position: absolute; left: 0; right: 0; box-sizing: border-box; padding: 8px 10px; color: #fff; font-size: 11px; text-align: left; }
+.ig-band.top { top: 0; height: 14%; font-weight: 600; border-bottom: 1px dashed rgba(255, 255, 255, 0.5); background: linear-gradient(rgba(0, 0, 0, 0.6), transparent); }
+.ig-band.bottom {
+  bottom: 0; height: 22%; padding-right: 36px; border-top: 1px dashed rgba(255, 255, 255, 0.5); background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; overflow: hidden; white-space: pre-line; overflow-wrap: anywhere;
+}
+/* The middle square (the feed crop), narrowed by what the Reels tab trims from the sides. */
+.safe-box { position: absolute; left: 7.5%; right: 7.5%; top: 21.875%; height: 56.25%; border: 1.5px dotted #6fcf97; pointer-events: none; }
+.preview-views { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.preview-view { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.preview-view figcaption { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); max-width: 200px; }
+.preview-view figcaption strong { color: var(--text); font-weight: 600; }
 .short-player { width: 200px; }
 .short-player .preview-media, .short-tile .preview-media { aspect-ratio: 9 / 16; border-radius: 12px; border: 1px solid var(--border); }
 /* The dashed band marks where YouTube's title and buttons sit over the picture. */

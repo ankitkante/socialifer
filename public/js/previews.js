@@ -9,6 +9,19 @@ const YOUTUBE_TITLE_SHOWN = 70; // search results cut titles off around here
 const YOUTUBE_DESCRIPTION_SHOWN = 110;
 const YOUTUBE_MIN_THUMBNAIL_WIDTH = 640; // YouTube's help asks for at least this
 const INSTAGRAM_CAPTION_SHOWN = 125; // the feed shows about this much before "… more"
+const REEL_RATIO = 9 / 16;
+// Feed photos show at their own shape within this range (Meta's API rejects anything outside it).
+const FEED_RATIO_MIN = 4 / 5;
+const FEED_RATIO_MAX = 1.91;
+
+const ratioOf = (m) => (m?.width && m?.height ? m.width / m.height : null);
+
+// One labelled frame, for platforms that show the same picture in several places.
+function previewView(label, hint, ...content) {
+  return el('figure', { className: 'preview-view' },
+    ...content,
+    el('figcaption', {}, el('strong', { textContent: label }), hint ? el('span', { textContent: hint }) : ''));
+}
 
 function mediaBox(item, { ratio, placeholder, corner }) {
   const box = el('div', { className: 'preview-media' });
@@ -100,17 +113,14 @@ function youtube({ text, options, items }) {
   const src = thumb?.thumb || thumb?.preview;
   const player = mediaBox(thumb, { placeholder: 'Attach a video' });
   player.append(el('div', { className: 'short-overlay' }, el('strong', { textContent: 'Your channel' }), el('div', { textContent: shownTitle })));
-  const view = (label, hint, ...content) => el('figure', { className: 'short-view' },
-    ...content,
-    el('figcaption', {}, el('strong', { textContent: label }), hint ? el('span', { textContent: hint }) : ''));
 
   return el('div', { className: 'preview' },
     el('span', { className: 'preview-label', textContent: 'Preview: Short' }),
-    el('div', { className: 'short-views' },
-      view('Shorts player', 'The title and buttons cover the bottom quarter.', el('div', { className: 'short-player' }, player)),
-      view('Shelf and channel tab', '', el('div', { className: 'short-tile' }, mediaBox(thumb, { placeholder: '' })),
+    el('div', { className: 'preview-views' },
+      previewView('Shorts player', 'The title and buttons cover the bottom quarter.', el('div', { className: 'short-player' }, player)),
+      previewView('Shelf and channel tab', '', el('div', { className: 'short-tile' }, mediaBox(thumb, { placeholder: '' })),
         el('div', { className: 'short-tile-title', textContent: shownTitle })),
-      view('16:9 frame', 'YouTube also keeps a 16:9 version with blurred sides.', el('div', { className: 'short-wide' }, wideShortBox(src, duration))),
+      previewView('16:9 frame', 'YouTube also keeps a 16:9 version with blurred sides.', el('div', { className: 'short-wide' }, wideShortBox(src, duration))),
     ),
     el('div', { className: 'preview-card' }, details),
     ...notes,
@@ -128,26 +138,66 @@ function instagram({ text, options, items }) {
   const corner = items.length > 1 && !story ? `1/${items.length}` : '';
   const captionNodes = withTags(clipped(caption, INSTAGRAM_CAPTION_SHOWN));
 
+  const customCover = Boolean(o.cover?.preview);
   const notes = [];
   if (story && caption) notes.push("Stories don't show captions.");
-  if (vertical && !story && o.coverSeconds) notes.push(`Cover from ${o.coverSeconds}s into the video.`);
+  if (vertical && !story && o.coverSeconds && !customCover) notes.push(`Cover from ${o.coverSeconds}s into the video.`);
+  const coverRatio = ratioOf(o.cover);
+  if (!story && customCover && coverRatio && Math.abs(coverRatio - REEL_RATIO) > 0.02) {
+    notes.push(`This cover is ${o.cover.width}×${o.cover.height}, not 9:16. Instagram uses its middle 9:16 strip.`);
+  }
+  const hints = notes.map((n) => el('p', { className: 'hint', textContent: n }));
 
-  if (vertical) {
-    const media = mediaBox(cover, { placeholder: 'Attach a photo or video', corner });
-    if (!story && caption) media.append(el('div', { className: 'overlay' }, el('strong', { textContent: 'Your account ' }), ...captionNodes));
+  if (story) {
     return el('div', { className: 'preview' },
       el('span', { className: 'preview-label', textContent: `Preview: ${kind}` }),
-      el('div', { className: 'preview-card reel' }, media),
-      ...notes.map((n) => el('p', { className: 'hint', textContent: n })),
+      el('div', { className: 'preview-card reel' }, mediaBox(cover, { placeholder: 'Attach a photo or video' })),
+      ...hints,
     );
   }
+
+  // Grid crops aren't documented. These follow a Reel measured on the user's profile (2026-11-09):
+  // tiles keep the lower part of the cover, not the middle (styles.css, .ig-tile.grid / .reels-tab).
+  const gridTile = previewView('Profile grid', '3:4, cut more at the top. Approximate.',
+    el('div', { className: 'ig-tile grid' }, mediaBox(cover, { ratio: '3 / 4', placeholder: '' })));
+
+  if (vertical) {
+    // A landscape video with no cover plays whole, with bars (checked live); a cover fills the frame.
+    const full = mediaBox(cover, { placeholder: 'Attach a video' });
+    if (!customCover && ratioOf(first?.meta) > 1) full.classList.add('fit');
+    full.append(
+      el('div', { className: 'ig-band top', textContent: 'Reels' }),
+      el('div', { className: 'ig-band bottom' }, el('strong', { textContent: 'Your account' }), caption ? el('div', {}, ...captionNodes) : ''),
+      el('div', { className: 'safe-box' }),
+    );
+    return el('div', { className: 'preview' },
+      el('span', { className: 'preview-label', textContent: `Preview: ${kind}` }),
+      el('div', { className: 'preview-views' },
+        previewView('Reel, full screen', 'Dashed bands: covered by Instagram. Green box: the middle square every view keeps; put the title there.',
+          el('div', { className: 'ig-reel' }, full)),
+        gridTile,
+        previewView('Reels tab', 'About 2:3, cut more at the top and a little at the sides. Approximate.',
+          el('div', { className: 'ig-tile reels-tab' }, mediaBox(cover, { ratio: '2 / 3', placeholder: '' }))),
+        o.shareToFeed !== false
+          ? previewView('Feed cover', 'The middle square, per Meta.', el('div', { className: 'ig-square' }, mediaBox(cover, { ratio: '1 / 1', placeholder: '' })))
+          : '',
+      ),
+      ...hints,
+    );
+  }
+
+  const ratio = ratioOf(first?.meta);
+  const feedRatio = ratio ? Math.min(FEED_RATIO_MAX, Math.max(FEED_RATIO_MIN, ratio)) : FEED_RATIO_MIN;
   return el('div', { className: 'preview' },
     el('span', { className: 'preview-label', textContent: `Preview: ${kind}` }),
-    el('div', { className: 'preview-card' },
-      mediaBox(cover, { ratio: '4 / 5', placeholder: 'Instagram needs a photo or video', corner }),
-      caption ? el('div', { className: 'preview-body' }, el('div', { className: 'preview-text' }, el('strong', { textContent: 'Your account ' }), ...captionNodes)) : '',
+    el('div', { className: 'preview-views' },
+      previewView('Feed', 'At the photo\'s own shape, from 4:5 to 1.91:1.', el('div', { className: 'preview-card ig-feed' },
+        mediaBox(cover, { ratio: String(feedRatio), placeholder: 'Instagram needs a photo or video', corner }),
+        caption ? el('div', { className: 'preview-body' }, el('div', { className: 'preview-text' }, el('strong', { textContent: 'Your account ' }), ...captionNodes)) : '',
+      )),
+      gridTile,
     ),
-    ...notes.map((n) => el('p', { className: 'hint', textContent: n })),
+    ...hints,
   );
 }
 
