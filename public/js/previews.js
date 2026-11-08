@@ -7,6 +7,7 @@ import { isVideoFile } from './uploads.js';
 const SHORTS_MAX_SECONDS = 180;
 const YOUTUBE_TITLE_SHOWN = 70; // search results cut titles off around here
 const YOUTUBE_DESCRIPTION_SHOWN = 110;
+const YOUTUBE_MIN_THUMBNAIL_WIDTH = 640; // YouTube's help asks for at least this
 const INSTAGRAM_CAPTION_SHOWN = 125; // the feed shows about this much before "… more"
 
 function mediaBox(item, { ratio, placeholder, corner }) {
@@ -33,6 +34,30 @@ export function isShort(meta) {
   return Boolean(meta && meta.height >= meta.width && meta.duration <= SHORTS_MAX_SECONDS);
 }
 
+// Notes on the custom thumbnail's shape and size, compared with the video.
+function thumbnailNotes(thumbnail, short) {
+  const notes = [];
+  if (!thumbnail?.width) return notes;
+  const wide = thumbnail.width > thumbnail.height;
+  if (short && wide) notes.push('This thumbnail is horizontal, but the video is a Short. Shorts are shown in a 9:16 frame, so it may be cropped.');
+  if (!short && !wide) notes.push("This thumbnail is vertical, but the video isn't a Short. YouTube shows it in a 16:9 frame.");
+  if (thumbnail.width < YOUTUBE_MIN_THUMBNAIL_WIDTH) {
+    notes.push(`This thumbnail is ${thumbnail.width} px wide. YouTube recommends at least ${YOUTUBE_MIN_THUMBNAIL_WIDTH} px.`);
+  }
+  return notes;
+}
+
+// A Short's thumbnail in a 16:9 frame: the image in the middle, blurred copies at the sides,
+// as in the 16:9 version YouTube stored for a test Short (2026-11-09).
+function wideShortBox(src, corner) {
+  const box = el('div', { className: 'preview-media wide-short' });
+  box.style.aspectRatio = '16 / 9';
+  if (src) box.append(el('img', { className: 'blurred', src, alt: '' }), el('img', { className: 'middle', src, alt: '' }));
+  else box.append('Attach a video');
+  if (corner) box.append(el('span', { className: 'corner', textContent: corner }));
+  return box;
+}
+
 function youtube({ text, options, items }) {
   const o = options.youtube ?? {};
   const video = items.find((i) => isVideoFile(i.file));
@@ -42,29 +67,53 @@ function youtube({ text, options, items }) {
   const visibility = scheduled ? `Scheduled for ${new Date(o.publishAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`
     : { public: 'Public', unlisted: 'Unlisted', private: 'Private' }[o.privacy] ?? 'Public';
   const thumb = o.thumbnail?.preview ? { thumb: o.thumbnail.preview } : video;
-  const shape = video?.meta && (isShort(video.meta) ? 'Short' : `Regular video${video.meta.width > video.meta.height ? ' (horizontal)' : ''}`);
+  const short = isShort(video?.meta);
+  const shape = video?.meta && (short ? 'Short' : `Regular video${video.meta.width > video.meta.height ? ' (horizontal)' : ''}`);
   const titleCut = truncate(title, YOUTUBE_TITLE_SHOWN);
+  const duration = video?.meta ? formatDuration(video.meta.duration) : '';
+  const shownTitle = title ? `${titleCut.text}${titleCut.cut ? '…' : ''}` : 'Your title';
+
+  const details = el('div', { className: 'preview-body' },
+    el('div', { className: 'preview-title', title, textContent: shownTitle }),
+    el('div', { className: 'preview-meta', textContent: `Your channel · ${visibility}` }),
+    description ? el('div', { className: 'preview-text' }, ...clipped(description, YOUTUBE_DESCRIPTION_SHOWN)) : '',
+    el('div', { className: 'chips' },
+      shape ? el('span', { className: 'chip-tag', textContent: shape }) : '',
+      o.synthetic ? el('span', { className: 'chip-tag', textContent: 'Altered or synthetic content' }) : '',
+      el('span', { className: 'chip-tag warn', textContent: 'Private until your API project is audited' }),
+    ),
+  );
+  const notes = [
+    ...thumbnailNotes(o.thumbnail, short),
+    titleCut.cut ? `Search results show about ${YOUTUBE_TITLE_SHOWN} characters of the title.` : '',
+  ].filter(Boolean).map((n) => el('p', { className: 'hint', textContent: n }));
+
+  if (!short) {
+    return el('div', { className: 'preview' },
+      el('span', { className: 'preview-label', textContent: 'Preview' }),
+      el('div', { className: 'preview-card' }, mediaBox(thumb, { ratio: '16 / 9', placeholder: 'Attach a video', corner: duration }), details),
+      ...notes,
+    );
+  }
+
+  // A Short appears in several frames; show the thumbnail in each.
+  const src = thumb?.thumb || thumb?.preview;
+  const player = mediaBox(thumb, { placeholder: 'Attach a video' });
+  player.append(el('div', { className: 'short-overlay' }, el('strong', { textContent: 'Your channel' }), el('div', { textContent: shownTitle })));
+  const view = (label, hint, ...content) => el('figure', { className: 'short-view' },
+    ...content,
+    el('figcaption', {}, el('strong', { textContent: label }), hint ? el('span', { textContent: hint }) : ''));
 
   return el('div', { className: 'preview' },
-    el('span', { className: 'preview-label', textContent: 'Preview' }),
-    el('div', { className: 'preview-card' },
-      mediaBox(thumb, {
-        ratio: '16 / 9',
-        placeholder: 'Attach a video',
-        corner: video?.meta ? formatDuration(video.meta.duration) : '',
-      }),
-      el('div', { className: 'preview-body' },
-        el('div', { className: 'preview-title', title, textContent: title ? `${titleCut.text}${titleCut.cut ? '…' : ''}` : 'Your title' }),
-        el('div', { className: 'preview-meta', textContent: `Your channel · ${visibility}` }),
-        description ? el('div', { className: 'preview-text' }, ...clipped(description, YOUTUBE_DESCRIPTION_SHOWN)) : '',
-        el('div', { className: 'chips' },
-          shape ? el('span', { className: 'chip-tag', textContent: shape }) : '',
-          o.synthetic ? el('span', { className: 'chip-tag', textContent: 'Altered or synthetic content' }) : '',
-          el('span', { className: 'chip-tag warn', textContent: 'Private until your API project is audited' }),
-        ),
-      ),
+    el('span', { className: 'preview-label', textContent: 'Preview: Short' }),
+    el('div', { className: 'short-views' },
+      view('Shorts player', 'The title and buttons cover the bottom quarter.', el('div', { className: 'short-player' }, player)),
+      view('Shelf and channel tab', '', el('div', { className: 'short-tile' }, mediaBox(thumb, { placeholder: '' })),
+        el('div', { className: 'short-tile-title', textContent: shownTitle })),
+      view('16:9 frame', 'YouTube also keeps a 16:9 version with blurred sides.', el('div', { className: 'short-wide' }, wideShortBox(src, duration))),
     ),
-    titleCut.cut ? el('p', { className: 'hint', textContent: `Search results show about ${YOUTUBE_TITLE_SHOWN} characters of the title.` }) : '',
+    el('div', { className: 'preview-card' }, details),
+    ...notes,
   );
 }
 

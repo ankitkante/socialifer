@@ -134,6 +134,12 @@ async function pickFieldImage(id, key, file) {
     try { file = await toJpeg(file); } catch {}
   }
   const value = { uploading: true, name: file.name, type: file.type, size: file.size, preview: URL.createObjectURL(file) };
+  // Size and shape, for the preview's thumbnail notes.
+  try {
+    const bitmap = await createImageBitmap(file);
+    Object.assign(value, { width: bitmap.width, height: bitmap.height });
+    bitmap.close();
+  } catch {}
   state.settings[id][key] = value;
   state.sectionsKey = '';
   hooks.update();
