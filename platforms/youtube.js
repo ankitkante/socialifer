@@ -1,10 +1,13 @@
-import { request, env, hasEnv, ApiError } from './http.js';
+import { request, poll, env, hasEnv, ApiError } from './http.js';
 import { step } from '../log.js';
 import { resolveTitle, listOf } from '../public/rules.js';
 
 const ENV = ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN'];
 const UPLOAD = 'https://www.googleapis.com/upload/youtube/v3/videos';
 const THUMBNAIL = 'https://www.googleapis.com/upload/youtube/v3/thumbnails/set';
+const VIDEOS = 'https://www.googleapis.com/youtube/v3/videos';
+// Long videos can take a while to process; after this the thumbnail is left for the user to set in Studio.
+const PROCESSING_TIMEOUT = 30 * 60_000;
 const PRIVACY = new Set(['public', 'unlisted', 'private']);
 // Long videos on a slow connection can take a while to send.
 const VIDEO_UPLOAD_TIMEOUT = 60 * 60_000;
@@ -30,6 +33,26 @@ async function accessToken() {
     }
     throw err;
   }
+}
+
+// A thumbnail set while the video is still processing is accepted (HTTP 200) but then dropped,
+// so the custom thumbnail waits until processing has finished (seen live on 2026-11-09).
+async function waitForProcessing(id, auth) {
+  await poll(async () => {
+    const { data } = await request(`${VIDEOS}?part=processingDetails&id=${encodeURIComponent(id)}`, { headers: auth, retries: 2 });
+    const status = data.items?.[0]?.processingDetails?.processingStatus;
+    if (status === 'succeeded') return true;
+    if (status === 'failed' || status === 'terminated') throw new ApiError(`YouTube couldn't process the video (${status})`);
+    return undefined;
+  }, { every: 5000, timeout: PROCESSING_TIMEOUT, what: 'YouTube to process the video' });
+}
+
+function thumbnailWarning(err, setting) {
+  // Refresh tokens from before the readonly scope was added can upload but can't check processing.
+  if (err.details?.data?.error?.errors?.[0]?.reason === 'insufficientPermissions') {
+    return "The video was posted, but the custom thumbnail wasn't set: the YouTube sign-in can't check when the video has finished processing. Run `npm run youtube-auth`, restart the server, and set this video's thumbnail in YouTube Studio.";
+  }
+  return `The video was posted, but the custom thumbnail wasn't set (${err.message}). ${setting ? 'Custom thumbnails need a phone-verified channel.' : 'You can set it in YouTube Studio.'}`;
 }
 
 export default {
@@ -108,15 +131,19 @@ export default {
     // thumbnails yet) is reported as a warning rather than failing the post.
     const warnings = [];
     if (o.thumbnail) {
-      step('Setting the custom thumbnail');
+      let setting = false;
       try {
+        step('Waiting for YouTube to process the video');
+        await waitForProcessing(data.id, auth);
+        step('Setting the custom thumbnail');
+        setting = true;
         await request(`${THUMBNAIL}?videoId=${encodeURIComponent(data.id)}`, {
           method: 'POST',
           headers: { ...auth, 'Content-Type': o.thumbnail.type },
           body: await o.thumbnail.blob(),
         });
       } catch (err) {
-        warnings.push(`The video was posted, but the custom thumbnail wasn't set (${err.message}). Custom thumbnails need a phone-verified channel.`);
+        warnings.push(thumbnailWarning(err, setting));
       }
     }
     return { url: `https://www.youtube.com/watch?v=${data.id}`, warnings };

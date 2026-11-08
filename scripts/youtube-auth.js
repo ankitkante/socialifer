@@ -6,7 +6,8 @@ import crypto from 'node:crypto';
 import { exec } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 
-const SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+// readonly lets the server check when a new video has finished processing (see platforms/youtube.js).
+const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
 const ENV_FILE = new URL('../.env', import.meta.url);
 const TIMEOUT_MS = 5 * 60_000;
 

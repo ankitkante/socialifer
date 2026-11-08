@@ -77,7 +77,7 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project and enable **YouTube Data API v3**.
 2. Set up the **OAuth consent screen** (External), add yourself as a test user, then set its publishing status to **In production**. In Testing mode, the sign-in expires after 7 days. Google will warn that the app is unverified when you sign in; that's expected for a personal app.
 3. Under **Credentials**, create an **OAuth client ID** of type **Desktop app**. Put its ID and secret in `.env` as `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET`.
-4. Run `npm run youtube-auth`. A Google sign-in opens; choose the account or brand account that owns your channel. The command saves `YOUTUBE_REFRESH_TOKEN` to `.env`. Restart the server.
+4. Run `npm run youtube-auth`. A Google sign-in opens; choose the account or brand account that owns your channel. The command saves `YOUTUBE_REFRESH_TOKEN` to `.env`. Restart the server. It asks to upload videos and to view your YouTube account. The view access lets the app wait until YouTube has finished processing a video before setting its custom thumbnail. If you signed in before 2026-11-09, run it again to grant that.
 
 **Uploads stay private at first.** YouTube locks every video uploaded through an API project it hasn't audited to private, whatever visibility you choose. Until your project passes the audit, publish each video by hand in YouTube Studio. To remove the lock for good, request an audit for your Google Cloud project using YouTube's API compliance audit form.
 

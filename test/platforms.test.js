@@ -85,6 +85,7 @@ test('YouTube sends scheduling, tags and extras, and sets the thumbnail', async 
   const calls = stubFetch(t, (url) => {
     if (url.includes('oauth2')) return Response.json({ access_token: 'AT' });
     if (url.includes('uploadType=resumable')) return new Response('', { headers: { location: 'https://upload.example/session' } });
+    if (url.includes('part=processingDetails')) return Response.json({ items: [{ processingDetails: { processingStatus: 'succeeded' } }] });
     if (url.includes('thumbnails/set')) return new Response('{"error":{"message":"forbidden"}}', { status: 403 });
     return Response.json({ id: 'VID' });
   });
@@ -104,9 +105,30 @@ test('YouTube sends scheduling, tags and extras, and sets the thumbnail', async 
   assert.equal(status.privacyStatus, 'private', 'scheduled videos stay private until publishAt');
   assert.equal(status.publishAt, at);
   assert.equal(status.containsSyntheticMedia, true);
+  // The thumbnail waits until YouTube has finished processing the video.
+  const order = calls.map((c) => c.url);
+  assert.ok(order.findIndex((u) => u.includes('part=processingDetails')) < order.findIndex((u) => u.includes('thumbnails/set')));
   // A rejected thumbnail doesn't fail the post.
   assert.equal(result.url, 'https://www.youtube.com/watch?v=VID');
-  assert.match(result.warnings[0], /thumbnail wasn't set/);
+  assert.match(result.warnings[0], /thumbnail wasn't set.*phone-verified/);
+});
+
+test('YouTube explains how to fix a sign-in that can\'t check processing', async (t) => {
+  Object.assign(process.env, { YOUTUBE_CLIENT_ID: 'id', YOUTUBE_CLIENT_SECRET: 'secret', YOUTUBE_REFRESH_TOKEN: 'refresh' });
+  const calls = stubFetch(t, (url) => {
+    if (url.includes('oauth2')) return Response.json({ access_token: 'AT' });
+    if (url.includes('uploadType=resumable')) return new Response('', { headers: { location: 'https://upload.example/session' } });
+    if (url.includes('part=processingDetails')) {
+      return Response.json({ error: { code: 403, message: 'Request had insufficient authentication scopes.', errors: [{ reason: 'insufficientPermissions' }] } }, { status: 403 });
+    }
+    return Response.json({ id: 'VID' });
+  });
+  const youtube = (await import('../platforms/youtube.js')).default;
+  const blob = async () => new Blob([new Uint8Array(3)]);
+  const result = await youtube.post('Title', [{ name: 'v.mp4', type: 'video/mp4', size: 3, blob }], { thumbnail: { type: 'image/jpeg', blob } });
+
+  assert.ok(!calls.some((c) => c.url.includes('thumbnails/set')), 'no thumbnail is sent while processing can\'t be checked');
+  assert.match(result.warnings[0], /npm run youtube-auth/);
 });
 
 test('X posts a numbered thread with the settings on the first post', async (t) => {
