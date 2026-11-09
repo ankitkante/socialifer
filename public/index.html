@@ -80,6 +80,14 @@
     <h2 class="panel-title" id="panel-title">Ready to post</h2>
     <ul class="checklist" id="checklist"></ul>
     <ul class="results" id="results" hidden></ul>
+    <!-- Substack can't be posted to from the app (see AGENTS.md), so text and image posts end with a nudge to post it there by hand. -->
+    <div class="reminder" id="substack-reminder" hidden>
+      <p><strong>Post this on Substack too.</strong> The app can't post Notes, so add it there yourself.</p>
+      <div class="links">
+        <a href="https://substack.com/" target="_blank" rel="noopener">Open Substack</a>
+        <button type="button" class="copy" id="substack-copy">Copy text</button>
+      </div>
+    </div>
     <button class="primary" id="post" disabled><span id="post-label">Post</span> <kbd>Ctrl ↵</kbd></button>
     <p class="reason" id="post-reason" hidden></p>
     <p class="status" id="status"></p>

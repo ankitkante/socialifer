@@ -392,6 +392,12 @@ details.more .fields { margin-top: 12px; }
 .results .links { display: flex; gap: 12px; align-items: center; }
 .results a { color: var(--accent); font-weight: 600; font-size: 13px; }
 .results .copy { border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; padding: 3px 8px; cursor: pointer; }
+.reminder { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; background: var(--warn-soft); color: var(--text); font-size: 13px; }
+.reminder[hidden] { display: none; }
+.reminder p { margin: 0; }
+.reminder .links { display: flex; gap: 12px; align-items: center; }
+.reminder a { color: var(--accent); font-weight: 600; }
+.reminder .copy { border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; padding: 3px 8px; cursor: pointer; }
 .bar { height: 6px; border-radius: 999px; background: var(--thumb-bg); overflow: hidden; }
 .bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.3s; }
 .bar.indeterminate span { width: 35%; animation: slide 1.4s ease-in-out infinite; }

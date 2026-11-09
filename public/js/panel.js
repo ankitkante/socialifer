@@ -2,7 +2,7 @@
 import { $, el, logo } from './dom.js';
 import { state, hooks, saveSelected } from './state.js';
 import { platformOptions, resetSettings } from './fields.js';
-import { clearMedia } from './uploads.js';
+import { clearMedia, isVideoFile } from './uploads.js';
 
 export function setStatus(message, isError = false) {
   const status = $('status');
@@ -15,6 +15,7 @@ export function setPhase(next) {
   $('checklist').hidden = next !== 'ready';
   $('results').hidden = next === 'ready';
   $('new-post').hidden = next !== 'done';
+  if (next !== 'done') $('substack-reminder').hidden = true;
   if (next === 'ready') setStatus('');
   hooks.update();
 }
@@ -133,9 +134,27 @@ async function readEvents(res, onEvent) {
   }
 }
 
+// Shown once a text or image post (no video) is out somewhere. The text is copied now, because a
+// successful post clears the box.
+function showSubstackReminder(text) {
+  const copy = $('substack-copy');
+  copy.textContent = 'Copy text';
+  copy.hidden = !text.trim();
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = 'Copied';
+    } catch {
+      copy.textContent = "Couldn't copy";
+    }
+  };
+  $('substack-reminder').hidden = false;
+}
+
 // targets: the platforms to post to; text: the main post exactly as typed.
 export async function post(targets, text) {
   if ($('post').disabled) return;
+  const remindSubstack = !state.items.some((i) => isVideoFile(i.file));
   state.posting = true;
   const rows = targets.map((p) => ({ id: p.id, name: p.name, state: 'working', step: '' }));
   const row = (id) => rows.find((r) => r.id === id);
@@ -189,6 +208,7 @@ export async function post(targets, text) {
   }
 
   state.posting = false;
+  if (remindSubstack && rows.some((r) => r.state === 'ok')) showSubstackReminder(text);
   const failed = rows.filter((r) => r.state === 'fail');
   const warnings = rows.reduce((n, r) => n + (r.warnings?.length ?? 0), 0);
   const warned = warnings ? `, with ${warnings} warning${warnings > 1 ? 's' : ''}` : '';
