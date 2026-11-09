@@ -120,4 +120,4 @@ These are wired to the documented API parameters but haven't been used on a live
 
 ## Not supported
 
-- **Substack:** there's no official API. See "Decisions on record" in [AGENTS.md](../AGENTS.md).
+- **Substack:** there's no official API, and Cloudflare blocks posting Notes from outside the browser. See "Decisions on record" in [AGENTS.md](../AGENTS.md).
