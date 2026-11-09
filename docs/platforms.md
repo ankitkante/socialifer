@@ -31,6 +31,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 | LinkedIn | No | The `LinkedIn-Version` header expires after about a year (default `202510`). |
 | Facebook | No | Low. Uses the standard Graph endpoints. |
 | Telegram | No | Low. |
+| Substack | **Blocked** (2026-11-09: the cookie and image upload worked, but Cloudflare answers `POST /api/v1/comment/feed` with a 403 page unless the request carries the browser's `cf_clearance` bot-check cookie. Reusing that would be circumventing the bot check, so the branch is parked) | Unofficial endpoints that can change at any time. The session cookie expires and must be copied again. Automating the session may go against Substack's terms. |
 | Discord | Partly | The webhook multipart format matched a mock. |
 
 ## X
@@ -110,6 +111,15 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 - **Post:** multipart with `payload_json` (`{ content }`) and `files[i]`. Messages are limited to 2,000 characters, and to 10 files of 10 MB each on servers without boosts.
 - **Links:** only built when `DISCORD_GUILD_ID` is set.
 
+## Substack (Notes, unofficial)
+
+- **No official API.** Substack's Developer API only looks up public profiles. Notes are posted through the internal endpoints substack.com's own composer uses, taken from unofficial clients ([substack-mcp](https://github.com/conorbronsdon/substack-mcp), [nanameru/substack-mcp](https://github.com/nanameru/substack-mcp), [substack-cli's API notes](https://github.com/HighnessAtharva/substack-cli/blob/main/docs/api-notes.md)). They can change without notice.
+- **Auth:** the `substack.sid` cookie from substack.com in `SUBSTACK_SESSION_COOKIE`, plus a browser User-Agent, because Cloudflare blocks Node's default one ("error code: 1010"). A 401/403 is reported as an expired cookie.
+- **Images:** `POST /api/v1/image` with `{ image: <data URI> }` returns a CDN URL, then `POST /api/v1/comment/attachment` with `{ url, type: 'image' }` returns an attachment id.
+- **Post:** `POST https://substack.com/api/v1/comment/feed` with `bodyJson` (a ProseMirror doc, one paragraph per line, links as `link` marks), `tabId: 'for-you'`, `surface: 'feed'`, `replyMinimumRole: 'everyone'` and `attachmentIds`.
+- **Limits:** 10,000 characters (Buffer's help pages; Substack doesn't publish one) and 6 images or GIFs (Substack's Notes FAQ). No videos: the attachment endpoint returns `null` for `type: 'video'`. Image size isn't checked.
+- **Unverified:** all of it, including whether `/api/v1/image` works on substack.com rather than the publication's domain, and the `https://substack.com/note/c-<id>` link format.
+
 ## Per-platform fields: what's unverified
 
 These are wired to the documented API parameters but haven't been used on a live account yet:
@@ -117,7 +127,3 @@ These are wired to the documented API parameters but haven't been used on a live
 - **X:** `made_with_ai` is sent as a boolean, as listed in the create-post schema, on the first post of a thread only. Reply settings are left at X's default (everyone). Alt text uses `POST /2/media/metadata` and only produces a warning if it fails. Polls and the paid-partnership label were removed at the user's request.
 - **Instagram:** trial reels map Manual to `MANUAL` and Auto to `SS_PERFORMANCE`. Collaborators, tagging people and the first comment were removed at the user's request; @mentions in the caption still link and notify.
 - **YouTube:** scheduling forces `privacyStatus: private` and sets `publishAt`. With no category picked, `categoryId` is `YOUTUBE_CATEGORY_ID` or 22 (People & Blogs), YouTube's own default; Studio's upload defaults don't apply to API uploads. License, embedding, public stats and subscriber notifications are left at YouTube's defaults. Thumbnails use `thumbnails.set` with the existing `youtube.upload` scope, and a rejection (common on channels that aren't phone-verified) produces a warning rather than failing the upload.
-
-## Not supported
-
-- **Substack:** there's no official API. See "Decisions on record" in [AGENTS.md](../AGENTS.md).

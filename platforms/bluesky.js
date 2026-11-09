@@ -8,7 +8,7 @@ const byteOffset = (text, index) => Buffer.byteLength(text.slice(0, index), 'utf
 const count = (s, ch) => s.split(ch).length - 1;
 
 // Drop sentence punctuation after a link, but keep a ")" that closes one inside it (e.g. Wikipedia URLs).
-function trimUrl(url) {
+export function trimUrl(url) {
   for (;;) {
     if (/[.,;:!?'"\]]$/.test(url)) url = url.slice(0, -1);
     else if (url.endsWith(')') && count(url, ')') > count(url, '(')) url = url.slice(0, -1);

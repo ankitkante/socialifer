@@ -42,6 +42,7 @@ Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos. PNG and
 | Threads | 500 | Up to 20, mixed | Up to 5 min | Media needs `TUNNEL_URL`. |
 | Instagram | 2,200 | 1 to 10, mixed | 3 s to 15 min; up to 1 min in a multi-file post | **Needs an image or video.** JPEG images only (PNG and WebP are converted automatically). Video up to 300 MB. A single video becomes a Reel. Needs `TUNNEL_URL`. |
 | YouTube | 5,000 (description) | **Exactly 1 video** | Up to 15 min (`YOUTUBE_MAX_MINUTES` once your channel is phone-verified) | Needs a title (up to 100 characters). By default the first line of your post is the title and the rest is the description. No `<` or `>`. |
+| Substack | 10,000 | Up to 6 images, no video | n/a | **Notes only, unofficial:** uses your browser session cookie, so it can stop working without notice and may go against Substack's terms. |
 | LinkedIn | 3,000 | Up to 20 images or 1 video | 3 s to 30 min | |
 | Facebook | 63,206 | Up to 10 images or 1 video | Up to 20 min | Posts to a Facebook Page. Facebook's API can't post to personal profiles. |
 | Telegram | 4,096 | Up to 10, mixed | Not checked | Captions are capped at 1,024 characters, so longer text is sent as a separate message. |
@@ -89,13 +90,12 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 - On LinkedIn, simple hashtags like `#AI` become real hashtags, but `#with_underscore` is posted as plain text.
 - **X** has no free API plan for new developer accounts (pay-per-use since February 2026). Buy credits at [console.x.com](https://console.x.com) before posting; a post costs about $0.01. Set the app permissions to **Read and write** *before* generating the access token.
 - **LinkedIn** API versions expire after about a year. If you see a version error, set `LINKEDIN_VERSION` to a recent `YYYYMM` value.
-- **Substack** isn't supported because it has no official API for posting.
+- **Substack** has no official API, so only Notes are posted, with your `substack.sid` cookie (see `.env.example`). When it expires, posting fails with a message saying so; copy a fresh one into `.env` and restart.
 
 ## Ideas for later
 
 Not started; to be discussed before building. Listed in priority order.
 
-- **Substack Notes (unofficial):** Substack has no posting API, but Notes with text and images can be posted the way its website does, with your session cookie. It can break without notice and may go against Substack's terms. Videos can't be attached this way.
 - **Hosted server:** run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and a phone app has something to talk to. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg. Fallback if hosting doesn't work out: the phone app keeps the queue and hands it to the laptop server when they're on the same Wi-Fi.
 - **Scheduling: a queue and a calendar.** Write a post when the idea comes and add it to a queue; the app publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the hosted server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the server was down are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
 - **Mobile app (React Native):** a separate app, with the hosted server as its backend, using the same endpoints as the web page (`/api/platforms`, `/api/media`, `/api/post`).

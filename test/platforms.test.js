@@ -173,3 +173,41 @@ test('Instagram builds Reel fields', async (t) => {
   assert.ok(!calls.some((c) => c.url.endsWith('/comments')));
   assert.equal(result.url, 'https://instagram.com/p/1');
 });
+
+test('Substack uploads images, attaches them and posts the Note with the session cookie', async (t) => {
+  process.env.SUBSTACK_SESSION_COOKIE = 'substack.sid=s%3Aabc; Path=/';
+  const calls = stubFetch(t, (url) => {
+    if (url.endsWith('/image')) return Response.json({ url: 'https://substackcdn.com/img.png' });
+    if (url.endsWith('/comment/attachment')) return Response.json({ id: 'A1' });
+    if (url.endsWith('/comment/feed')) return Response.json({ id: 42 });
+  });
+  const substack = (await import('../platforms/substack.js')).default;
+  const media = [{ name: 'a.png', type: 'image/png', size: 3, buffer: async () => Buffer.from('abc') }];
+  const result = await substack.post('Hello\n\nSee https://ex.com/x.', media);
+
+  assert.deepEqual(calls.map((c) => c.url.replace('https://substack.com/api/v1', '')), ['/image', '/comment/attachment', '/comment/feed']);
+  assert.equal(calls[0].opts.headers.Cookie, 'substack.sid=s%3Aabc');
+  assert.match(calls[0].opts.headers['User-Agent'], /Mozilla/);
+  assert.equal(JSON.parse(calls[0].opts.body).image, 'data:image/png;base64,YWJj');
+  assert.deepEqual(JSON.parse(calls[1].opts.body), { url: 'https://substackcdn.com/img.png', type: 'image' });
+  const note = JSON.parse(calls[2].opts.body);
+  assert.deepEqual(note.attachmentIds, ['A1']);
+  assert.equal(note.tabId, 'for-you');
+  assert.deepEqual(note.bodyJson.content, [
+    { type: 'paragraph', content: [{ type: 'text', text: 'Hello' }] },
+    { type: 'paragraph' },
+    { type: 'paragraph', content: [
+      { type: 'text', text: 'See ' },
+      { type: 'text', text: 'https://ex.com/x', marks: [{ type: 'link', attrs: { href: 'https://ex.com/x' } }] },
+      { type: 'text', text: '.' },
+    ] },
+  ]);
+  assert.equal(result.url, 'https://substack.com/note/c-42');
+});
+
+test('Substack explains an expired session cookie', async (t) => {
+  process.env.SUBSTACK_SESSION_COOKIE = 'abc';
+  stubFetch(t, () => Response.json({ error: 'Not authorized' }, { status: 401 }));
+  const substack = (await import('../platforms/substack.js')).default;
+  await assert.rejects(substack.post('Hi', []), /copy a fresh substack\.sid cookie/);
+});
