@@ -95,11 +95,12 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 
 Not started; to be discussed before building. Listed in priority order.
 
-- **Posting to Reddit (top priority):** a new platform, ahead of everything below.
+- **Substack Notes (unofficial):** Substack has no posting API, but Notes with text and images can be posted the way its website does, with your session cookie. It can break without notice and may go against Substack's terms. Videos can't be attached this way.
+- **Hosted server:** run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and a phone app has something to talk to. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg. Fallback if hosting doesn't work out: the phone app keeps the queue and hands it to the laptop server when they're on the same Wi-Fi.
+- **Scheduling: a queue and a calendar.** Write a post when the idea comes and add it to a queue; the app publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the hosted server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the server was down are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
+- **Mobile app (React Native):** a separate app, with the hosted server as its backend, using the same endpoints as the web page (`/api/platforms`, `/api/media`, `/api/post`).
+- **Posting to Reddit:** a new platform.
 - **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
-- **Scheduling in the app** for platforms without built-in scheduling through the API (Instagram and X; YouTube already has a schedule option). The app would keep the post and publish it at the chosen time, so the server, and for Instagram the tunnel, would need to be running then. Open questions: where queued posts are stored, what happens to a missed time, and retries.
-- **Auto-fit Instagram Reel covers to 9:16:** Instagram crops a cover to its middle 9:16 strip, so a 16:9 thumbnail loses most of its picture. The preview now shows that and notes it; the app could also pad the image to 9:16 with a blurred background. (The video itself isn't cropped: a 16:9 Reel was checked live on 2026-11-05 and shows its full picture.)
-- **Check Instagram feed photo shapes:** Meta's API only accepts feed photos from 4:5 to 1.91:1, and the app doesn't check this yet. To be added when it comes up.
 - **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
 - **Drafts and post history:** deferred.
 
