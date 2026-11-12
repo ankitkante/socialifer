@@ -10,7 +10,10 @@ Browser (public/index.html, styles.css, js/*.js)
   │  GET  /api/platforms  platform list, limits, media rules, configured?
   │  POST /api/media      raw file body → { id, name, type, size }
   │  DELETE /api/media/:id
-  │  POST /api/post       { text, platforms: [id], media: [mediaId] }
+  │  POST /api/subtitled  { video, subtitles, maxBytes? } → NDJSON progress, then the burned-in copy's id
+  │  POST /api/subtitles  { video, language, subtitles: [lang] } → NDJSON job snapshots (lyrics-video)
+  │  POST /api/subtitles/<id>/stop
+  │  POST /api/post       { text, platforms: [id], media: [mediaId], options, subtitles?: { videoId: { lang: srtId } } }
   ▼
 server.js ──► publish(): Promise.allSettled over selected platforms
                  │  for each: isConfigured? → problemsFor()? → platform.post(text, media, options[id])
@@ -34,11 +37,12 @@ The server's request timeout only covers receiving the request, so a slow video 
 
 ## Media lifecycle
 
-- **Upload:** the browser sends `POST /api/media` with the raw file as the body (`XMLHttpRequest`, for progress events), `Content-Type` set to the file's MIME type, and `X-Filename` URI-encoded. `media.js` streams it to `uploads/<id>` through a size-limiting transform (`MAX_UPLOAD_MB`, default 1024), then writes `uploads/<id>.json` metadata. Allowed types are listed in `EXTENSIONS` in `media.js`: JPEG, PNG, GIF, WebP, MP4 and MOV.
+- **Upload:** the browser sends `POST /api/media` with the raw file as the body (`XMLHttpRequest`, for progress events), `Content-Type` set to the file's MIME type, and `X-Filename` URI-encoded. `media.js` streams it to `uploads/<id>` through a size-limiting transform (`MAX_UPLOAD_MB`, default 1024), then writes `uploads/<id>.json` metadata. Allowed types are listed in `EXTENSIONS` in `media.js`: JPEG, PNG, GIF, WebP, MP4, MOV and SRT subtitles (`application/x-subrip`).
 - **Use:** `getMedia(id)` returns metadata plus `path`, `blob()` (file-backed, via `fs.openAsBlob`, so large videos aren't loaded into memory), `buffer()`, and `url`.
 - **Length:** the browser reads each video's duration when it is attached and sends it with the post as `media: [{ id, duration }]`. If ffprobe is installed, the server reads the real duration and uses that instead.
 - **Compression:** after a platform passes `problemsFor`, `mediaFor()` in `server.js` swaps any video over that platform's `videoMB` for `fitVideo(m, maxBytes)`. That runs ffmpeg once per original and target size (concurrent platforms with the same limit share the run), writes the copy as a new upload with `derivedFrom` in its metadata, and retries once at 85% if the first pass overshoots. Copies are deleted with their original or by the 24-hour cleanup. The UI shows these as notes (`adjustmentsFor`), not problems.
 - **Public serving:** `GET/HEAD /media/<id>.<ext>` streams the file with Range support. The extension is cosmetic; some fetchers expect one. `/media/health` answers 204, so `/api/status` can check that the tunnel reaches this server.
+- **Subtitles:** `subtitler.js` runs lyrics-video's `subtitles.py` (contract: lyrics-video's CLAUDE.md) with `--out-dir uploads/transcripts/<sha256 of the video>/`. Each SRT it writes is saved as a new upload (`saveFile` in `media.js`) and removed from that folder; the transcripts stay for 24 hours after their last use. Edits from Review lines are uploaded by the page as another SRT. Burned-in copies (`burnSubtitles`) are cached per video, SRT and size target. Whisper runs and burn-ins take turns (`work.js`), Whisper first.
 - **Deletion:** the browser deletes files on removal or after a fully successful post. Anything older than 24 hours is removed when the server starts and every hour after.
 
 ## Security model
@@ -48,7 +52,7 @@ There's one user on one machine, and there's no login, so the protection comes f
 - The server binds to `127.0.0.1`.
 - **Host allowlist:** everything except `/media/*` requires `Host` to be `localhost:PORT` or `127.0.0.1:PORT`. This defeats DNS rebinding.
 - **Tunnel detection:** requests carrying `X-Forwarded-For` or `Forwarded` are rejected outside `/media/*`. This matters because some tunnels rewrite `Host` to `localhost`.
-- **CSRF:** the write endpoints require non-simple content types (`application/json`, `image/*`, `video/*`) and the server sends no CORS headers, so cross-origin pages can't trigger them.
+- **CSRF:** the write endpoints require non-simple content types (`application/json`, `image/*`, `video/*`, `application/x-subrip`) and the server sends no CORS headers, so cross-origin pages can't trigger them.
 - **Public media:** files under `/media/` are reachable by anyone who knows the 128-bit random id, but only while `TUNNEL_URL`'s tunnel is running and for at most 24 hours.
 - Credentials stay in `.env` (gitignored) and are only read on the server.
 

@@ -20,6 +20,13 @@ npm start               # opens on http://localhost:3000
 The page has two columns: you write on the left, and the **Post panel** stays pinned on the right. On a phone or narrow window, a bar at the bottom keeps the Post button within reach.
 
 - **Your post:** type it once, and attach photos or videos with **+ Add photo or video**, by dragging files onto the box, or by pasting an image.
+- **Subtitles:** a Subtitles strip appears under an attached video.
+  - **Languages:** Hindi and English for now.
+  - **Generate:** say which language the video is in and which subtitles to make (that language and/or English), then Generate. It runs Whisper on this PC through the separate lyrics-video project, takes a few minutes, and you can keep writing meanwhile. Each language shows up as a chip as soon as it's done; **Stop** keeps the languages already made. Posting waits until it's done or stopped. Needs `LYRICS_VIDEO_DIR` in `.env` (see below); without it, only Upload SRT shows.
+  - **Upload SRT:** or drop an `.srt` file. Its chip has a language dropdown, because YouTube needs each track's language. With several videos, each video has its own row; drop an SRT on the row it belongs to.
+  - **Review lines:** the video plays beside its lines, the line being spoken is highlighted, and clicking a line jumps there. Fix words by typing (timings stay as they are). Preview it burned in or as a YouTube track; for vertical videos the part Reels and Shorts buttons cover is shaded. Edits change the app's copy, never your file; **Download SRT** saves the corrected one. Closing without Done asks before discarding edits.
+  - **Where they go:** YouTube gets one subtitle track per language (untick a language in its tab to leave it off), and its Audio language follows the video's language. X and Instagram get one language burned into the video, chosen in their tab ("Burned in · English", "Burned in · Hindi" or "None"; remembered per platform). Other platforms get English burned in, or the only language there is. Burning in needs ffmpeg; it starts as soon as the subtitles are ready, and the Post panel shows its progress. Platforms with the same language share one copy.
+  - Overlapping subtitle lines (as in YouTube's auto captions) are trimmed everywhere, so only one line shows at a time. Your SRT file itself is left as it is.
 - **Post to:** click the YouTube, Instagram or X pills (or any other platform you've set up) to choose where it goes. **+ Set up more** lists the platforms that aren't set up yet and the `.env` values each one needs.
 - **Platform tabs:** each chosen platform gets a tab with a badge: ✓ ready, ! with a count of issues, or i for a note such as "will be compressed". A tab has that platform's own text box (it shows your post as you type until you edit it; **↺ Use main post** switches it back), its options, problems shown right under the field they concern, and a **live preview**:
   - **YouTube:** title (your first line unless you type one; the rest becomes the description), visibility, schedule, category, tags, custom thumbnail, made for kids, altered or synthetic (AI) content; more: recording date and languages. The preview shows the title as search results cut it and whether the video will be a Short. For a Short, it shows the thumbnail in the Shorts player, the Shorts shelf and a 16:9 frame. It notes a thumbnail whose shape doesn't match the video, or one under 640 px wide.
@@ -30,7 +37,7 @@ The page has two columns: you write on the left, and the **Post panel** stays pi
 - **Header:** the dots show whether the cloudflared **tunnel** reaches this server (needed for Instagram and Threads media) and whether **ffmpeg** is installed. The theme switch follows your system by default; choose Light or Dark to override it.
 - The terminal logs every step, with any error's full details.
 
-Supported files: JPEG, PNG, GIF and WebP images, and MP4 and MOV videos. PNG and WebP images are converted to high-quality JPEG when you add them, because Instagram only accepts JPEG and every platform takes it. Transparent areas become white, and images larger than 4,096 px on the longest side are scaled down. GIFs are left as they are.
+Supported files: JPEG, PNG, GIF and WebP images, MP4 and MOV videos, and SRT subtitles. PNG and WebP images are converted to high-quality JPEG when you add them, because Instagram only accepts JPEG and every platform takes it. Transparent areas become white, and images larger than 4,096 px on the longest side are scaled down. GIFs are left as they are.
 
 ## What each platform accepts
 
@@ -55,7 +62,28 @@ Video lengths are read in the browser when you attach a video, and again on the 
 
 With [ffmpeg](https://ffmpeg.org/) installed, a video that's over a platform's size limit is **compressed automatically for that platform only**. For example, a 450 MB video goes to YouTube as it is and to Instagram as a copy under 300 MB. The platform shows a note like "will be compressed to fit 300 MB" before you post. Compression runs when you click Post, can take several minutes for a large video, and leaves your original file untouched. Videos are never trimmed, so if one is too long to fit a size limit at watchable quality, that platform says so instead.
 
-To install ffmpeg on Windows, run `winget install --id Gyan.FFmpeg`, then restart the server. The startup message says whether ffmpeg was found. If it's installed somewhere unusual, set `FFMPEG_DIR` in `.env` to the folder containing `ffmpeg.exe` and `ffprobe.exe`. Without ffmpeg, oversized videos are simply rejected for that platform.
+To install ffmpeg on Windows, run `winget install --id Gyan.FFmpeg` (on a Mac, `brew install ffmpeg`; on Linux, your package manager), then restart the server. The startup message says whether ffmpeg was found. If it's installed somewhere unusual, set `FFMPEG_DIR` in `.env` to the folder containing `ffmpeg.exe` and `ffprobe.exe`. Without ffmpeg, oversized videos are simply rejected for that platform.
+
+## Generating subtitles
+
+**Generate** uses the separate lyrics-video project, which runs Whisper (`large-v3`) on this PC. It's optional, like ffmpeg: without it you can still upload an SRT. Set it up in this order:
+
+1. **ffmpeg**, for burning subtitles into videos (see above). Without it, YouTube tracks still work, but X, Instagram and the rest can't get subtitles.
+2. **lyrics-video:** get the project and follow its README. That sets up its `.venv` and downloads the Whisper model once (`python subtitles.py --download-model large-v3`, about 3 GB). Social Post never downloads the model.
+3. **`LYRICS_VIDEO_DIR`** in `.env`: the lyrics-video folder, e.g. `C:\projects\lyrics-video`.
+4. **Restart** the server. The startup message and the header say whether it was found:
+   - **Subtitles ready:** done; Generate appears under an attached video.
+   - **Subtitles not set up:** hover it (or read the startup message) for what's wrong: a wrong path, a folder that isn't lyrics-video, or a missing `.venv`.
+   - **No subtitle generator:** `LYRICS_VIDEO_DIR` isn't set.
+
+- **Model missing:** Generate fails with lyrics-video's message, which gives the command to run once.
+- **Same environment:** start Social Post from a terminal that has the same environment variables you used for the model download (such as `HF_HOME`, if lyrics-video's README has you set it). Otherwise lyrics-video looks for the model in the wrong place.
+- **Fonts outside Windows:** burned-in text uses Noto Sans. Install **Noto Sans** and **Noto Sans Devanagari**, or Hindi burns in as empty boxes. Check with Review lines' Burned in preview first; on Windows, Nirmala UI is used and nothing is needed.
+- **Speed:** about 5 minutes for a 1-minute clip in Hindi and English, on this laptop's CPU.
+- **One at a time:** Whisper needs more than 4 GB of free memory, so several videos wait in a queue. Close Resolve or Chrome if it fails for lack of memory.
+- **Files:** Whisper's transcripts are kept in `uploads/transcripts/` for a day after their last use, so adding the same video again is quick. The finished SRTs are attached like uploaded ones.
+- **One thing at a time:** burning subtitles in waits while Whisper runs, so the two don't slow each other down.
+- **Server stopped mid-job:** when it starts again, it stops the Whisper run it left behind, to free the memory.
 
 ## Images and video on Threads and Instagram
 
@@ -77,7 +105,7 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project and enable **YouTube Data API v3**.
 2. Set up the **OAuth consent screen** (External), add yourself as a test user, then set its publishing status to **In production**. In Testing mode, the sign-in expires after 7 days. Google will warn that the app is unverified when you sign in; that's expected for a personal app.
 3. Under **Credentials**, create an **OAuth client ID** of type **Desktop app**. Put its ID and secret in `.env` as `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET`.
-4. Run `npm run youtube-auth`. A Google sign-in opens; choose the account or brand account that owns your channel. The command saves `YOUTUBE_REFRESH_TOKEN` to `.env`. Restart the server. It asks to upload videos and to view your YouTube account. The view access lets the app wait until YouTube has finished processing a video before setting its custom thumbnail. If you signed in before 2026-11-09, run it again to grant that.
+4. Run `npm run youtube-auth`. A Google sign-in opens; choose the account or brand account that owns your channel. The command saves `YOUTUBE_REFRESH_TOKEN` to `.env`. Restart the server. It asks to upload videos, to view your YouTube account, and to manage your YouTube account. View access lets the app wait until YouTube has finished processing a video before setting its custom thumbnail. Manage access is what YouTube requires for adding subtitle tracks. If you signed in before 2026-11-12, run it again to grant these.
 
 **Uploads stay private at first.** YouTube locks every video uploaded through an API project it hasn't audited to private, whatever visibility you choose. Until your project passes the audit, publish each video by hand in YouTube Studio. To remove the lock for good, request an audit for your Google Cloud project using YouTube's API compliance audit form.
 
@@ -102,6 +130,7 @@ Not started; to be discussed before building. Listed in priority order.
 - **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
 - **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
 - **Drafts and post history:** deferred.
+- **YouTube Posts tab** (formerly Community: text, images, polls): the YouTube Data API reference lists no way to create these, so for now they're posted by hand. To be double-checked in the API docs.
 
 ## Further reading
 
