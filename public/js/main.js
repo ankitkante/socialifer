@@ -3,8 +3,11 @@ import { $, el, logo, truncate, BRAND_COLORS } from './dom.js';
 import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, splitThread } from '/rules.js';
 import { state, hooks, activeTargets, saveSelected, write, KEYS } from './state.js';
 import { FIELDS, fieldsOf, loadSettings, platformOptions, mirrored, fieldUploading, renderField } from './fields.js';
-import { addFiles, mediaMeta, uploadsBusy, uploadsFailed } from './uploads.js';
+import { addFiles, mediaMeta, uploadsBusy, uploadsFailed, isVideoFile } from './uploads.js';
 import { renderPreview, hasPreview } from './previews.js';
+import {
+  addSubtitles, forgetSubtitles, initSubtitles, renderStrip, renderChoice, subtitleStatus, generating,
+} from './subtitles.js';
 import { setStatus, setPhase, edited, renderPanel, post } from './panel.js';
 import { initTheme, startStatus } from './status.js';
 
@@ -128,13 +131,17 @@ function renderSections(targets) {
       ...(before.length ? [el('div', { className: 'fields' }, ...before.map((f) => renderField(p.id, f)))] : []),
       textField,
     );
+    // The platform's Subtitles field (subtitles.js fills it in when a video has subtitles).
+    const subtitleSlot = el('div', { className: 'subtitle-choice' });
     if (spec) {
-      fieldsCol.append(el('div', { className: 'fields' }, ...spec.main.filter((f) => !f.beforeText).map((f) => renderField(p.id, f))));
+      fieldsCol.append(el('div', { className: 'fields' }, ...spec.main.filter((f) => !f.beforeText).map((f) => renderField(p.id, f))), subtitleSlot);
       if (spec.more?.length) {
         fieldsCol.append(el('details', { className: 'more' }, el('summary', { textContent: 'More options' }),
           el('div', { className: 'fields' }, ...spec.more.map((f) => renderField(p.id, f)))));
       }
       if (spec.info) fieldsCol.append(el('p', { className: 'hint', textContent: spec.info }));
+    } else {
+      fieldsCol.append(subtitleSlot);
     }
 
     const section = el('div', { className: 'tab-panel', role: 'tabpanel', id: `tab-${p.id}` },
@@ -204,6 +211,7 @@ function updateSection(p, { text, own, options, media, problems, notes }) {
   const slot = section.querySelector('.preview-slot');
   const preview = renderPreview(p.id, { text, options, items: state.items, platform: p });
   slot.replaceChildren(...(preview ? [preview] : []));
+  renderChoice(p, section.querySelector('.subtitle-choice'));
 }
 
 function updateTabBadge(id, { started, problems, notes }) {
@@ -262,13 +270,14 @@ function update() {
   applyTab();
 
   const readiness = [];
+  const subtitles = subtitleStatus(targets);
   for (const p of targets) {
     const own = effectiveText(text, options[p.id], p.id);
     // An empty composer can't be posted anyway, so don't greet the user with warnings.
     const started = Boolean(text || media.length || options[p.id]?.text?.trim() || options[p.id]?.title?.trim());
     const problems = started ? problemsFor(p, text, media, options[p.id]) : [];
     const notes = adjustmentsFor(p, media, options[p.id], text);
-    const entry = { p, started, problems, notes, summary: summaryFor(p, text, options, media) };
+    const entry = { p, started, problems, notes, summary: summaryFor(p, text, options, media), subtitles: subtitles.get(p.id) };
     readiness.push(entry);
     updateSection(p, { text, own, options, media, problems, notes });
     updateTabBadge(p.id, entry);
@@ -284,14 +293,22 @@ function update() {
   const issues = readiness.filter((r) => r.problems.length);
   const issueCount = issues.reduce((n, r) => n + r.problems.length, 0);
   // Why Post is disabled, in plain words; red only when there's something to fix.
+  const making = generating();
+  const severalVideos = state.items.filter((i) => isVideoFile(i.file)).length > 1;
   const reason = uploadsFailed() ? 'Remove the files that failed to upload'
     : uploadsBusy() || fieldUploading() ? 'Uploading your files…'
+    : making ? (severalVideos ? "Posting opens once every video's subtitles are done or skipped."
+      : 'Posting opens once the subtitles are done, or cancel them to post without.')
     : targets.length === 0 ? 'Select at least one platform'
     : !anyText && state.items.length === 0 ? 'Write something, or add a photo or video'
     : issueCount ? `Fix ${issueCount} issue${issueCount > 1 ? 's' : ''} on ${issues.map((r) => r.p.name).join(' and ')}, or untick ${issues.length > 1 ? 'them' : 'it'}`
     : '';
   $('post-label').textContent = targets.length > 1 ? `Post to ${targets.length} platforms` : targets.length === 1 ? `Post to ${targets[0].name}` : 'Post';
-  renderPanel(readiness, { blocked: issueCount > 0, reason, reasonIsError: issueCount > 0 || uploadsFailed() });
+  // Posting while subtitles are still being burned in is fine: those platforms wait for their copy.
+  const burning = readiness.filter((r) => r.subtitles?.busy).map((r) => r.p.name);
+  const note = burning.length ? `${burning.length > 1 ? `${burning.slice(0, -1).join(', ')} and ${burning.at(-1)}` : burning[0]} finish adding subtitles before ${burning.length > 1 ? 'they post' : 'it posts'}.` : '';
+  renderPanel(readiness, { blocked: issueCount > 0, reason, reasonIsError: issueCount > 0 || uploadsFailed(), note, generating: making });
+  renderStrip();
 }
 
 // ---- Wiring ----
@@ -300,6 +317,8 @@ hooks.update = update;
 hooks.edited = edited;
 hooks.setStatus = setStatus;
 hooks.selectTab = selectTab;
+hooks.addSubtitles = addSubtitles;
+hooks.forgetSubtitles = forgetSubtitles;
 
 const doPost = () => post(activeTargets(), textEl.value);
 
@@ -325,6 +344,7 @@ $('bar-summary').addEventListener('click', () => $('post-panel').scrollIntoView(
 $('new-post').addEventListener('click', () => { setPhase('ready'); textEl.focus(); });
 $('attach').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
+initSubtitles();
 $('setup-toggle').addEventListener('click', () => setSetupOpen($('setup-panel').hidden));
 $('setup-close').addEventListener('click', () => setSetupOpen(false));
 
@@ -337,7 +357,8 @@ composer.addEventListener('drop', (e) => {
   e.preventDefault();
   dragDepth = 0;
   composer.classList.remove('dragging');
-  addFiles([...e.dataTransfer.files]);
+  // An SRT dropped on a video's row under Subtitles goes to that video (set by the row's own handler).
+  addFiles([...e.dataTransfer.files], e.subtitleItem);
 });
 
 // ---- Start ----

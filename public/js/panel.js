@@ -1,8 +1,9 @@
 // The Post panel: readiness before posting, live progress while posting, results after.
-import { $, el, logo } from './dom.js';
+import { $, el, logo, readEvents } from './dom.js';
 import { state, hooks, saveSelected } from './state.js';
 import { platformOptions, resetSettings } from './fields.js';
 import { clearMedia, isVideoFile } from './uploads.js';
+import { subtitlesForPost, subtitleOption } from './subtitles.js';
 
 export function setStatus(message, isError = false) {
   const status = $('status');
@@ -25,8 +26,9 @@ export function edited() {
   if (state.phase === 'done') setPhase('ready');
 }
 
-// readiness: [{ p, started, problems, notes }]; reason: why Post is disabled ('' when it isn't).
-export function renderPanel(readiness, { blocked, reason, reasonIsError }) {
+// readiness: [{ p, started, problems, notes, summary, subtitles? }]; reason: why Post is disabled ('' when it
+// isn't); note: shown under an enabled Post button; generating: subtitles are being made.
+export function renderPanel(readiness, { blocked, reason, reasonIsError, note = '', generating = false }) {
   const title = $('panel-title');
   const rows = state.lastRows;
   const finished = rows.filter((r) => r.state !== 'working').length;
@@ -39,22 +41,28 @@ export function renderPanel(readiness, { blocked, reason, reasonIsError }) {
       : { textContent: `Posted to ${rows.length} platform${rows.length > 1 ? 's' : ''}`, className: 'panel-title ok' });
   } else {
     Object.assign(title, {
-      textContent: !readiness.length ? 'Choose where to post' : blocked ? 'Not ready yet' : 'Ready to post',
+      textContent: !readiness.length ? 'Choose where to post' : generating ? 'Making subtitles' : blocked ? 'Not ready yet' : 'Ready to post',
       className: 'panel-title',
     });
   }
 
   if (state.phase === 'ready') {
     $('checklist').replaceChildren(...(readiness.length ? readiness.map((r) => {
-      const kind = !r.started ? '' : r.problems.length ? 'issue' : r.notes.length ? 'note' : 'ready';
+      // What the platform does with the subtitles comes first, unless something needs fixing.
+      const sub = r.started && !r.problems.length ? r.subtitles : null;
+      const working = sub && (sub.waiting || sub.busy);
+      const kind = !r.started ? '' : r.problems.length ? 'issue' : working || sub?.error || r.notes.length ? 'note' : 'ready';
       const label = !r.started ? '' : r.problems.length ? `${r.problems.length} issue${r.problems.length > 1 ? 's' : ''}`
-        : r.notes.length ? 'Note' : '✓ Ready';
-      const detail = r.problems[0] ?? r.notes[0] ?? (r.started ? r.summary : 'Waiting for your post');
+        : sub?.waiting ? 'Waiting' : working ? 'Working' : sub?.error || r.notes.length ? 'Note' : '✓ Ready';
+      const detail = r.problems[0] ?? sub?.text ?? r.notes[0] ?? (r.started ? r.summary : 'Waiting for your post');
+      const what = el('span', { className: 'what' }, el('strong', { textContent: r.p.name }), el('span', { textContent: detail }));
+      if (sub?.busy && typeof sub.progress === 'number') {
+        const bar = el('div', { className: 'bar' }, el('span'));
+        bar.firstChild.style.width = `${Math.round(sub.progress * 100)}%`;
+        what.append(bar);
+      }
       const button = el('button', { type: 'button', title: [...r.problems, ...r.notes].join('\n') },
-        logo(r.p.id),
-        el('span', { className: 'what' }, el('strong', { textContent: r.p.name }), el('span', { textContent: detail })),
-        el('span', { className: 'state', textContent: label }),
-      );
+        logo(r.p.id), what, el('span', { className: 'state', textContent: label }));
       button.addEventListener('click', () => hooks.selectTab(r.p.id, { scroll: true }));
       return el('li', { className: kind }, button);
     }) : [el('li', { className: 'empty', textContent: 'Select a platform in "Post to" to get started.' })]));
@@ -65,9 +73,9 @@ export function renderPanel(readiness, { blocked, reason, reasonIsError }) {
   postBtn.disabled = state.posting || Boolean(reason);
   postBtn.hidden = state.phase === 'posting' || (state.phase === 'done' && !failedBefore);
   const reasonEl = $('post-reason');
-  reasonEl.textContent = reason;
-  reasonEl.className = 'reason' + (reasonIsError ? ' err' : '');
-  reasonEl.hidden = !reason || postBtn.hidden;
+  reasonEl.textContent = reason || (state.phase === 'ready' ? note : '');
+  reasonEl.className = 'reason' + (reason && reasonIsError ? ' err' : '');
+  reasonEl.hidden = !reasonEl.textContent || postBtn.hidden;
 
   // The phone bar mirrors the panel's summary and button.
   $('bar-count').textContent = $('post-label').textContent;
@@ -117,23 +125,6 @@ function renderResults() {
   }));
 }
 
-// Reads the server's stream of { type: 'status' | 'result' | 'done' } events, one JSON object per line.
-async function readEvents(res, onEvent) {
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = '';
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) return;
-    buffer += value;
-    let newline;
-    while ((newline = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, newline).trim();
-      buffer = buffer.slice(newline + 1);
-      if (line) onEvent(JSON.parse(line));
-    }
-  }
-}
-
 // Shown once a text or image post (no video) is out somewhere. The text is copied now, because a
 // successful post clears the box.
 function showSubstackReminder(text) {
@@ -164,6 +155,10 @@ export async function post(targets, text) {
   setStatus('You can leave this page open. Slow steps, like video processing, show above.');
 
   let done = false;
+  // Each platform's subtitles choice travels with its other options.
+  const options = platformOptions({ forSend: true });
+  for (const p of targets) Object.assign(options[p.id] ??= {}, subtitleOption(p));
+  const subtitles = subtitlesForPost();
   try {
     const res = await fetch('/api/post', {
       method: 'POST',
@@ -172,7 +167,8 @@ export async function post(targets, text) {
         text,
         platforms: targets.map((p) => p.id),
         media: state.items.map((i) => ({ id: i.id, duration: i.meta?.duration })),
-        options: platformOptions({ forSend: true }),
+        options,
+        ...(subtitles && { subtitles }),
       }),
     });
     // Problems found before posting starts (an expired file, a bad request) come back as plain JSON.
@@ -217,6 +213,7 @@ export async function post(targets, text) {
     $('text').value = '';
     $('text').dispatchEvent(new Event('autosize'));
     state.overrides = {};
+    state.tracksOff.clear();
     resetSettings();
     state.sectionsKey = '';
     clearMedia();

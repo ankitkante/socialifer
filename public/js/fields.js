@@ -1,6 +1,6 @@
 // Per-platform fields: the FIELDS lists, their saved values, and the controls in each platform's tab.
 import { el } from './dom.js';
-import { effectiveText } from '/rules.js';
+import { effectiveText, LANGUAGES as ALL_LANGUAGES, SUBTITLE_LANGUAGES } from '/rules.js';
 import { state, hooks, read, write, KEYS } from './state.js';
 import { CONVERT_TO_JPEG, toJpeg, mediaMeta } from './uploads.js';
 
@@ -9,10 +9,9 @@ const YOUTUBE_CATEGORIES = [
   ['19', 'Travel & Events'], ['20', 'Gaming'], ['22', 'People & Blogs'], ['23', 'Comedy'], ['24', 'Entertainment'],
   ['25', 'News & Politics'], ['26', 'Howto & Style'], ['27', 'Education'], ['28', 'Science & Technology'], ['29', 'Nonprofits & Activism'],
 ];
-const LANGUAGES = [
-  ['', 'Not set'], ['en', 'English'], ['hi', 'Hindi'], ['bn', 'Bengali'], ['mr', 'Marathi'], ['ta', 'Tamil'], ['te', 'Telugu'],
-  ['ur', 'Urdu'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['ar', 'Arabic'], ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'],
-];
+const LANGUAGES = [['', 'Not set'], ...ALL_LANGUAGES];
+// The audio language follows "Video is in", so it offers the same languages subtitles support.
+const AUDIO_LANGUAGES = [['', 'Not set'], ...SUBTITLE_LANGUAGES];
 const singleVideo = ({ media, values }) => media.length === 1 && media[0].type.startsWith('video/') && values.postAs !== 'story';
 const hasImage = ({ media }) => media.some((m) => !m.type.startsWith('video/'));
 
@@ -27,6 +26,8 @@ export const FIELDS = {
       { key: 'privacy', type: 'select', label: 'Visibility', sticky: true, initial: 'public',
         choices: [['public', 'Public'], ['unlisted', 'Unlisted'], ['private', 'Private']] },
       { key: 'publishAt', type: 'datetime-local', label: 'Schedule (optional)' },
+      { key: 'audioLanguage', type: 'select', label: 'Audio language', sticky: true, initial: '', choices: AUDIO_LANGUAGES,
+        hint: "Set from the video's language under Subtitles." },
       { key: 'category', type: 'select', label: 'Category', initial: '', choices: [['', 'YouTube default (People & Blogs)'], ...YOUTUBE_CATEGORIES] },
       { key: 'tags', type: 'text', label: 'Tags', placeholder: 'Comma-separated, e.g. lyric video, hindi song' },
       { key: 'thumbnail', type: 'image', label: 'Custom thumbnail', wide: true,
@@ -37,7 +38,6 @@ export const FIELDS = {
     more: [
       { key: 'recordingDate', type: 'date', label: 'Recording date' },
       { key: 'language', type: 'select', label: 'Title and description language', sticky: true, initial: 'en', choices: LANGUAGES },
-      { key: 'audioLanguage', type: 'select', label: 'Audio language', sticky: true, initial: '', choices: LANGUAGES },
     ],
     info: 'Until your Google API project passes YouTube\'s audit, uploads stay private whatever you choose here (see README).',
   },
@@ -87,6 +87,15 @@ function saveSettings() {
     sticky[id] = Object.fromEntries(fieldsOf(id).filter((f) => f.sticky).map((f) => [f.key, state.settings[id][f.key]]));
   }
   write(KEYS.settings, sticky);
+}
+
+// Sets a field from elsewhere on the page (YouTube's audio language follows "Video is in"), and redraws the tabs.
+export function setSetting(id, key, value) {
+  const f = fieldsOf(id).find((field) => field.key === key);
+  if (!f || !state.settings[id]) return;
+  state.settings[id][key] = value;
+  if (f.sticky) saveSettings();
+  state.sectionsKey = '';
 }
 
 // After a successful post, everything that isn't sticky goes back to its starting value.

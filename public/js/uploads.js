@@ -15,8 +15,13 @@ export const mediaMeta = () => state.items.map((i) => ({
   name: i.file.name || 'pasted image', type: i.file.type, size: i.file.size, duration: i.meta?.duration,
 }));
 
-export const uploadsBusy = () => state.items.some((i) => i.status === 'uploading');
-export const uploadsFailed = () => state.items.some((i) => i.status === 'error');
+// SRT uploads count too: a post can't go while one is uploading or after one failed.
+const subtitleStates = () => state.items.flatMap((i) => Object.values(i.subs ?? {}).map((s) => s.status));
+export const uploadsBusy = () => state.items.some((i) => i.status === 'uploading') || subtitleStates().includes('uploading');
+export const uploadsFailed = () => state.items.some((i) => i.status === 'error') || subtitleStates().includes('error');
+
+const isSrt = (file) => /\.srt$/i.test(file.name || '');
+const hasSubtitles = (item) => Object.values(item.subs ?? {}).some((s) => s.status === 'done');
 
 // Instagram only takes JPEG and every platform accepts it, so PNG and WebP are converted on the way in.
 // Transparent areas become white, and very large images are scaled to 4096px on the longest side.
@@ -38,9 +43,13 @@ export async function toJpeg(file) {
   return new File([blob], name, { type: 'image/jpeg' });
 }
 
-export async function addFiles(files) {
+// target: the video whose row an SRT was dropped on, if any (see subtitles.js).
+export async function addFiles(files, target = null) {
   hooks.edited();
-  for (let file of files) {
+  // Videos first, so subtitles dropped in the same batch find their video.
+  for (let file of [...files].sort((a, b) => isSrt(a) - isSrt(b))) {
+    // Browsers often give .srt files no type, so they're recognised by name.
+    if (isSrt(file)) { hooks.addSubtitles(file, target); continue; }
     if (!ACCEPTED.has(file.type)) {
       hooks.setStatus(`${file.name || 'That file'} isn't supported. Use JPEG, PNG, GIF, WebP, MP4 or MOV.`, true);
       continue;
@@ -133,6 +142,8 @@ export function removeItem(item) {
   item.xhr?.abort();
   if (item.id) fetch(`/api/media/${item.id}`, { method: 'DELETE' }).catch(() => {});
   URL.revokeObjectURL(item.preview);
+  // A video's subtitles go with it.
+  hooks.forgetSubtitles(item);
   state.items = state.items.filter((i) => i !== item);
   renderMedia();
   hooks.update();
@@ -143,12 +154,14 @@ export function clearMedia() {
     item.xhr?.abort();
     if (item.id) fetch(`/api/media/${item.id}`, { method: 'DELETE' }).catch(() => {});
     URL.revokeObjectURL(item.preview);
+    hooks.forgetSubtitles(item);
   }
   state.items = [];
   renderMedia();
 }
 
 export function renderMedia() {
+  const videos = state.items.filter((i) => isVideoFile(i.file));
   $('media').replaceChildren(...state.items.map((item) => {
     const video = isVideoFile(item.file);
     const preview = item.thumb
@@ -167,6 +180,9 @@ export function renderMedia() {
     if (item.status === 'error') thumb.dataset.error = item.error;
     const badge = video ? (item.meta ? `▶ ${formatDuration(item.meta.duration)}` : 'VIDEO') : item.file.type === 'image/gif' ? 'GIF' : '';
     if (badge && !item.thumbFailed) thumb.append(el('span', { className: 'badge', textContent: badge }));
+    // With several videos, numbers match the rows under Subtitles; CC marks a video that has subtitles.
+    if (video && videos.length > 1) thumb.append(el('span', { className: 'num', textContent: String(videos.indexOf(item) + 1) }));
+    if (video && hasSubtitles(item)) thumb.append(el('span', { className: 'cc', textContent: 'CC', title: 'Has subtitles' }));
     if (item.status === 'uploading') {
       const bar = el('span');
       bar.style.width = `${item.progress * 100}%`;

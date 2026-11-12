@@ -1,6 +1,6 @@
 // The header: the theme toggle and the tunnel and ffmpeg status dots.
 import { $, el } from './dom.js';
-import { read, write, KEYS } from './state.js';
+import { state, hooks, read, write, KEYS } from './state.js';
 
 // 'system' follows the operating system; 'light' and 'dark' override it (see styles.css).
 export function initTheme() {
@@ -43,9 +43,21 @@ async function refresh(needsTunnel) {
         : dot('warn', 'Tunnel not reachable', 'TUNNEL_URL is set but doesn\'t reach this server. Is cloudflared running, and does TUNNEL_URL match its address?'));
   }
   dots.push(status.ffmpeg
-    ? dot('ok', 'ffmpeg ready', 'Videos too big for a platform are compressed to fit.')
-    : dot('', 'No ffmpeg', 'Videos too big for a platform are rejected for it. Install ffmpeg to compress them (see README).'));
+    ? dot('ok', 'ffmpeg ready', 'Videos too big for a platform are compressed to fit, and subtitles can be burned in.')
+    : dot('', 'No ffmpeg', 'Videos too big for a platform are rejected for it, and subtitles can\'t be burned in. Install ffmpeg (see README).'));
+  dots.push(status.subtitles
+    ? dot('ok', 'Subtitles ready', 'Generate makes subtitles on this PC with the lyrics-video project (Whisper).')
+    : status.subtitlesProblem
+      ? dot('warn', 'Subtitles not set up', status.subtitlesProblem)
+      : dot('', 'No subtitle generator', 'To generate subtitles, set up lyrics-video and set LYRICS_VIDEO_DIR in .env (see "Generating subtitles" in the README). Uploading an SRT works without it.'));
   $('topbar-status').replaceChildren(...dots);
+  // Generate only shows when the server can run it; when it's set up wrongly, the strip says why.
+  const problem = status.subtitlesProblem ?? null;
+  if (state.generator !== Boolean(status.subtitles) || state.generatorProblem !== problem) {
+    state.generator = Boolean(status.subtitles);
+    state.generatorProblem = problem;
+    hooks.update();
+  }
 }
 
 export function startStatus(needsTunnel) {

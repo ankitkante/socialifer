@@ -28,3 +28,26 @@ export function truncate(text, n) {
   const parts = [...segmenter.segment(text)].map((s) => s.segment);
   return parts.length <= n ? { text, cut: false } : { text: parts.slice(0, n).join('').trimEnd(), cut: true };
 }
+
+// Reads a server stream of JSON events, one object per line (posting, burning in, making subtitles).
+export async function readEvents(res, onEvent) {
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += value;
+    let newline;
+    while ((newline = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (line) onEvent(JSON.parse(line));
+    }
+  }
+}
+
+// A plain message from a JSON error response, for requests that answer with a stream when they work.
+export async function errorOf(res) {
+  const data = await res.json().catch(() => ({}));
+  return new Error(data.error || `The server returned an error (HTTP ${res.status}). Check the terminal.`);
+}

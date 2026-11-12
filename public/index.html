@@ -41,6 +41,9 @@
       <label class="label" for="text">Your post</label>
       <textarea id="text" placeholder="What do you want to share?" autofocus></textarea>
       <div class="media" id="media"></div>
+      <!-- Subtitles for the attached videos, right under them: generate, upload an SRT, review (subtitles.js). -->
+      <div class="strip" id="subtitles" hidden></div>
+      <input type="file" id="subtitles-file" hidden accept=".srt">
       <div class="toolbar">
         <button class="attach" id="attach" type="button">＋ Add photo or video</button>
         <input type="file" id="file" multiple hidden accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime">
@@ -100,6 +103,9 @@
   <button type="button" class="bar-summary" id="bar-summary"><strong id="bar-count">Post</strong><span id="bar-state"></span></button>
   <button type="button" class="primary" id="bar-post" disabled>Post</button>
 </div>
+
+<!-- Review lines: a video's subtitles beside it, one tab per language (review.js). -->
+<dialog class="review" id="review" aria-label="Subtitles"></dialog>
 
 <script type="module" src="/js/main.js"></script>
 </body>
