@@ -93,6 +93,64 @@ test('uploads, serves (with ranges and through a tunnel) and deletes media', asy
   assert.equal((await fetch(`${base}/media/${id}.png`)).status, 404);
 });
 
+test('accepts SRT subtitles, but only alongside a video', async () => {
+  const srt = Buffer.from('1\n00:00:00,000 --> 00:00:01,000\nHello\n');
+  const res = await upload(srt, 'application/x-subrip', 'hi.srt');
+  assert.equal(res.status, 201);
+  const { id, type } = await res.json();
+  assert.equal(type, 'application/x-subrip');
+
+  // Subtitles are sent per video and per language: { videoId: { lang: srtId } }.
+  const noVideo = await post({ text: 'hi', platforms: ['x'], subtitles: { [id]: { en: id } } });
+  assert.equal(noVideo.status, 400);
+  assert.match((await noVideo.json()).error, /Subtitles need a video/);
+  // Not usable as an ordinary attachment either.
+  assert.equal((await post({ text: 'hi', platforms: ['x'], media: [id] })).status, 400);
+  assert.equal((await post({ text: 'hi', platforms: ['x'], subtitles: id })).status, 400);
+  await fetch(`${base}/api/media/${id}`, { method: 'DELETE' });
+});
+
+test('making subtitles needs a real video, a plain language code and a JSON request', async () => {
+  const make = (body, type = 'application/json') =>
+    fetch(`${base}/api/subtitles`, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) });
+  assert.equal((await make({ video: '0'.repeat(32), language: 'hi', subtitles: ['hi', 'en'] })).status, 400);
+  assert.equal((await make({}, 'text/plain')).status, 415);
+
+  // A PNG isn't a video; and only codes like "hi" reach lyrics-video's command line.
+  const { id } = await (await upload(PNG, 'image/png')).json();
+  assert.match((await (await make({ video: id, language: 'hi', subtitles: ['hi'] })).json()).error, /expired/);
+  await fetch(`${base}/api/media/${id}`, { method: 'DELETE' });
+
+  // Only Hindi and English, refused before any job starts.
+  const video = (await (await upload(Buffer.from('not really a video'), 'video/mp4', 'v.mp4')).json()).id;
+  const only = /only be in Hindi or English/;
+  assert.match((await (await make({ video, language: 'fr', subtitles: ['en'] })).json()).error, only);
+  assert.match((await (await make({ video, language: 'hi', subtitles: ['hi', 'fr'] })).json()).error, only);
+  assert.match((await (await make({ video, language: '--fresh', subtitles: ['en'] })).json()).error, only);
+  // Hindi and English get past the language check (this test's server has no lyrics-video).
+  assert.match((await (await make({ video, language: 'hi', subtitles: ['hi', 'en'] })).json()).error, /LYRICS_VIDEO_DIR/);
+  assert.match((await (await make({ video, language: 'en', subtitles: ['en'] })).json()).error, /LYRICS_VIDEO_DIR/);
+
+  // Subtitles sent with a post are held to the same languages.
+  const srt = (await (await upload(Buffer.from('1\n00:00:00,000 --> 00:00:01,000\nBonjour\n'), 'application/x-subrip', 'fr.srt')).json()).id;
+  const french = await post({ text: 'hi', platforms: ['x'], media: [video], subtitles: { [video]: { fr: srt } } });
+  assert.equal(french.status, 400);
+  assert.match((await french.json()).error, only);
+  await fetch(`${base}/api/media/${srt}`, { method: 'DELETE' });
+  await fetch(`${base}/api/media/${video}`, { method: 'DELETE' });
+
+  const stop = (jobId) => fetch(`${base}/api/subtitles/${jobId}/stop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal((await stop('0'.repeat(32))).status, 404);
+  assert.equal((await stop('nope')).status, 404);
+});
+
+test('the subtitled preview needs a real video and SRT, and a JSON request', async () => {
+  const preview = (body, type = 'application/json') =>
+    fetch(`${base}/api/subtitled`, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) });
+  assert.equal((await preview({ video: '0'.repeat(32), subtitles: '1'.repeat(32) })).status, 400);
+  assert.equal((await preview({}, 'text/plain')).status, 415);
+});
+
 test('rejects unsupported and empty uploads', async () => {
   assert.equal((await upload(PNG, 'image/heic')).status, 415);
   assert.equal((await upload(Buffer.alloc(0), 'image/png')).status, 400);
@@ -152,6 +210,9 @@ test('serves the page assets and only known script names', async () => {
 test('reports ffmpeg and tunnel status', async () => {
   const status = await (await fetch(`${base}/api/status`)).json();
   assert.equal(typeof status.ffmpeg, 'boolean');
+  // No LYRICS_VIDEO_DIR in the test's environment, so no subtitle generator.
+  assert.equal(status.subtitles, false);
+  assert.equal(status.subtitlesProblem, null);
   assert.deepEqual(status.tunnel, { configured: false, reachable: false });
   // The health file the tunnel check fetches is public, like other /media/ files.
   assert.equal(await rawGet('/media/health', { Host: 'abc.trycloudflare.com', 'X-Forwarded-For': '1.2.3.4' }), 204);

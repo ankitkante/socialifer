@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countFor, problemsFor } from '../public/rules.js';
+import { countFor, problemsFor, burnLanguage, burnTarget, parseSrt, formatSrt, isSubtitleLanguage, SUBTITLE_LANGUAGES } from '../public/rules.js';
 import x from '../platforms/x.js';
 import mastodon from '../platforms/mastodon.js';
 import instagram from '../platforms/instagram.js';
@@ -178,4 +178,36 @@ test('checks per-platform fields', async () => {
 
   const px = describe(x);
   assert.ok(problemsFor(px, 'hi', [image()], { altText: 'a'.repeat(1001) }).some((m) => /Alt text is too long/.test(m)));
+});
+
+test('picks the language each platform gets burned in', () => {
+  // The platform's own choice when that language exists; None means none.
+  assert.equal(burnLanguage('hi', ['hi', 'en']), 'hi');
+  assert.equal(burnLanguage('none', ['hi', 'en']), null);
+  // Otherwise English, else the first language there is.
+  assert.equal(burnLanguage(undefined, ['hi', 'en']), 'en');
+  assert.equal(burnLanguage('en', ['hi']), 'hi');
+  assert.equal(burnLanguage(undefined, []), null);
+});
+
+test('reads and writes SRT files, keeping the timing as it was', () => {
+  const srt = '1\n00:00:00,400 --> 00:00:02,900\nनमस्ते\n\n2\n00:00:02,900 --> 00:00:05,100\nSecond line\n';
+  const cues = parseSrt(`﻿${srt.replace(/\n/g, '\r\n')}`);
+  assert.deepEqual(cues.map((c) => [c.start, c.end, c.text]), [[400, 2900, 'नमस्ते'], [2900, 5100, 'Second line']]);
+  assert.equal(formatSrt(cues), srt);
+});
+
+test('a burned-in copy only has to fit a size limit the original is over', () => {
+  const instagram = { canCompress: true, media: { videoMB: 300 } };
+  assert.equal(burnTarget(instagram, { size: 200_000_000 }), null);
+  assert.equal(burnTarget(instagram, { size: 400_000_000 }), 300_000_000);
+  // Without ffmpeg there's nothing to fit with; with no limit there's nothing to fit.
+  assert.equal(burnTarget({ ...instagram, canCompress: false }, { size: 400_000_000 }), null);
+  assert.equal(burnTarget({ canCompress: true, media: { videoMB: null } }, { size: 400_000_000 }), null);
+});
+
+test('subtitles support Hindi and English only', () => {
+  assert.deepEqual(SUBTITLE_LANGUAGES.map(([code]) => code), ['hi', 'en']);
+  assert.ok(isSubtitleLanguage('hi') && isSubtitleLanguage('en'));
+  for (const code of ['fr', 'pa', 'HI', '', '--fresh', undefined]) assert.equal(isSubtitleLanguage(code), false, String(code));
 });

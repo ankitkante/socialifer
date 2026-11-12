@@ -131,6 +131,36 @@ test('YouTube explains how to fix a sign-in that can\'t check processing', async
   assert.match(result.warnings[0], /npm run youtube-auth/);
 });
 
+test('YouTube adds one subtitle track per language, with its real language, once the video has processed', async (t) => {
+  Object.assign(process.env, { YOUTUBE_CLIENT_ID: 'id', YOUTUBE_CLIENT_SECRET: 'secret', YOUTUBE_REFRESH_TOKEN: 'refresh' });
+  const calls = stubFetch(t, (url) => {
+    if (url.includes('oauth2')) return Response.json({ access_token: 'AT' });
+    if (url.includes('uploadType=resumable')) return new Response('', { headers: { location: 'https://upload.example/session' } });
+    if (url.includes('part=processingDetails')) return Response.json({ items: [{ processingDetails: { processingStatus: 'succeeded' } }] });
+    return Response.json({ id: 'VID' });
+  });
+  const youtube = (await import('../platforms/youtube.js')).default;
+  const hindi = '1\n00:00:00,000 --> 00:00:01,000\nनमस्ते\n';
+  const english = '1\n00:00:00,000 --> 00:00:01,000\nHello\n';
+  const file = (srt) => ({ buffer: async () => Buffer.from(srt) });
+  const result = await youtube.post('Title', [{ name: 'v.mp4', type: 'video/mp4', size: 3, blob: async () => new Blob([new Uint8Array(3)]) }], {
+    subtitles: [{ lang: 'hi', file: file(hindi) }, { lang: 'en', file: file(english) }],
+  });
+
+  const order = calls.map((c) => c.url);
+  const captions = calls.filter((c) => c.url.includes('/captions'));
+  assert.equal(captions.length, 2);
+  assert.ok(order.findIndex((u) => u.includes('part=processingDetails')) < order.indexOf(captions[0].url));
+  assert.match(captions[0].url, /uploadType=multipart&part=snippet/);
+  assert.match(captions[0].opts.headers['Content-Type'], /^multipart\/related; boundary=/);
+  const [first, second] = await Promise.all(captions.map((c) => c.opts.body.text()));
+  assert.match(first, /"videoId":"VID","language":"hi","name":"Hindi","isDraft":false/);
+  assert.ok(first.includes(hindi));
+  assert.match(second, /"language":"en","name":"English"/);
+  assert.ok(second.includes(english));
+  assert.deepEqual(result.warnings, []);
+});
+
 test('X posts a numbered thread with the settings on the first post', async (t) => {
   Object.assign(process.env, { X_API_KEY: 'k', X_API_SECRET: 's', X_ACCESS_TOKEN: 't', X_ACCESS_SECRET: 'ts' });
   let n = 0;
