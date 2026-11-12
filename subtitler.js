@@ -1,5 +1,5 @@
 // Generates subtitles for an uploaded video with the separate lyrics-video project (Whisper, run locally).
-// How to call it is lyrics-video's to define: see "Calling it from another program" in its CLAUDE.md.
+// How to call it is lyrics-video's to define: see "Calling it from another program" in its AGENTS.md.
 import crypto from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';

@@ -119,7 +119,7 @@ Built from the "Subtitles redesign" artifact, https://claude.ai/artifact/7tF53VA
 - **Per video, per language:** each video item holds `subs: { [lang]: entry }` (`subtitles.js`). `POST /api/post` sends `subtitles: { videoId: { lang: srtId } }`; the server checks every video is in the post and every id is an SRT upload.
 - **Strip under the videos:** "Video is in" and "Make subtitles in" (remembered in `social-post:subtitles`), Generate (only when `/api/status` says `subtitles: true`) or Upload SRT. With several videos, one row per video and Generate for all.
 - **Languages:** Hindi and English only (`SUBTITLE_LANGUAGES` in `rules.js`), for Video is in, uploaded SRTs and YouTube's Audio language. The server refuses other codes before starting a job. The codes are the same in Whisper and YouTube; adding a language means checking both accept it.
-- **Contract:** how to call lyrics-video (arguments, events, exit codes) is defined only in its CLAUDE.md, "Calling it from another program". Don't restate it here.
+- **Contract:** how to call lyrics-video (arguments, events, exit codes) is defined only in its AGENTS.md, "Calling it from another program". Don't restate it here.
 - **Protocol:** Social Post expects protocol **1** (`PROTOCOL` in `subtitler.js`). Any other first event kills the run with "lyrics-video and Social Post don't match … Update both projects". Raise it only together with lyrics-video's.
 - **Generating:** `POST /api/subtitles { video, language, subtitles }` queues a job in `subtitler.js` and streams `{ type: 'job', job }` snapshots until it ends. Each SRT lyrics-video writes becomes an upload and is then deleted from its folder. `POST /api/subtitles/<id>/stop` stops it (the whole process tree on Windows); finished languages are kept. The language code must look like `hi` because it becomes a command-line argument.
 - **One heavy job at a time:** Whisper runs and subtitle burn-ins share one line in `work.js`, Whisper first. Post-time compression (`fitVideo`) stays outside it: it only runs after Post, which is disabled while Whisper runs, and queuing it behind preview burn-ins would hold the post up.
@@ -147,6 +147,6 @@ The user's feedback while posting a 54-second Hindi talk to YouTube, X and Insta
 Smaller things found in the same test:
 - **Uploads left behind by a page reload:** reloading or closing the page with files attached leaves them in `uploads/` until the 24-hour cleanup (about 430 MB after a day of testing). The page also forgets a running subtitle job. Both are the deferred "post survives a reload" idea.
 - **Old Audio language:** a YouTube Audio language saved before the Hindi/English list (e.g. French) isn't reset and is still sent.
-- **English cues from lyrics-video can be too short;** the cause and fix are recorded in lyrics-video's CLAUDE.md.
+- **English cues from lyrics-video can be too short;** the cause and fix are recorded in lyrics-video's AGENTS.md.
 
 Checked in this test: Generate for Hindi and English (25 and 26 lines), Post disabled while generating, saved transcripts reused (a language remade instantly), an uploaded SRT with a language, two caption tracks on YouTube with their real languages, and the burned-in copy posted to X and Instagram.
