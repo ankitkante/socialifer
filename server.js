@@ -2,19 +2,25 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { platforms } from './platforms/index.js';
 import { ApiError } from './platforms/http.js';
-import { problemsFor, effectiveText, resolveTitle, isVideo } from './public/rules.js';
+import {
+  problemsFor, effectiveText, resolveTitle, isVideo, burnLanguage, burnTarget, languageName, isSubtitleLanguage, SUBTITLE_LANGUAGES_ONLY,
+} from './public/rules.js';
 import { log, runWithContext, step, currentStep } from './log.js';
 import {
   saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError,
-  videoTools, probeDuration, fitVideo,
+  videoTools, probeDuration, fitVideo, burnSubtitles,
 } from './media.js';
+import { checkGenerator, NOT_SET, queueJob, getJob, stopJob, watch, finished, stopLeftover, cleanupTranscripts } from './subtitler.js';
 
 const PORT = Number(process.env.PORT) || 3000;
+const SRT = 'application/x-subrip';
 // Bound to loopback only: this server posts with your credentials and has no login.
 const HOST = '127.0.0.1';
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
 // With ffmpeg installed, videos too big for a platform are compressed instead of rejected.
 const canCompress = Boolean(await videoTools());
+// A Whisper run left by a server that died mid-job would hold over 4 GB and make the next job fail.
+await stopLeftover();
 
 const STATIC_FILES = {
   '/': { file: 'public/index.html', type: 'text/html; charset=utf-8' },
@@ -76,6 +82,7 @@ function describe(p) {
     title: p.title ?? null,
     textForbids: p.textForbids ?? '',
     threads: Boolean(p.threads),
+    subtitleTracks: Boolean(p.subtitleTracks),
     envVars: p.envVars,
     configured: p.isConfigured(),
     publicUrlReady: Boolean(publicBaseUrl()),
@@ -99,6 +106,52 @@ async function mediaFor(p, media) {
     log.info(`Compressed to ${mb(fitted.size)} in ${seconds(Date.now() - started)}`);
     return fitted;
   }));
+}
+
+// subtitles: { videoId: { lang: SRT upload } }. Each video keeps its own subtitles.
+const subtitleLanguages = (subtitles) => [...new Set(Object.values(subtitles).flatMap(Object.keys))];
+
+// Platforms that can't take a subtitle file get one language drawn onto each video instead: the platform's
+// choice (a language or 'none'), else English, else the first there is. A video without that language goes as it is.
+async function withSubtitles(p, media, subtitles, choice) {
+  const lang = burnLanguage(choice, subtitleLanguages(subtitles));
+  if (!lang) return media;
+  if (!canCompress) throw new ApiError("Burning subtitles into the video needs ffmpeg, which isn't installed. Choose None under Subtitles, or install ffmpeg");
+  return Promise.all(media.map(async (m) => {
+    const srt = isVideo(m) && subtitles[m.id]?.[lang];
+    if (!srt) return m;
+    const message = `Adding the ${languageName(lang)} subtitles to ${m.name}`;
+    step(message);
+    // A video over this platform's size limit is fitted in the same ffmpeg run.
+    return burnSubtitles(m, srt, (progress) => step(message, { quiet: true, progress }), burnTarget(describe(p), m));
+  }));
+}
+
+// Platforms that take subtitle files (YouTube) get one track per language: the ones the user left ticked,
+// or every language there is when the page didn't say.
+function subtitleTracks(media, subtitles, choice) {
+  const available = subtitles[media.find(isVideo)?.id] ?? {};
+  const langs = Array.isArray(choice) ? choice.filter((lang) => available[lang]) : Object.keys(available);
+  return langs.map((lang) => ({ lang, file: available[lang] }));
+}
+
+// The page sends { videoId: { lang: srtId } }; every video must be in the post and every id an SRT upload.
+async function resolveSubtitles(given, media) {
+  if (given === null || given === undefined) return {};
+  if (typeof given !== 'object' || Array.isArray(given)) throw httpError(400, 'Invalid request');
+  const resolved = {};
+  for (const [videoId, tracks] of Object.entries(given)) {
+    if (!media.some((m) => m.id === videoId && isVideo(m))) throw httpError(400, 'Subtitles need a video. Attach one, or remove the subtitles.');
+    if (!tracks || typeof tracks !== 'object' || Array.isArray(tracks)) throw httpError(400, 'Invalid request');
+    resolved[videoId] = {};
+    for (const [lang, id] of Object.entries(tracks)) {
+      if (!isSubtitleLanguage(lang)) throw httpError(400, SUBTITLE_LANGUAGES_ONLY);
+      const srt = typeof id === 'string' ? await getMedia(id) : null;
+      if (!srt || srt.type !== SRT) throw httpError(400, 'The subtitles file has expired. Remove it and add it again.');
+      resolved[videoId][lang] = srt;
+    }
+  }
+  return resolved;
 }
 
 // Image fields (YouTube's thumbnail, Instagram's cover) arrive as upload ids; swap in the files.
@@ -127,10 +180,12 @@ let postCount = 0;
 // platform moves along and { type: 'result', ... } as each one finishes.
 // options holds per-platform fields keyed by platform id, e.g.
 // { instagram: { text, postAs, cover }, youtube: { text, title, privacy, tags, thumbnail } }.
-async function publish(text, ids, media, options, onEvent = () => {}) {
+// subtitles: { videoId: { lang: SRT upload } }. Platforms with subtitleTracks get them as files; the rest get
+// one language burned in. options[id].subtitles is the platform's choice: languages for tracks, else a language or 'none'.
+async function publish(text, ids, media, options, subtitles = {}, onEvent = () => {}) {
   const postId = ++postCount;
   const selected = platforms.filter((p) => ids.includes(p.id));
-  const files = media.map((m) => `${m.name} (${mb(m.size)})`).join(', ');
+  const files = [...media, ...Object.values(subtitles).flatMap(Object.values)].map((m) => `${m.name} (${mb(m.size)})`).join(', ');
   log.info(`[post ${postId}] Posting to ${selected.map((p) => p.name).join(', ')}${files ? ` with ${files}` : ''}`);
 
   return Promise.all(selected.map((p) => runWithContext(
@@ -141,13 +196,14 @@ async function publish(text, ids, media, options, onEvent = () => {}) {
       try {
         if (!p.isConfigured()) throw new ApiError(`Not configured. Set ${p.envVars.join(', ')} in .env`);
         const given = options[p.id];
-        const own = await withFieldMedia(p, given && typeof given === 'object' ? given : {});
+        const { subtitles: choice, ...own } = await withFieldMedia(p, given && typeof given === 'object' ? given : {});
         // Validate before compressing, so a post that can't go anyway doesn't wait on ffmpeg.
         const problems = problemsFor(describe(p), text, media, own);
         if (problems.length) throw new ApiError(problems.join('. '));
         // Platforms with a title get it resolved here, since it can come from the main post's first line.
         const postOptions = p.title ? { ...own, title: resolveTitle(text, own.title) } : own;
-        const ownMedia = await mediaFor(p, media);
+        if (p.subtitleTracks) postOptions.subtitles = subtitleTracks(media, subtitles, choice);
+        const ownMedia = await mediaFor(p, p.subtitleTracks ? media : await withSubtitles(p, media, subtitles, choice));
         step('Posting', { quiet: true });
         const value = await p.post(effectiveText(text, own, p.id), ownMedia, postOptions);
         result = { id: p.id, name: p.name, ok: true, url: value?.url ?? null, warnings: value?.warnings ?? [], error: null };
@@ -218,14 +274,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && pathname === '/api/status') {
+      const { tool, problem } = await checkGenerator();
       return sendJson(res, 200, {
         ffmpeg: canCompress,
+        // subtitlesProblem: what to fix when LYRICS_VIDEO_DIR is set but unusable; null when it's fine or not set.
+        subtitles: Boolean(tool),
+        subtitlesProblem: problem ?? null,
         tunnel: { configured: Boolean(publicBaseUrl()), reachable: await tunnelReachable() },
       });
     }
 
     if (req.method === 'POST' && pathname === '/api/media') {
-      requireType(req, (t) => /^(image|video)\//.test(t), 'Upload an image or video');
+      // application/x-subrip is an SRT file. Like image/* and video/*, it can't be sent cross-site without a preflight.
+      requireType(req, (t) => /^(image|video)\//.test(t) || t === 'application/x-subrip', 'Upload an image, a video or an SRT file');
       const name = decodeURIComponent(req.headers['x-filename'] || '');
       return sendJson(res, 201, await saveUpload(req, req.headers['content-type'], name));
     }
@@ -236,9 +297,74 @@ const server = http.createServer(async (req, res) => {
       return res.end();
     }
 
+    // Burns subtitles into a video ahead of posting, so the page can play the real result. The copy is
+    // cached by video and subtitles, so posting to X or Instagram afterwards reuses it.
+    if (req.method === 'POST' && pathname === '/api/subtitled') {
+      requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
+      const { video: videoId, subtitles: subtitlesId, maxBytes = null } = await readJsonBody(req);
+      const video = typeof videoId === 'string' ? await getMedia(videoId) : null;
+      const subtitles = typeof subtitlesId === 'string' ? await getMedia(subtitlesId) : null;
+      if (!video || !isVideo(video)) throw httpError(400, 'The video has expired. Remove it and add it again.');
+      if (!subtitles || subtitles.type !== SRT) throw httpError(400, 'The subtitles file has expired. Remove it and add it again.');
+      if (!canCompress) throw httpError(400, "Burning subtitles into the video needs ffmpeg, which isn't installed.");
+      // The size limit the copy must fit, the same one the post will ask for (burnTarget), so it's reused.
+      if (maxBytes !== null && !(Number.isSafeInteger(maxBytes) && maxBytes > 0)) throw httpError(400, 'Invalid request');
+
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' });
+      const send = (event) => { if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`); };
+      try {
+        const burned = await burnSubtitles(video, subtitles, (progress) => send({ type: 'progress', progress }), maxBytes);
+        send({ type: 'done', id: burned.id });
+      } catch (err) {
+        log.error(`Subtitle preview failed: ${err.message}`, err instanceof ApiError ? '' : err?.stack);
+        send({ type: 'error', error: failureMessage(err) });
+      }
+      return res.end();
+    }
+
+    // Makes subtitles for an uploaded video with lyrics-video. Jobs run one at a time on the server, and keep
+    // running if the page goes away. The response streams the job's state as NDJSON until it finishes.
+    if (req.method === 'POST' && pathname === '/api/subtitles') {
+      requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
+      const { video: videoId, language, subtitles: wanted } = await readJsonBody(req);
+      const video = typeof videoId === 'string' ? await getMedia(videoId) : null;
+      if (!video || !isVideo(video)) throw httpError(400, 'The video has expired. Remove it and add it again.');
+      // Only the supported languages reach lyrics-video's command line, checked before any job starts.
+      if (!isSubtitleLanguage(language)) throw httpError(400, SUBTITLE_LANGUAGES_ONLY);
+      if (!Array.isArray(wanted) || !wanted.length || wanted.some((lang) => !isSubtitleLanguage(lang))) throw httpError(400, SUBTITLE_LANGUAGES_ONLY);
+      if (wanted.some((lang) => lang !== language && lang !== 'en')) {
+        throw httpError(400, 'Subtitles can be made in the language spoken in the video and in English.');
+      }
+      const { tool, problem } = await checkGenerator();
+      if (!tool) throw httpError(400, problem ?? NOT_SET);
+
+      const job = queueJob(video, language, [...new Set(wanted)]);
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' });
+      await new Promise((resolve) => {
+        let unwatch = null;
+        const done = () => { unwatch?.(); resolve(); };
+        unwatch = watch(job, (snapshot) => {
+          if (!res.writableEnded) res.write(`${JSON.stringify({ type: 'job', job: snapshot })}\n`);
+          if (finished(job)) done();
+        });
+        res.on('close', done);
+      });
+      return res.end();
+    }
+
+    const stopping = /^\/api\/subtitles\/([a-f0-9]{32})\/stop$/.exec(pathname);
+    if (req.method === 'POST' && stopping) {
+      requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
+      const job = getJob(stopping[1]);
+      if (!job) throw httpError(404, 'Those subtitles are no longer being made.');
+      stopJob(job);
+      res.writeHead(204);
+      return res.end();
+    }
+
     if (req.method === 'POST' && pathname === '/api/post') {
       requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
-      const { text = '', platforms: ids, media: mediaIds = [], options = {} } = await readJsonBody(req);
+      const { text = '', platforms: ids, media: mediaIds = [], options = {}, subtitles: givenSubtitles = null } = await readJsonBody(req);
       if (typeof text !== 'string' || !Array.isArray(mediaIds) || typeof options !== 'object' || !options) {
         throw httpError(400, 'Invalid request');
       }
@@ -255,6 +381,8 @@ const server = http.createServer(async (req, res) => {
         return m;
       }));
       if (media.some((m) => !m)) throw httpError(400, 'An attached file has expired. Remove it and add it again.');
+      if (media.some((m) => m.type === SRT)) throw httpError(400, 'Add subtitles under Subtitles, not as a photo or video.');
+      const subtitles = await resolveSubtitles(givenSubtitles, media);
       const anyText = text.trim() || Object.values(options).some((o) => typeof o?.text === 'string' && o.text.trim());
       if (!anyText && media.length === 0) throw httpError(400, 'Add some text, an image or a video');
 
@@ -264,7 +392,7 @@ const server = http.createServer(async (req, res) => {
       const send = (event) => {
         if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
       };
-      const results = await publish(text.trim(), ids, media, options, send);
+      const results = await publish(text.trim(), ids, media, options, subtitles, send);
       send({ type: 'done', results });
       return res.end();
     }
@@ -285,16 +413,28 @@ server.on('error', (err) => {
   throw err;
 });
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, async () => {
   const ready = platforms.filter((p) => p.isConfigured()).map((p) => p.name);
   console.log(`Social Post running at http://localhost:${PORT}`);
   console.log(ready.length ? `Configured: ${ready.join(', ')}` : 'No platforms configured yet. Copy .env.example to .env and fill in the platforms you use.');
   if (publicBaseUrl()) console.log(`Uploaded files are served publicly at ${publicBaseUrl()}/media/`);
   console.log(canCompress
-    ? 'ffmpeg found: videos too big for a platform will be compressed to fit.'
-    : 'ffmpeg not found: videos too big for a platform will be rejected for it (see README).');
+    ? 'ffmpeg found: videos too big for a platform will be compressed to fit, and subtitles can be burned in.'
+    : 'ffmpeg not found: videos too big for a platform will be rejected for it, and subtitles can\'t be burned in (see README).');
+  // Outside Windows, burned-in text uses Noto Sans; without its Devanagari version, Hindi comes out as boxes.
+  if (canCompress && process.platform !== 'win32') {
+    console.log('Burned-in subtitles use Noto Sans: install Noto Sans and Noto Sans Devanagari, or Hindi shows as empty boxes.');
+  }
+  const { tool, problem } = await checkGenerator();
+  console.log(tool ? `Generate subtitles: using lyrics-video in ${tool.dir}`
+    : problem ? `Generate subtitles is off: ${problem}`
+      : 'Generate subtitles is off: LYRICS_VIDEO_DIR isn\'t set (see "Generating subtitles" in the README). Uploading an SRT still works.');
 });
 
-const cleanup = () => cleanupOldMedia().catch((err) => log.warn(`Couldn't clean up old uploads: ${err.message}`));
+const cleanup = () => Promise.all([
+  cleanupOldMedia().catch((err) => log.warn(`Couldn't clean up old uploads: ${err.message}`)),
+  // Saved Whisper transcripts go a day after they were last used.
+  cleanupTranscripts().catch((err) => log.warn(`Couldn't clean up old transcripts: ${err.message}`)),
+]);
 cleanup();
 setInterval(cleanup, 60 * 60 * 1000).unref();

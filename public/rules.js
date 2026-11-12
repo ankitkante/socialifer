@@ -282,3 +282,65 @@ export function problemsFor(platform, text, media, options = {}) {
   }
   return problems;
 }
+
+// ---- Subtitles ----
+
+// Languages offered for a video's speech, its subtitles and YouTube's language fields. The codes are
+// Whisper's (what lyrics-video takes), which are also the codes YouTube uses for these languages.
+export const LANGUAGES = [
+  ['en', 'English'], ['hi', 'Hindi'], ['bn', 'Bengali'], ['mr', 'Marathi'], ['ta', 'Tamil'], ['te', 'Telugu'],
+  ['ur', 'Urdu'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['ar', 'Arabic'],
+  ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'],
+];
+export const languageName = (code) => LANGUAGES.find(([c]) => c === code)?.[1] ?? code;
+
+// The languages subtitles can be in (spoken, generated, uploaded) and YouTube's audio language. The codes
+// are the same in Whisper (lyrics-video's --language) and YouTube's API; adding a language means checking
+// both accept its code.
+export const SUBTITLE_LANGUAGES = [['hi', 'Hindi'], ['en', 'English']];
+export const isSubtitleLanguage = (code) => SUBTITLE_LANGUAGES.some(([c]) => c === code);
+export const SUBTITLE_LANGUAGES_ONLY = 'Subtitles can only be in Hindi or English for now.';
+
+// Which subtitles a platform that can't take a subtitle file gets burned in: its own choice when that
+// language exists, nothing for 'none', otherwise English, otherwise the first language there is.
+export function burnLanguage(choice, langs) {
+  if (choice === 'none' || !langs.length) return null;
+  if (langs.includes(choice)) return choice;
+  return langs.includes('en') ? 'en' : langs[0];
+}
+
+// The size a burned-in copy must fit for this platform: its video limit when the original is over it (and
+// ffmpeg can fit it), otherwise none. So platforms whose limit the video already meets share one copy, and
+// a copy that must shrink is burned and fitted in one ffmpeg run. m: { size }.
+export function burnTarget(platform, m) {
+  const max = platform.canCompress && platform.media?.videoMB ? platform.media.videoMB * MB : null;
+  return max && m.size > max ? max : null;
+}
+
+const SRT_TIME = /^(\d+):(\d{2}):(\d{2})[,.](\d{3})$/;
+const toMs = (t) => { const [, h, m, s, ms] = SRT_TIME.exec(t.trim()); return ((+h * 60 + +m) * 60 + +s) * 1000 + +ms; };
+const toTime = (ms) => [3600000, 60000, 1000].map((unit, i) => String(Math.floor(ms / unit) % (i ? 60 : 100)).padStart(2, '0')).join(':')
+  + `,${String(ms % 1000).padStart(3, '0')}`;
+
+// An SRT file as [{ start, end, text }] in milliseconds, in time order; blocks it can't read are skipped.
+export function parseSrt(srt) {
+  return srt.replace(/^﻿/, '').split(/\r?\n\s*\r?\n/).map((block) => {
+    const lines = block.trim().split(/\r?\n/);
+    const at = lines.findIndex((l) => l.includes('-->'));
+    if (at < 0) return null;
+    const [start, end] = lines[at].split('-->').map((t) => t.trim().split(/\s/)[0]);
+    if (!SRT_TIME.test(start) || !SRT_TIME.test(end)) return null;
+    return { start: toMs(start), end: toMs(end), text: lines.slice(at + 1).join('\n') };
+  }).filter((c) => c && c.text.trim()).sort((a, b) => a.start - b.start);
+}
+
+export const formatSrt = (cues) => cues.map((c, i) => `${i + 1}\n${toTime(c.start)} --> ${toTime(c.end)}\n${c.text}\n`).join('\n');
+
+// Auto-generated captions (e.g. downloaded from YouTube) keep each line up while the next starts.
+// Shown or burned in, that stacks two lines with the newer one on top, and the text jumps around. So each
+// line ends when the next begins, leaving one line on screen at a time, in order.
+export function separateCues(srt) {
+  const cues = parseSrt(srt);
+  cues.forEach((c, i) => { if (cues[i + 1]) c.end = Math.min(c.end, cues[i + 1].start); });
+  return formatSrt(cues.filter((c) => c.end > c.start));
+}

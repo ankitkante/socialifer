@@ -6,8 +6,13 @@ import crypto from 'node:crypto';
 import { exec } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 
-// readonly lets the server check when a new video has finished processing (see platforms/youtube.js).
-const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+// readonly lets the server check when a new video has finished processing, and force-ssl is the
+// scope captions.insert needs for subtitle tracks (see platforms/youtube.js).
+const SCOPE = [
+  'https://www.googleapis.com/auth/youtube.upload',
+  'https://www.googleapis.com/auth/youtube.readonly',
+  'https://www.googleapis.com/auth/youtube.force-ssl',
+].join(' ');
 const ENV_FILE = new URL('../.env', import.meta.url);
 const TIMEOUT_MS = 5 * 60_000;
 

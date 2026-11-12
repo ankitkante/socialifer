@@ -1,11 +1,12 @@
 import { request, poll, env, hasEnv, ApiError } from './http.js';
 import { step } from '../log.js';
-import { resolveTitle, listOf } from '../public/rules.js';
+import { resolveTitle, listOf, separateCues, languageName } from '../public/rules.js';
 
 const ENV = ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN'];
 const UPLOAD = 'https://www.googleapis.com/upload/youtube/v3/videos';
 const THUMBNAIL = 'https://www.googleapis.com/upload/youtube/v3/thumbnails/set';
 const VIDEOS = 'https://www.googleapis.com/youtube/v3/videos';
+const CAPTIONS = 'https://www.googleapis.com/upload/youtube/v3/captions';
 // Long videos can take a while to process; after this the thumbnail is left for the user to set in Studio.
 const PROCESSING_TIMEOUT = 30 * 60_000;
 const PRIVACY = new Set(['public', 'unlisted', 'private']);
@@ -47,12 +48,42 @@ async function waitForProcessing(id, auth) {
   }, { every: 5000, timeout: PROCESSING_TIMEOUT, what: 'YouTube to process the video' });
 }
 
+// Refresh tokens from before a scope was added (readonly for processing, force-ssl for captions)
+// still upload, but get insufficientPermissions for the newer calls.
+const missingScope = (err) => err.details?.data?.error?.errors?.[0]?.reason === 'insufficientPermissions';
+
 function thumbnailWarning(err, setting) {
-  // Refresh tokens from before the readonly scope was added can upload but can't check processing.
-  if (err.details?.data?.error?.errors?.[0]?.reason === 'insufficientPermissions') {
-    return "The video was posted, but the custom thumbnail wasn't set: the YouTube sign-in can't check when the video has finished processing. Run `npm run youtube-auth`, restart the server, and set this video's thumbnail in YouTube Studio.";
+  if (missingScope(err)) {
+    return "The video was posted, but the custom thumbnail wasn't set: the YouTube sign-in is missing a permission. Run `npm run youtube-auth`, restart the server, and set this video's thumbnail in YouTube Studio.";
   }
   return `The video was posted, but the custom thumbnail wasn't set (${err.message}). ${setting ? 'Custom thumbnails need a phone-verified channel.' : 'You can set it in YouTube Studio.'}`;
+}
+
+function subtitlesWarning(err, lang) {
+  const which = `the ${languageName(lang)} subtitles weren't added`;
+  if (missingScope(err)) {
+    return `The video was posted, but ${which}: the YouTube sign-in is missing a permission. Run \`npm run youtube-auth\`, restart the server, and add the SRT file in YouTube Studio.`;
+  }
+  return `The video was posted, but ${which} (${err.message}). You can add the SRT file in YouTube Studio.`;
+}
+
+// captions.insert takes the track's details and the file together, as a multipart/related upload.
+// Each track is labelled with its real language, so viewers pick Hindi or English from the CC menu.
+async function uploadSubtitles(videoId, { lang, file }, auth) {
+  const boundary = `subtitles-${crypto.randomUUID()}`;
+  const details = { snippet: { videoId, language: lang, name: languageName(lang), isDraft: false } };
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(details)}\r\n`,
+    `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`,
+    // Overlapping lines (as in YouTube's own auto captions) would stack on screen; the user's file stays as it is.
+    separateCues((await file.buffer()).toString('utf8')),
+    `\r\n--${boundary}--\r\n`,
+  ]);
+  await request(`${CAPTIONS}?uploadType=multipart&part=snippet`, {
+    method: 'POST',
+    headers: { ...auth, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  });
 }
 
 export default {
@@ -77,9 +108,11 @@ export default {
   envVars: ENV,
   // Option fields that hold an uploaded image; the server swaps the id for the file before post().
   mediaOptions: ['thumbnail'],
+  // Attached SRT files arrive as options.subtitles, [{ lang, file }], one subtitle track each (other platforms get one burned in).
+  subtitleTracks: true,
   isConfigured: () => hasEnv(...ENV),
   // options: { title, privacy, publishAt, category, tags, thumbnail, madeForKids, synthetic,
-  //            language, audioLanguage, recordingDate }
+  //            language, audioLanguage, recordingDate, subtitles }
   // There's no separate Shorts API: YouTube makes vertical or square videos of 3 minutes or less into Shorts.
   async post(text, media, options = {}) {
     const video = media[0];
@@ -127,14 +160,21 @@ export default {
       timeout: VIDEO_UPLOAD_TIMEOUT,
     });
 
-    // The video is already up; a thumbnail failure (e.g. the channel isn't allowed custom
-    // thumbnails yet) is reported as a warning rather than failing the post.
+    // The video is already up, so a thumbnail or subtitles failure (e.g. the channel isn't allowed
+    // custom thumbnails yet) is reported as a warning rather than failing the post.
     const warnings = [];
+    let processed;
+    const processing = () => {
+      if (!processed) {
+        step('Waiting for YouTube to process the video');
+        processed = waitForProcessing(data.id, auth);
+      }
+      return processed;
+    };
     if (o.thumbnail) {
       let setting = false;
       try {
-        step('Waiting for YouTube to process the video');
-        await waitForProcessing(data.id, auth);
+        await processing();
         step('Setting the custom thumbnail');
         setting = true;
         await request(`${THUMBNAIL}?videoId=${encodeURIComponent(data.id)}`, {
@@ -144,6 +184,15 @@ export default {
         });
       } catch (err) {
         warnings.push(thumbnailWarning(err, setting));
+      }
+    }
+    for (const track of o.subtitles ?? []) {
+      try {
+        await processing();
+        step(`Adding the ${languageName(track.lang)} subtitles`);
+        await uploadSubtitles(data.id, track, auth);
+      } catch (err) {
+        warnings.push(subtitlesWarning(err, track.lang));
       }
     }
     return { url: `https://www.youtube.com/watch?v=${data.id}`, warnings };

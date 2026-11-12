@@ -1,13 +1,15 @@
 import crypto from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { createReadStream, createWriteStream, openAsBlob } from 'node:fs';
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
-import { compressionBitrate } from './public/rules.js';
+import { compressionBitrate, separateCues } from './public/rules.js';
 import { ApiError } from './platforms/http.js';
+import { enqueue, BURN } from './work.js';
 import { log } from './log.js';
 
 // Uploaded files live here until they're posted, removed, or older than a day.
@@ -23,6 +25,8 @@ export const EXTENSIONS = {
   'image/webp': 'webp',
   'video/mp4': 'mp4',
   'video/quicktime': 'mov',
+  // Subtitles for a video: a track on YouTube, burned into the video elsewhere.
+  'application/x-subrip': 'srt',
 };
 
 export function httpError(status, message) {
@@ -37,7 +41,7 @@ export function publicBaseUrl() {
 }
 
 export async function saveUpload(req, type, name) {
-  if (!EXTENSIONS[type]) throw httpError(415, `Unsupported file type "${type || 'unknown'}". Use JPEG, PNG, GIF, WebP, MP4 or MOV.`);
+  if (!EXTENSIONS[type]) throw httpError(415, `Unsupported file type "${type || 'unknown'}". Use JPEG, PNG, GIF, WebP, MP4, MOV or SRT.`);
   const tooBig = () => httpError(413, `File is larger than ${MAX_BYTES / 1_000_000} MB`);
   if (Number(req.headers['content-length']) > MAX_BYTES) throw tooBig();
 
@@ -65,6 +69,19 @@ export async function saveUpload(req, type, name) {
   await writeFile(metaUrl(id), JSON.stringify(meta));
   return meta;
 }
+
+// Saves a file made on the server (a generated SRT) as an upload, just like one sent by the page.
+export async function saveFile(data, type, name) {
+  await mkdir(DIR, { recursive: true });
+  const id = crypto.randomBytes(16).toString('hex');
+  await writeFile(fileUrl(id), data);
+  const meta = { id, name, type, size: Buffer.byteLength(data), createdAt: Date.now() };
+  await writeFile(metaUrl(id), JSON.stringify(meta));
+  return meta;
+}
+
+// A path inside the uploads folder, for work files that belong to an upload (generated subtitles).
+export const uploadsPath = (name) => fileURLToPath(new URL(name, DIR));
 
 async function readMeta(id) {
   if (!ID_RE.test(id)) return null;
@@ -97,6 +114,7 @@ export async function deleteMedia(id) {
   for (const derived of derivedIds.get(id) ?? []) await deleteMedia(derived);
   derivedIds.delete(id);
   for (const key of fitted.keys()) if (key.startsWith(`${id}:`)) fitted.delete(key);
+  for (const key of burned.keys()) if (key.split(':').includes(id)) burned.delete(key);
 }
 
 // ---- Video tools (optional) ----
@@ -104,9 +122,9 @@ export async function deleteMedia(id) {
 // platform. Without them, oversized videos are simply rejected for that platform.
 
 // Runs ffmpeg with `-progress pipe:1` and reports how far through the video it is (0–1).
-function runWithProgress(command, args, timeout, duration, onProgress) {
+function runWithProgress(command, args, timeout, duration, onProgress, cwd) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { windowsHide: true });
+    const child = spawn(command, args, { windowsHide: true, cwd });
     let stderr = '';
     let buffer = '';
     let lastPercent = -1;
@@ -121,7 +139,7 @@ function runWithProgress(command, args, timeout, duration, onProgress) {
       while ((newline = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, newline).trim();
         buffer = buffer.slice(newline + 1);
-        const match = /^out_time_us=(d+)/.exec(line);
+        const match = /^out_time_us=(\d+)/.exec(line);
         if (!match || !duration || !onProgress) continue;
         const progress = Math.min(1, Number(match[1]) / 1e6 / duration);
         // One update per whole percent is plenty.
@@ -249,23 +267,113 @@ async function compress(m, maxBytes, onProgress) {
       throw new ApiError(`ffmpeg couldn't compress ${m.name}: ${err.message}`);
     });
     const { size } = await stat(out);
-    if (size <= maxBytes) {
-      const meta = {
-        id,
-        name: m.name.replace(/\.[^.]+$/, '') + '-compressed.mp4',
-        type: 'video/mp4',
-        size,
-        createdAt: Date.now(),
-        derivedFrom: m.id,
-      };
-      await writeFile(metaUrl(id), JSON.stringify(meta));
-      if (!derivedIds.has(m.id)) derivedIds.set(m.id, new Set());
-      derivedIds.get(m.id).add(id);
-      return { ...(await getMedia(id)), duration };
-    }
+    if (size <= maxBytes) return saveDerived(m, id, '-compressed', size, duration);
   }
   await rm(out, { force: true });
   throw new ApiError(`${m.name} is too long to compress under ${limit} without ruining the quality`);
+}
+
+// Records an ffmpeg output as a new upload that's deleted along with its original.
+async function saveDerived(m, id, suffix, size, duration) {
+  const meta = {
+    id,
+    name: m.name.replace(/\.[^.]+$/, '') + `${suffix}.mp4`,
+    type: 'video/mp4',
+    size,
+    createdAt: Date.now(),
+    derivedFrom: m.id,
+  };
+  await writeFile(metaUrl(id), JSON.stringify(meta));
+  if (!derivedIds.has(m.id)) derivedIds.set(m.id, new Set());
+  derivedIds.get(m.id).add(id);
+  return { ...(await getMedia(id)), duration };
+}
+
+// Display size, swapping width and height for phone videos stored sideways with a rotation flag.
+async function probeSize(t, m) {
+  const out = await run(t.ffprobe, ['-v', 'error', '-select_streams', 'v:0',
+    '-show_entries', 'stream=width,height:stream_side_data=rotation', '-of', 'json', m.path]);
+  const stream = JSON.parse(out).streams?.[0] ?? {};
+  const rotation = Math.abs(Number(stream.side_data_list?.find((d) => 'rotation' in d)?.rotation) || 0);
+  return rotation === 90 || rotation === 270 ? { width: stream.height, height: stream.width } : { width: stream.width, height: stream.height };
+}
+
+// Nirmala UI ships with Windows and covers Devanagari as well as Latin, so Hindi and English both
+// render; elsewhere, Noto Sans (with Noto Sans Devanagari) is the usual equivalent.
+const SUBTITLE_FONT = process.platform === 'win32' ? 'Nirmala UI' : 'Noto Sans';
+
+const burned = new Map(); // `${videoId}:${subtitlesId}:${maxBytes}` -> { promise of the subtitled copy, progress listeners }
+
+// Returns a copy of the video with the subtitles drawn onto the picture, for platforms that can't take a
+// subtitle file. maxBytes (or null): the platform's size limit when the original is over it, so the copy
+// is burned and fitted in one ffmpeg run instead of two lossy ones (see burnTarget in public/rules.js).
+// Platforms needing the same copy share one run. Burn-ins wait their turn behind Whisper (work.js).
+export function burnSubtitles(m, subtitles, onProgress, maxBytes = null) {
+  const key = `${m.id}:${subtitles.id}:${maxBytes ?? ''}`;
+  let job = burned.get(key);
+  if (!job) {
+    job = { listeners: new Set() };
+    const report = (p) => job.listeners.forEach((listener) => listener(p));
+    job.promise = enqueue(BURN, () => burn(m, subtitles, report, maxBytes)).promise.catch((err) => {
+      burned.delete(key);
+      throw err;
+    });
+    burned.set(key, job);
+  }
+  if (onProgress) job.listeners.add(onProgress);
+  return job.promise;
+}
+
+async function burn(m, subtitles, onProgress, maxBytes) {
+  const t = await videoTools();
+  if (!t) throw new ApiError("Burning subtitles into the video needs ffmpeg, which isn't installed");
+  const duration = m.duration || (await probeDuration(m));
+  // With a size limit, the quality setting stays (CRF 20), but the bitrate is capped at what fits the
+  // limit, so a video that compresses well isn't made bigger than it needs to be.
+  const limit = maxBytes ? `${maxBytes / 1_000_000} MB` : '';
+  const caps = maxBytes ? [1, 0.85].map((aim) => compressionBitrate(maxBytes * aim, duration || 0)) : [null];
+  if (maxBytes && (!duration || !caps[0])) {
+    throw new ApiError(duration ? `${m.name} is too long to fit under ${limit} with subtitles without ruining the quality` : `Couldn't read the length of ${m.name} to fit it under ${limit}`);
+  }
+  const { width, height } = await probeSize(t, m);
+  // Sizes are in libass's 288-line script units, so they scale with the video. Vertical videos get
+  // smaller text, raised above the caption and buttons Reels and Shorts draw over the bottom.
+  const style = height > width
+    ? `FontName=${SUBTITLE_FONT},FontSize=10,Bold=1,Outline=1.5,Shadow=0,MarginV=72`
+    : `FontName=${SUBTITLE_FONT},FontSize=16,Bold=1,Outline=1.5,Shadow=0,MarginV=20`;
+
+  const id = crypto.randomBytes(16).toString('hex');
+  const out = fileURLToPath(fileUrl(id));
+  // The subtitles filter can't take a Windows path (its drive colon is a separator), so the cleaned
+  // SRT goes in a temporary folder and ffmpeg runs there, given just the file name.
+  const work = await mkdtemp(join(tmpdir(), 'social-post-subtitles-'));
+  try {
+    await writeFile(join(work, 'subtitles.srt'), separateCues(await readFile(fileUrl(subtitles.id), 'utf8')));
+    // If a capped run still overshoots the limit, it's retried once aiming lower, as compression is.
+    for (const kbps of caps) {
+      if (maxBytes && !kbps) break;
+      await runWithProgress(t.ffmpeg, [
+        '-y', '-v', 'error', '-nostats', '-progress', 'pipe:1', '-i', m.path,
+        '-map', '0:v:0', '-map', '0:a:0?',
+        '-vf', `${SCALE},subtitles=filename=subtitles.srt:charenc=UTF-8:force_style='${style}'`,
+        '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
+        ...(kbps ? ['-maxrate', `${kbps}k`, '-bufsize', `${kbps * 2}k`] : []),
+        '-fpsmax', '60', '-pix_fmt', 'yuv420p',
+        // compressionBitrate leaves room for 128 kbps audio.
+        '-c:a', 'aac', '-b:a', kbps ? '128k' : '160k',
+        '-movflags', '+faststart', '-f', 'mp4', out,
+      ], 60 * 60_000, duration, onProgress, work);
+      const { size } = await stat(out);
+      if (!maxBytes || size <= maxBytes) return saveDerived(m, id, '-subtitled', size, duration);
+    }
+  } catch (err) {
+    await rm(out, { force: true });
+    throw new ApiError(`ffmpeg couldn't add the subtitles to ${m.name}: ${err.message}`);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+  await rm(out, { force: true });
+  throw new ApiError(`${m.name} is too long to fit under ${limit} with subtitles without ruining the quality`);
 }
 
 export async function cleanupOldMedia() {
@@ -317,5 +425,11 @@ export async function serveMedia(req, res, filename) {
     res.writeHead(200, { ...headers, 'Content-Length': meta.size });
   }
   if (req.method === 'HEAD') return res.end();
-  await pipeline(createReadStream(fileUrl(meta.id), { start, end }), res);
+  try {
+    await pipeline(createReadStream(fileUrl(meta.id), { start, end }), res);
+  } catch (err) {
+    // Video players drop a download when they seek or have buffered enough. That's the viewer
+    // hanging up, not a failure; pipeline has already closed the file.
+    if (err.code !== 'ERR_STREAM_PREMATURE_CLOSE') throw err;
+  }
 }
