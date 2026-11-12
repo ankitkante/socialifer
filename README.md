@@ -121,16 +121,7 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 
 ## Ideas for later
 
-Not started; to be discussed before building. Listed in priority order.
-
-- **Hosted server:** run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and a phone app has something to talk to. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg. Fallback if hosting doesn't work out: the phone app keeps the queue and hands it to the laptop server when they're on the same Wi-Fi.
-- **Scheduling: a queue and a calendar.** Write a post when the idea comes and add it to a queue; the app publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the hosted server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the server was down are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
-- **Mobile app (React Native):** a separate app, with the hosted server as its backend, using the same endpoints as the web page (`/api/platforms`, `/api/media`, `/api/post`). It could also **hand Notes over to Substack's app**: open Substack's composer with the text and images filled in, so you only tap Post. Not yet checked whether Substack's app accepts shared text and images.
-- **Posting to Reddit:** a new platform.
-- **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
-- **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
-- **Drafts and post history:** deferred.
-- **YouTube Posts tab** (formerly Community: text, images, polls): the YouTube Data API reference lists no way to create these, so for now they're posted by hand. To be double-checked in the API docs.
+Feedback and ideas not built yet are kept in one list: the "Backlog" section of [AGENTS.md](AGENTS.md).
 
 ## Further reading
 
