@@ -200,10 +200,13 @@ Smaller things found in the same test:
 - **Installed app (built):** an APK built with EAS (`npm run sp-mobile-apk`, profile `apk` in `mobile/eas.json`), package `com.socialpost.app`. `plugins/allow-http.js` sets `usesCleartextTraffic`, because release builds block plain HTTP and the phone port has no HTTPS. It has its own storage, so it's paired separately from Expo Go. Rebuild after changing app code or `app.json`.
 - **Later:** staggered sending (to be discussed), then scheduling with a calendar.
 
-**Not yet tested on the phone** (built, but not tried live; remove an item once it's confirmed):
-- **Phase 4 settings reaching a platform:** an X thread, a YouTube title, tags, schedule or thumbnail, Instagram's Post as, cover or alt text sent from the phone.
+**Not yet tested on the phone** (built, but not tried live; remove an item once it's confirmed). Tested so far: pairing, the laptop check with Wi-Fi off and on, an offline draft handed over and posted to X, the thread count on X's card, the activity log's Connected line, and the installed APK connecting. To test: run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log.
+- **Platform settings reaching a platform:** an X thread, a YouTube title, tags, schedule or thumbnail, Instagram's Post as, cover or alt text sent from the phone.
 - **The laptop refusing a post:** it returns to draft with the reason; a failed try shows "last try failed" on the post.
 - **Video and multi-file hand-over:** a large video, several files, and resuming after Wi-Fi drops mid-upload.
 - **Logging:** the server's `Phone post …` journey lines and the app's hand-over lines in a real post.
-- **Phase 5:** result links opening, Send again, Copy text, Share to Substack's app, Done, and every preview (YouTube regular and Short, Instagram Story, Reel, feed, carousel, X thread).
+- **Finished posts:** result links opening, Send again, Copy text, Share to Substack's app, Done.
+- **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel, X thread.
 - **Media cleanup** a week after posting.
+
+**Small follow-up:** the APK asks for microphone access (RECORD_AUDIO), which expo-camera adds by default; the app never records. Removing it means `"recordAudioAndroid": false` in expo-camera's plugin options in `mobile/app.json` (check expo-camera's docs first), then a rebuild.
