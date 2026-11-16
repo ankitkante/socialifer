@@ -11,6 +11,10 @@
     "start": "node --env-file-if-exists=.env server.js",
     "dev": "node --watch --env-file-if-exists=.env server.js",
     "test": "node --test",
-    "youtube-auth": "node --env-file-if-exists=.env scripts/youtube-auth.js"
+    "youtube-auth": "node --env-file-if-exists=.env scripts/youtube-auth.js",
+    "sp-mobile-app": "npm --prefix mobile start"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
   }
 }

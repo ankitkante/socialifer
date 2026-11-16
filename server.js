@@ -8,17 +8,17 @@ import {
 import { log, runWithContext, step, currentStep } from './log.js';
 import {
   saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError,
-  videoTools, probeDuration, fitVideo, burnSubtitles,
+  probeDuration, fitVideo, burnSubtitles,
 } from './media.js';
 import { checkGenerator, NOT_SET, queueJob, getJob, stopJob, watch, finished, stopLeftover, cleanupTranscripts } from './subtitler.js';
+import { canCompress, describe } from './publish.js';
+import { startPhoneServer } from './phone.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const SRT = 'application/x-subrip';
 // Bound to loopback only: this server posts with your credentials and has no login.
 const HOST = '127.0.0.1';
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
-// With ffmpeg installed, videos too big for a platform are compressed instead of rejected.
-const canCompress = Boolean(await videoTools());
 // A Whisper run left by a server that died mid-job would hold over 4 GB and make the next job fail.
 await stopLeftover();
 
@@ -71,23 +71,6 @@ async function readJsonBody(req, limit = 1_000_000) {
   } catch {
     throw httpError(400, "The request wasn't valid JSON");
   }
-}
-
-function describe(p) {
-  return {
-    id: p.id,
-    name: p.name,
-    limit: p.limit,
-    media: p.media,
-    title: p.title ?? null,
-    textForbids: p.textForbids ?? '',
-    threads: Boolean(p.threads),
-    subtitleTracks: Boolean(p.subtitleTracks),
-    envVars: p.envVars,
-    configured: p.isConfigured(),
-    publicUrlReady: Boolean(publicBaseUrl()),
-    canCompress,
-  };
 }
 
 const mb = (bytes) => `${Math.round(bytes / 1_000_000)} MB`;
@@ -429,6 +412,7 @@ server.listen(PORT, HOST, async () => {
   console.log(tool ? `Generate subtitles: using lyrics-video in ${tool.dir}`
     : problem ? `Generate subtitles is off: ${problem}`
       : 'Generate subtitles is off: LYRICS_VIDEO_DIR isn\'t set (see "Generating subtitles" in the README). Uploading an SRT still works.');
+  await startPhoneServer();
 });
 
 const cleanup = () => Promise.all([

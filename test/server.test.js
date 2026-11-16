@@ -44,7 +44,7 @@ before(async () => {
   base = `http://localhost:${port}`;
   // No platform credentials: an empty env keeps a developer's .env out of the test.
   server = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
-    env: { PORT: String(port), SystemRoot: process.env.SystemRoot },
+    env: { PORT: String(port), PHONE_PORT: 'off', SystemRoot: process.env.SystemRoot },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve) => server.stdout.on('data', (d) => d.toString().includes('running') && resolve()));
