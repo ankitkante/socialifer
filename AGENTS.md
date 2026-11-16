@@ -13,6 +13,7 @@ npm start     # node --env-file-if-exists=.env server.js  -> http://localhost:30
 npm run dev   # same, restarting on file changes
 npm test      # node --test; offline, no credentials needed
 npm run youtube-auth   # one-time Google sign-in; writes YOUTUBE_REFRESH_TOKEN into .env
+npm run sp-mobile-app  # Expo's dev server for the phone app in mobile/ (open it in Expo Go)
 ```
 
 Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`FormData`/`Blob`).
@@ -22,6 +23,9 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | Path | Role |
 |---|---|
 | `server.js` | HTTP server: routing, host/forwarding guard, `/api/*` endpoints, fan-out to platforms |
+| `publish.js` | What the page and the phone app are told about each platform (`describe`, `canCompress`) |
+| `phone.js` | The phone app's server on `PHONE_PORT` (Wi-Fi): signature check, pairing key in `phone/pairing.json`, the pairing QR code, `/app/*` endpoints |
+| `mobile/` | The phone app (Expo, Android). `App.js`; `src/laptop.js` (pairing, signed calls), `src/sign.js` (must match `signature()` in `phone.js`). `metro.config.js` lets it import `public/rules.js`. Follow `mobile/AGENTS.md` (Expo's own guidance) there |
 | `media.js` | Upload storage in `uploads/`, public `/media/*` serving (with Range), 24h cleanup, and ffmpeg copies: compressed (`fitVideo`) and with burned-in subtitles (`burnSubtitles`) |
 | `public/index.html` | The page's markup only (no build step) |
 | `public/styles.css` | All styles; light and dark tokens on `:root`, `data-theme` on `<html>` overrides the system theme |
@@ -38,7 +42,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 
 ## Conventions
 
-- **No dependencies.** Use Node built-ins only. Don't add npm packages without asking the user.
+- **No dependencies.** Use Node built-ins only. Don't add npm packages without asking the user. The one exception is `qrcode` (the pairing code). The phone app in `mobile/` has its own packages; ask before adding any.
 - ES modules, 2-space indent, single quotes, semicolons. Comments explain *why* (API quirks, limits), not what.
 - Platform API quirks live in the platform module, next to the code they affect, with a short comment.
 - Error messages are shown to the user verbatim, so write them as plain sentences that say what to do.
@@ -93,6 +97,7 @@ export default {
 3. **Media ids are 128-bit random hex** and validated with `/^[a-f0-9]{32}$/` before touching the filesystem.
 4. **Server re-validates everything** the UI checks (`problemsFor`); the UI is a convenience, not the gate.
 5. **Secrets never reach the browser.** `/api/platforms` returns only names of env vars, never values.
+6. **The phone port only takes signed requests.** Every `/app/*` request carries `X-SP-Time`, `X-SP-Nonce` and `X-SP-Signature` (HMAC-SHA256 with the pairing key of method, path, time, nonce and the body's SHA-256, or `<type>:<size>` for a file). Wrong signatures, times over a minute off and reused nonces get 401; addresses outside home networks get 403. The key is never sent.
 
 ## Testing
 
@@ -175,8 +180,9 @@ Smaller things found in the same test:
 - **Offline first:** posts are saved on the phone. Tapping Post marks a post ready; drafts stay on the phone and are never sent.
 - **Hand-over:** when the phone reaches the laptop over Wi-Fi, every ready post goes to the server automatically. The server keeps the queue on disk (it must survive restarts), so the phone can leave afterwards.
 - **Processing:** the server checks (`problemsFor`) and compresses (`fitVideo`) phone posts exactly as it does web posts. Rejected posts and failed platforms are shown on the phone, and the post stays there to fix.
-- **Pairing:** at startup the server prints a QR code in the terminal (like Expo's) with its current Wi-Fi address, a secret key and its certificate's fingerprint. Scan again if the address changes.
-- **Phone port:** a separate HTTPS port on the Wi-Fi, with a self-made certificate the phone trusts via the QR code, and only the app's endpoints. Every request needs the key. The web page's port stays local-only (invariant 1).
+- **Pairing (built):** at startup the server prints a QR code holding `SP:<ip>:<port>:<key>` (capitals and a 128-bit key keep it small enough to fit the terminal). Scan it in the app, not the camera app. Scan again if the address changes; `PHONE_HOST` overrides the guessed address.
+- **Phone port (built):** a separate plain-HTTP port (`PHONE_PORT`, default 3001) with only `/app/*` endpoints and signed requests (invariant 6). HTTPS was dropped: it needed a certificate package and a custom Android build instead of Expo Go. Post content can be read on the Wi-Fi; the key and posting can't be abused. The web page's port stays local-only (invariant 1).
+- **Character counting on the phone:** Hermes has no `Intl.Segmenter`, so `rules.js` falls back to a close count (code points minus combining marks, emoji modifiers and Devanagari virama joins). It matched the exact count on Hindi and emoji samples; the server still counts exactly.
 - **`qrcode` npm package:** approved by the user as an exception to "No dependencies".
 - **First version:** the web page's features (per-platform settings, previews) for text, images and videos posted as they are. No subtitles: videos are edited and subtitled on the laptop.
 - **Later:** staggered sending (to be discussed), then scheduling with a calendar.

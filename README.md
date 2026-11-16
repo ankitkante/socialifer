@@ -6,14 +6,22 @@ Supported platforms: **X, Bluesky, Mastodon, Threads, Instagram, YouTube (videos
 
 ## Setup
 
-Requires Node.js 22.9 or newer. There are no packages to install.
+Requires Node.js 22.9 or newer.
 
 ```sh
+npm install             # one package: qrcode, for pairing the phone app
 cp .env.example .env    # then fill in the platforms you use
 npm start               # opens on http://localhost:3000
 ```
 
 `.env.example` explains where to get each credential. Platforms without credentials show up greyed out on the page. Restart the server after you edit `.env`.
+
+## Phone app (in progress)
+
+- **What it is:** an Android app in `mobile/` that pairs with this server over Wi-Fi. Posting from it is still being built.
+- **Run it:** `cd mobile && npm install` once, then `npm run sp-mobile-app` from here and open it in **Expo Go**.
+- **Pair:** `npm start` prints a pairing QR code. Scan it in the app (not the camera app). The phone and laptop must be on the same Wi-Fi; allow Node.js on private networks if Windows asks.
+- **Unpair every phone:** delete `phone/pairing.json` and restart the server.
 
 ## Using it
 
