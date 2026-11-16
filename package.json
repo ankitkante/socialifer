@@ -12,6 +12,7 @@
     "dev": "node --watch --env-file-if-exists=.env server.js",
     "test": "node --test",
     "youtube-auth": "node --env-file-if-exists=.env scripts/youtube-auth.js",
+    "tunnel": "node --env-file-if-exists=.env scripts/tunnel.js",
     "sp-mobile-app": "npm --prefix mobile start"
   },
   "dependencies": {

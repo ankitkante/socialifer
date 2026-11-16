@@ -13,6 +13,7 @@ npm start     # node --env-file-if-exists=.env server.js  -> http://localhost:30
 npm run dev   # same, restarting on file changes
 npm test      # node --test; offline, no credentials needed
 npm run youtube-auth   # one-time Google sign-in; writes YOUTUBE_REFRESH_TOKEN into .env
+npm run tunnel         # cloudflared quick tunnel; writes its new address to TUNNEL_URL in .env (restart the server after)
 npm run sp-mobile-app  # Expo's dev server for the phone app in mobile/ (open it in Expo Go)
 ```
 
@@ -39,6 +40,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | `platforms/*.js` | One module per platform; `index.js` lists them in display order |
 | `platforms/http.js` | `request()` (fetch + error extraction + timeout), `poll()`, `env()` helpers |
 | `scripts/youtube-auth.js` | Standalone OAuth loopback + PKCE flow for YouTube |
+| `scripts/tunnel.js` | Runs `cloudflared tunnel --url`, finds the `trycloudflare.com` address in its log and saves it as `TUNNEL_URL` |
 | `test/` | `node:test` suites |
 | `.env.example` | Every supported setting, with where to get each credential |
 

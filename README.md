@@ -100,10 +100,10 @@ To install ffmpeg on Windows, run `winget install --id Gyan.FFmpeg` (on a Mac, `
 
 Meta doesn't accept file uploads for Threads or Instagram. Instead, it downloads each file from a public web address. To make that work:
 
-1. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) and run `cloudflared tunnel --url http://localhost:3000`.
-2. Copy the `https://….trycloudflare.com` address it prints into `TUNNEL_URL` in `.env`, then restart the server.
+1. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) and run `npm run tunnel` in its own terminal. It starts the tunnel and saves the `https://….trycloudflare.com` address to `TUNNEL_URL` in `.env`.
+2. Restart the server so it uses the address. Keep the tunnel's terminal open; Ctrl+C stops it.
 
-Only uploaded files are reachable through the tunnel. The page and the posting API reject any request that arrives through it. A quick tunnel's address changes each time you start it, so update `.env` when that happens. Text-only Threads posts work without a tunnel.
+Only uploaded files are reachable through the tunnel. The page and the posting API reject any request that arrives through it. A quick tunnel's address changes each time you start it; `npm run tunnel` updates `.env` each time, so only the restart is left to you. Text-only Threads posts work without a tunnel.
 
 ## YouTube
 
