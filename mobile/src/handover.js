@@ -4,6 +4,7 @@
 // on next time, and a post fixed after the laptop refused it isn't mistaken for the old version.
 import { call, uploadFile } from './laptop';
 import { listPosts, savePost, mediaFile } from './store';
+import { optionsFor } from './options';
 
 // The laptop's own record goes once the results are saved here; posts it no longer has get this instead.
 const LOST = "The laptop no longer has this post, so it's unknown whether it went out. Check the platforms before posting it again.";
@@ -33,19 +34,26 @@ async function send(pairing, post, onChange) {
   };
   update({ state: 'sending', sent: 0, error: null });
   try {
+    // The post's photos and videos come first; thumbnail and cover images follow, referred to as { file: n }.
+    const files = [...post.media];
+    const imageFile = (item) => {
+      files.push(item);
+      return { file: files.length - 1 };
+    };
+    const options = Object.fromEntries(post.platforms.map((id) => [id, optionsFor(post, id, { imageFile })]));
     const summary = await call(pairing, 'PUT', `/app/posts/${post.sendId}`, {
       json: {
         text: post.text,
         platforms: post.platforms,
-        options: post.options ?? {},
-        files: post.media.map(({ name, type, size, duration }) => ({ name, type, size, duration })),
+        options,
+        files: files.map(({ name, type, size, duration }) => ({ name, type, size, duration: duration ?? null })),
         media: post.media.map((_, n) => n),
       },
     });
     for (const n of summary.missing ?? []) {
-      const item = post.media[n];
+      const item = files[n];
       await uploadFile(pairing, `/app/posts/${post.sendId}/files/${n}`, mediaFile(post, item), item.type);
-      update({ sent: post.media.length - summary.missing.length + summary.missing.indexOf(n) + 1 });
+      update({ sent: files.length - summary.missing.length + summary.missing.indexOf(n) + 1, files: files.length });
     }
     if (summary.state === 'receiving') await call(pairing, 'POST', `/app/posts/${post.sendId}/ready`);
     update({ state: 'handed', handedAt: Date.now() });

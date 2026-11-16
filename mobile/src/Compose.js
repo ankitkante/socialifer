@@ -3,14 +3,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { countFor, problemsFor, adjustmentsFor, formatDuration } from '../../public/rules.js';
-import { addMedia, deletePost, mediaFile, newId, removeMedia, savePost, saveSettings } from './store';
+import { problemsFor, adjustmentsFor, formatDuration } from '../../public/rules.js';
+import { addMedia, deletePost, loadSettings, mediaFile, newId, removeMedia, savePost, saveSettings } from './store';
+import { optionsFor, withDefaults } from './options';
+import PlatformCard from './Fields';
 import { Button, Screen, colors } from './ui';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
 
 export default function Compose({ initial, platforms, settings, onClose }) {
-  const [post, setPost] = useState(initial);
+  // Posts saved before per-platform settings existed get the default values.
+  const [post, setPost] = useState(() => ({ ...initial, options: withDefaults(initial.options, settings.sticky) }));
   const [notice, setNotice] = useState('');
   const editable = post.state === 'draft' || post.state === 'ready';
   const isEmpty = !post.text.trim() && post.media.length === 0;
@@ -33,11 +36,14 @@ export default function Compose({ initial, platforms, settings, onClose }) {
   const usable = platforms.filter((p) => p.configured);
   const targets = usable.filter((p) => post.platforms.includes(p.id));
   const media = metaOf(post.media);
-  const checks = useMemo(() => targets.map((p) => ({
-    p,
-    problems: isEmpty ? [] : problemsFor(p, post.text, media, post.options ?? {}),
-    notes: adjustmentsFor(p, media, post.options ?? {}, post.text),
-  })), [post, platforms]);
+  const checks = useMemo(() => targets.map((p) => {
+    const own = optionsFor(post, p.id);
+    return {
+      p,
+      problems: isEmpty ? [] : problemsFor(p, post.text, media, own),
+      notes: adjustmentsFor(p, media, own, post.text),
+    };
+  }), [post, platforms]);
   const issues = checks.reduce((n, c) => n + c.problems.length, 0);
   const reason = targets.length === 0 ? 'Select at least one platform'
     : isEmpty ? 'Write something, or add a photo or video'
@@ -70,8 +76,40 @@ export default function Compose({ initial, platforms, settings, onClose }) {
     change({ media: post.media.filter((m) => m !== item) });
   };
 
+  const setOwn = (id, values) => change({ options: { ...post.options, [id]: { ...post.options[id], ...values } } });
+
+  // Sticky fields (YouTube's visibility, X's thread...) are remembered for the next post, as on the web page.
+  const setOption = (id, f, value) => {
+    setOwn(id, { [f.key]: value });
+    if (!f.sticky) return;
+    const current = loadSettings();
+    saveSettings({ ...current, sticky: { ...current.sticky, [id]: { ...current.sticky?.[id], [f.key]: value } } });
+  };
+
+  // null puts the platform back on the main post's text.
+  const setText = (id, text) => {
+    const { text: _old, ...rest } = post.options[id] ?? {};
+    change({ options: { ...post.options, [id]: text === null ? rest : { ...rest, text } } });
+  };
+
+  const pickImage = async (id, f) => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    if (result.canceled) return;
+    const item = await addMedia(post, result.assets[0]);
+    if (item.problem) { setNotice(item.problem); return; }
+    const previous = post.options[id]?.[f.key];
+    if (previous?.file) removeMedia(post, previous);
+    setOwn(id, { [f.key]: item });
+  };
+
+  const removeImage = (id, f) => {
+    const previous = post.options[id]?.[f.key];
+    if (previous?.file) removeMedia(post, previous);
+    setOwn(id, { [f.key]: '' });
+  };
+
   const submit = () => {
-    saveSettings({ ...settings, selected: post.platforms });
+    saveSettings({ ...loadSettings(), selected: post.platforms });
     const ready = { ...post, state: 'ready', sendId: newId(), error: null };
     savePost(ready);
     onClose();
@@ -130,12 +168,18 @@ export default function Compose({ initial, platforms, settings, onClose }) {
           })}
         </View>
 
-        {checks.map(({ p, problems, notes }) => (
-          <View key={p.id} style={styles.check}>
-            <Text style={styles.checkName}>{p.name} <Text style={styles.count}>{countFor(p.id, post.text).toLocaleString()} / {p.limit.toLocaleString()}</Text></Text>
-            {problems.map((m) => <Text key={m} style={styles.problem}>• {m}</Text>)}
-            {notes.map((m) => <Text key={m} style={styles.note}>• {m}</Text>)}
-          </View>
+        {checks.map((check) => (
+          <PlatformCard
+            key={check.p.id}
+            p={check.p}
+            post={post}
+            check={check}
+            editable={editable}
+            onOption={setOption}
+            onText={setText}
+            onPickImage={pickImage}
+            onRemoveImage={removeImage}
+          />
         ))}
 
         {post.results ? <Results results={post.results} /> : null}

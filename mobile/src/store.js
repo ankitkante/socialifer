@@ -4,6 +4,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { getRandomBytes } from 'expo-crypto';
+import { fieldImages } from './options';
 
 // What the laptop accepts (EXTENSIONS in ../../media.js, without SRT).
 export const ACCEPTED = {
@@ -84,7 +85,7 @@ export function pruneOldMedia() {
   for (const post of listPosts()) {
     const allPosted = post.state === 'done' && post.results?.length && post.results.every((r) => r.ok);
     if (!allPosted || post.mediaRemoved || !post.media.length || Date.now() - (post.finishedAt ?? 0) < MEDIA_KEEP_MS) continue;
-    for (const item of post.media) removeMedia(post, item);
+    for (const item of [...post.media, ...fieldImages(post)]) removeMedia(post, item);
     savePost({ ...post, mediaRemoved: true });
   }
 }
