@@ -86,6 +86,15 @@ function rejection(key, seen, req, digest) {
   return null;
 }
 
+// Unpaired devices may keep retrying every few seconds; say so once a minute per address, not every time.
+const lastLogged = new Map();
+function logOnce(key, message) {
+  const now = Date.now();
+  if (now - (lastLogged.get(key) ?? 0) < 60_000) return;
+  lastLogged.set(key, now);
+  log.warn(message);
+}
+
 async function readBody(req) {
   let size = 0;
   const chunks = [];
@@ -114,7 +123,11 @@ export function createPhoneServer(key, queue) {
   const seen = new Map();
   return http.createServer(async (req, res) => {
     try {
-      if (!isPrivate(req.socket.remoteAddress ?? '')) return sendJson(res, 403, { error: 'Forbidden' });
+      const from = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
+      if (!isPrivate(from)) {
+        logOnce(`403:${from}`, `Phone app: refused a request from ${from}, which isn't on a home network.`);
+        return sendJson(res, 403, { error: 'Forbidden' });
+      }
       const type = req.headers['content-type'] || '';
       // A file is checked before its body is read, so an unpaired device can't make us store anything.
       let digest;
@@ -128,7 +141,10 @@ export function createPhoneServer(key, queue) {
         digest = sha256(raw);
       }
       const problem = rejection(key, seen, req, digest);
-      if (problem) return sendJson(res, 401, { error: problem });
+      if (problem) {
+        logOnce(`401:${from}`, `Phone app: refused ${req.method} ${req.url.split('?')[0]} from ${from}: ${problem}`);
+        return sendJson(res, 401, { error: problem });
+      }
 
       const { pathname, searchParams } = new URL(req.url, 'http://phone');
       if (req.method === 'GET' && pathname === '/app/hello') {
@@ -152,7 +168,9 @@ export function createPhoneServer(key, queue) {
       }
       sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
+      // The phone is told why, but the terminal should say so too, since nobody may be looking at the phone.
       if (!err.status) log.error(`Phone app: ${req.method} ${req.url} failed`, err?.stack ?? String(err));
+      else log.warn(`Phone app: ${req.method} ${req.url.split('?')[0]} refused (${err.status}): ${err.message}`);
       if (res.headersSent) return res.destroy();
       sendJson(res, err.status || 500, { error: err.status ? err.message : 'Something went wrong in the app. The details are in the terminal.' });
     }

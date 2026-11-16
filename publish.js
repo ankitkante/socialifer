@@ -99,11 +99,12 @@ let postCount = 0;
 // { instagram: { text, postAs, cover }, youtube: { text, title, privacy, tags, thumbnail } }.
 // subtitles: { videoId: { lang: SRT upload } }. Platforms with subtitleTracks get them as files; the rest get
 // one language burned in. options[id].subtitles is the platform's choice: languages for tracks, else a language or 'none'.
-export async function publish(text, ids, media, options, subtitles = {}, onEvent = () => {}) {
+// from: where the post came from, added to the log line (e.g. "phone post 1a2b3c4d").
+export async function publish(text, ids, media, options, subtitles = {}, onEvent = () => {}, { from } = {}) {
   const postId = ++postCount;
   const selected = platforms.filter((p) => ids.includes(p.id));
   const files = [...media, ...Object.values(subtitles).flatMap(Object.values)].map((m) => `${m.name} (${mb(m.size)})`).join(', ');
-  log.info(`[post ${postId}] Posting to ${selected.map((p) => p.name).join(', ')}${files ? ` with ${files}` : ''}`);
+  log.info(`[post ${postId}] Posting to ${selected.map((p) => p.name).join(', ')}${files ? ` with ${files}` : ''}${from ? ` (${from})` : ''}`);
 
   return Promise.all(selected.map((p) => runWithContext(
     { postId, platform: p.name, onStep: (s, progress) => onEvent({ type: 'status', id: p.id, step: s, ...(progress !== undefined && { progress }) }) },

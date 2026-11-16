@@ -20,6 +20,10 @@ const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 const POST_TYPES = new Set(Object.keys(EXTENSIONS).filter((t) => /^(image|video)\//.test(t)));
 const KNOWN = new Set(platforms.map((p) => p.id));
 
+// Phone posts are named in the log by the start of their id, which the phone's activity log shows too.
+const label = (id) => `Phone post ${id.slice(0, 8)}`;
+const mb = (bytes) => `${(bytes / 1_000_000).toFixed(1)} MB`;
+
 const isPlainObject = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 // An image field (thumbnail, cover) refers to one of the post's files as { file: n }.
 const isFileRef = (v) => isPlainObject(v) && Object.keys(v).length === 1 && Number.isInteger(v.file);
@@ -112,7 +116,7 @@ export function createQueue({ dir, publish }) {
           post.results = everyPlatform(post, "The laptop's server stopped while posting this. Check the platform before posting it again.");
           post.finishedAt = Date.now();
           await save(post);
-          log.warn(`Phone post ${name.slice(0, 8)} was being posted when the server stopped; marked unknown.`);
+          log.warn(`${label(name)} was being posted when the server stopped; marked unknown.`);
         }
         posts.set(name, post);
       } catch (err) {
@@ -128,7 +132,9 @@ export function createQueue({ dir, publish }) {
     for (const post of [...posts.values()]) {
       const finished = (post.state === 'done' || post.state === 'unknown') && now - (post.finishedAt ?? 0) > KEEP_MS;
       const abandoned = post.state === 'receiving' && now - post.createdAt > KEEP_MS;
-      if (finished || abandoned) await forget(post);
+      if (!finished && !abandoned) continue;
+      await forget(post);
+      log.info(`${label(post.id)}: removed after a week (${finished ? 'the phone never collected the results' : 'its files never all arrived'})`);
     }
   }
 
@@ -145,6 +151,8 @@ export function createQueue({ dir, publish }) {
     await mkdir(folder(id), { recursive: true });
     await save(post);
     posts.set(id, post);
+    const size = post.files.reduce((n, f) => n + f.size, 0);
+    log.info(`${label(id)}: received for ${post.platforms.join(', ')}${post.files.length ? `, waiting for ${post.files.length} file${post.files.length > 1 ? 's' : ''} (${mb(size)})` : ''}`);
     return summary(post);
   }
 
@@ -178,6 +186,7 @@ export function createQueue({ dir, publish }) {
     await rename(part, fileUrl(post, n));
     post.received.push(n);
     await save(post);
+    log.info(`${label(id)}: file ${post.received.length} of ${post.files.length} arrived (${file.name}, ${mb(file.size)})`);
     return summary(post);
   }
 
@@ -188,7 +197,8 @@ export function createQueue({ dir, publish }) {
     post.state = 'waiting';
     post.readyAt = Date.now();
     await save(post);
-    log.info(`Phone post ${id.slice(0, 8)} queued for ${post.platforms.join(', ')}`);
+    const ahead = [...posts.values()].filter((p) => p !== post && (p.state === 'waiting' || p.state === 'posting')).length;
+    log.info(`${label(id)}: queued${ahead ? ` behind ${ahead} other post${ahead > 1 ? 's' : ''}` : ''}`);
     run();
     return summary(post);
   }
@@ -199,6 +209,7 @@ export function createQueue({ dir, publish }) {
     const post = find(id);
     if (post.state === 'posting') throw httpError(409, 'This post is being posted right now.');
     await forget(post);
+    log.info(`${label(id)}: ${post.state === 'done' || post.state === 'unknown' ? 'results collected by the phone' : 'removed by the phone'}`);
   }
 
   async function run() {
@@ -236,9 +247,9 @@ export function createQueue({ dir, publish }) {
       }));
       post.results = await publish(post.text, post.platforms, media, withUploadIds(post.options, ids), {}, (event) => {
         if (event.type === 'status') steps[event.id] = { step: event.step, progress: event.progress ?? null };
-      });
+      }, { from: label(post.id).toLowerCase() });
     } catch (err) {
-      log.error(`Phone post ${post.id.slice(0, 8)} couldn't be prepared`, err?.stack ?? String(err));
+      log.error(`${label(post.id)} couldn't be prepared`, err?.stack ?? String(err));
       post.results = everyPlatform(post, "The laptop couldn't prepare this post's files. The details are in the terminal.");
     } finally {
       live.delete(post.id);
@@ -248,6 +259,8 @@ export function createQueue({ dir, publish }) {
     post.state = 'done';
     post.finishedAt = Date.now();
     await save(post);
+    const outcome = post.results.map((r) => `${r.name} ${r.ok ? 'posted' : 'failed'}`).join(', ');
+    log.info(`${label(post.id)}: done (${outcome}); waiting for the phone to collect the results`);
   }
 
   return { load, cleanup, create, receiveFile, ready, status, remove, idle: () => !running };
