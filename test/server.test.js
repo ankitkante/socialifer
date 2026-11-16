@@ -55,6 +55,7 @@ after(() => server.kill());
 test('serves the page, the shared rules and the platform list', async () => {
   assert.equal((await fetch(`${base}/`)).status, 200);
   assert.equal((await fetch(`${base}/rules.js`)).status, 200);
+  assert.equal((await fetch(`${base}/fields.js`)).status, 200);
   const platforms = await (await fetch(`${base}/api/platforms`)).json();
   assert.ok(platforms.length >= 9);
   assert.ok(platforms.every((p) => p.configured === false && Array.isArray(p.envVars) && p.media));

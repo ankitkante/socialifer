@@ -24,6 +24,7 @@ const STATIC_FILES = {
   '/': { file: 'public/index.html', type: 'text/html; charset=utf-8' },
   '/styles.css': { file: 'public/styles.css', type: 'text/css; charset=utf-8' },
   '/rules.js': { file: 'public/rules.js', type: 'text/javascript; charset=utf-8' },
+  '/fields.js': { file: 'public/fields.js', type: 'text/javascript; charset=utf-8' },
 };
 // The page's own modules live in public/js/ and are served by name only, never by path.
 const SCRIPT_RE = /^\/js\/([a-z-]+)\.js$/;
