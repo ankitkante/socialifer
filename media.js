@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { createReadStream, createWriteStream, openAsBlob } from 'node:fs';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Transform } from 'node:stream';
@@ -15,6 +15,7 @@ import { log } from './log.js';
 // Uploaded files live here until they're posted, removed, or older than a day.
 const DIR = new URL('./uploads/', import.meta.url);
 const MAX_BYTES = (Number(process.env.MAX_UPLOAD_MB) || 1024) * 1_000_000;
+export const MAX_UPLOAD_BYTES = MAX_BYTES;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ID_RE = /^[a-f0-9]{32}$/;
 
@@ -76,6 +77,18 @@ export async function saveFile(data, type, name) {
   const id = crypto.randomBytes(16).toString('hex');
   await writeFile(fileUrl(id), data);
   const meta = { id, name, type, size: Buffer.byteLength(data), createdAt: Date.now() };
+  await writeFile(metaUrl(id), JSON.stringify(meta));
+  return meta;
+}
+
+// Copies a file kept elsewhere (a phone post's file in queue/) in as an upload, so posting, compression and
+// the public /media/ links work on it as on any upload. Copied, not moved, so the queue keeps its file.
+export async function importFile(path, type, name) {
+  await mkdir(DIR, { recursive: true });
+  const id = crypto.randomBytes(16).toString('hex');
+  await copyFile(path, fileUrl(id));
+  const { size } = await stat(fileUrl(id));
+  const meta = { id, name, type, size, createdAt: Date.now() };
   await writeFile(metaUrl(id), JSON.stringify(meta));
   return meta;
 }
