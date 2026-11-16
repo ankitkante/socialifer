@@ -5,6 +5,7 @@
 import { call, uploadFile } from './laptop';
 import { listPosts, savePost, mediaFile } from './store';
 import { optionsFor } from './options';
+import { log, short } from './log';
 
 // The laptop's own record goes once the results are saved here; posts it no longer has get this instead.
 const LOST = "The laptop no longer has this post, so it's unknown whether it went out. Check the platforms before posting it again.";
@@ -32,6 +33,8 @@ async function send(pairing, post, onChange) {
     savePost(post);
     onChange();
   };
+  const name = `Post ${short(post.sendId)}`;
+  if (post.state === 'ready') log(`${name}: sending to the laptop (${post.platforms.join(', ')})`);
   update({ state: 'sending', sent: 0, error: null });
   try {
     // The post's photos and videos come first; thumbnail and cover images follow, referred to as { file: n }.
@@ -50,19 +53,29 @@ async function send(pairing, post, onChange) {
         media: post.media.map((_, n) => n),
       },
     });
+    if (summary.missing?.length) log(`${name}: sending ${summary.missing.length} of ${files.length} files`);
     for (const n of summary.missing ?? []) {
       const item = files[n];
       await uploadFile(pairing, `/app/posts/${post.sendId}/files/${n}`, mediaFile(post, item), item.type);
+      log(`${name}: sent ${item.name} (${(item.size / 1_000_000).toFixed(1)} MB)`);
       update({ sent: files.length - summary.missing.length + summary.missing.indexOf(n) + 1, files: files.length });
     }
     if (summary.state === 'receiving') await call(pairing, 'POST', `/app/posts/${post.sendId}/ready`);
-    update({ state: 'handed', handedAt: Date.now() });
+    update({ state: 'handed', handedAt: Date.now(), retryError: null });
+    log(`${name}: on the laptop, waiting its turn`);
   } catch (err) {
     // A post the laptop refuses (400, 413) goes back to draft to be fixed; anything else (no Wi-Fi, pairing,
-    // a server error) leaves it to be sent again on the next check.
+    // a server error) leaves it to be sent again on the next check, with the error shown on the post.
     const rejected = err.status === 400 || err.status === 413;
-    update({ state: rejected ? 'draft' : 'sending', error: err.message });
-    if (!rejected) throw err;
+    if (rejected) {
+      update({ state: 'draft', error: err.message, retryError: null });
+      log(`${name}: the laptop refused it (${err.status}): ${err.message}. Back to draft.`);
+    } else {
+      // The same error every 5 seconds would fill the log; record it only when it changes.
+      if (post.retryError !== err.message) log(`${name}: hand-over failed${err.status ? ` (${err.status})` : ''}: ${err.message}. Will try again.`);
+      update({ state: 'sending', retryError: err.message });
+      throw err;
+    }
   }
 }
 
@@ -76,12 +89,19 @@ async function collect(pairing, onChange) {
     if (s.state === 'done' || s.state === 'unknown') {
       savePost({ ...post, state: 'done', results: s.results, finishedAt: Date.now() });
       onChange();
+      log(`Post ${short(post.sendId)}: ${s.state === 'unknown' ? 'unknown, the laptop stopped while posting' : 'finished'}. ${s.results.map((r) => `${r.name}: ${r.ok ? (r.url ?? 'posted') : r.error}`).join(' | ')}`);
+      for (const r of s.results) for (const w of r.warnings ?? []) log(`Post ${short(post.sendId)}: ${r.name} warning: ${w}`);
       // Only once the results are safe here; if this fails, the next check collects them again.
       await call(pairing, 'DELETE', `/app/posts/${post.sendId}`).catch(() => {});
     } else if (s.state === 'missing') {
       savePost({ ...post, state: 'done', results: post.platforms.map((id) => ({ id, name: id, ok: false, error: LOST })) });
       onChange();
+      log(`Post ${short(post.sendId)}: the laptop no longer has it; marked unknown.`);
     } else {
+      if (s.state === 'posting' && post.loggedPosting !== true) {
+        log(`Post ${short(post.sendId)}: the laptop is posting it`);
+        savePost({ ...post, loggedPosting: true });
+      }
       live[post.id] = { state: s.state, steps: s.steps };
     }
   }

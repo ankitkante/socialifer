@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { call, forgetPairing, loadPairing, parsePairing, savePairing } from './src/laptop';
 import { handOver } from './src/handover';
@@ -8,6 +8,9 @@ import { listPosts, loadPlatforms, loadSettings, newId, pruneOldMedia, savePlatf
 import Compose from './src/Compose';
 import Posts from './src/Posts';
 import { Button, Screen, colors } from './src/ui';
+import { clearLog, log, logErrors, readLog } from './src/log';
+
+logErrors();
 
 // How often to look for the laptop (and hand over ready posts) while the app is open.
 const CHECK_MS = 5000;
@@ -35,19 +38,33 @@ export default function App() {
   useEffect(() => {
     if (!pairing) return undefined;
     let stopped = false;
+    // Logged only when it changes: every 5 seconds would bury everything else.
+    let last = '';
+    const note = (line) => {
+      if (line !== last) log(line);
+      last = line;
+    };
     const check = async () => {
+      let hello;
       try {
-        const hello = await call(pairing, 'GET', '/app/hello');
+        hello = await call(pairing, 'GET', '/app/hello');
+      } catch (err) {
         if (stopped) return;
-        setConnection({ state: 'connected' });
-        // Kept on the phone, so the platforms and their limits are there when writing offline.
-        savePlatforms(hello.platforms);
-        setPlatforms(hello.platforms);
+        setConnection({ state: 'away', message: err.message });
+        note(`Laptop not reachable: ${err.message}`);
+        return;
+      }
+      if (stopped) return;
+      setConnection({ state: 'connected' });
+      note(`Connected to the laptop at ${pairing.host}:${pairing.port} (${hello.platforms.filter((p) => p.configured).length} platforms set up)`);
+      // Kept on the phone, so the platforms and their limits are there when writing offline.
+      savePlatforms(hello.platforms);
+      setPlatforms(hello.platforms);
+      // A hand-over error is shown on its post and logged there; it isn't a connection problem.
+      try {
         const now = await handOver(pairing, refresh, openId.current);
         if (!stopped && now) setLive(now);
-      } catch (err) {
-        if (!stopped) setConnection({ state: 'away', message: err.message });
-      }
+      } catch {}
     };
     setConnection({ state: 'checking' });
     check();
@@ -64,7 +81,7 @@ export default function App() {
   if (!pairing || screen.name === 'pair') {
     return (
       <Scanner
-        onPaired={async (next) => { await savePairing(next); setPairing(next); setScreen({ name: 'posts' }); }}
+        onPaired={async (next) => { await savePairing(next); log(`Paired with the laptop at ${next.host}:${next.port}`); setPairing(next); setScreen({ name: 'posts' }); }}
         onCancel={pairing ? () => setScreen({ name: 'laptop' }) : null}
       />
     );
@@ -76,10 +93,12 @@ export default function App() {
         connection={connection}
         onBack={() => setScreen({ name: 'posts' })}
         onPair={() => setScreen({ name: 'pair' })}
-        onUnpair={async () => { await forgetPairing(); setPairing(null); setScreen({ name: 'posts' }); }}
+        onUnpair={async () => { await forgetPairing(); log('Unpaired from the laptop'); setPairing(null); setScreen({ name: 'posts' }); }}
+        onLog={() => setScreen({ name: 'log' })}
       />
     );
   }
+  if (screen.name === 'log') return <ActivityLog onBack={() => setScreen({ name: 'laptop' })} />;
   if (screen.name === 'compose') {
     return <Compose initial={screen.post} platforms={platforms} settings={loadSettings()} onClose={close} />;
   }
@@ -101,7 +120,7 @@ export default function App() {
   );
 }
 
-function Laptop({ pairing, connection, onBack, onPair, onUnpair }) {
+function Laptop({ pairing, connection, onBack, onPair, onUnpair, onLog }) {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
     return () => sub.remove();
@@ -119,7 +138,33 @@ function Laptop({ pairing, connection, onBack, onPair, onUnpair }) {
           <Button kind="secondary" label="Pair again" onPress={onPair} />
           <Button kind="danger" label="Unpair" onPress={onUnpair} />
         </View>
+        <Button kind="secondary" label="Activity log" onPress={onLog} />
       </View>
+    </Screen>
+  );
+}
+
+// What the app did, newest at the bottom. Share sends it as text (e.g. to paste into a chat when something failed).
+function ActivityLog({ onBack }) {
+  const [lines, setLines] = useState(() => readLog());
+  const scroller = useRef(null);
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
+    return () => sub.remove();
+  }, [onBack]);
+  return (
+    <Screen>
+      <View style={styles.logHead}>
+        <Pressable onPress={onBack} hitSlop={12}><Text style={styles.back}>‹ Laptop</Text></Pressable>
+        <View style={styles.row}>
+          <Button kind="secondary" label="Share" onPress={() => Share.share({ message: lines.join('\n') || 'The activity log is empty.' })} />
+          <Button kind="danger" label="Clear" onPress={() => { clearLog(); setLines([]); }} />
+        </View>
+      </View>
+      <ScrollView ref={scroller} onContentSizeChange={() => scroller.current?.scrollToEnd({ animated: false })}>
+        {lines.length ? lines.map((line, i) => <Text key={i} style={styles.logLine} selectable>{line}</Text>)
+          : <Text style={styles.small}>Nothing logged yet.</Text>}
+      </ScrollView>
     </Screen>
   );
 }
@@ -177,4 +222,6 @@ const styles = StyleSheet.create({
   error: { fontSize: 14, color: colors.danger, textAlign: 'center' },
   camera: { width: 280, height: 280 },
   row: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  logHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  logLine: { fontSize: 12, fontFamily: 'monospace', color: colors.text, paddingVertical: 2 },
 });

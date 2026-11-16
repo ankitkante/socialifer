@@ -7,6 +7,7 @@ import { problemsFor, adjustmentsFor, formatDuration } from '../../public/rules.
 import { addMedia, deletePost, loadSettings, mediaFile, newId, removeMedia, savePost, saveSettings } from './store';
 import { optionsFor, withDefaults } from './options';
 import PlatformCard from './Fields';
+import { log, short } from './log';
 import { Button, Screen, colors } from './ui';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
@@ -112,6 +113,7 @@ export default function Compose({ initial, platforms, settings, onClose }) {
     saveSettings({ ...loadSettings(), selected: post.platforms });
     const ready = { ...post, state: 'ready', sendId: newId(), error: null };
     savePost(ready);
+    log(`Post ${short(ready.sendId)}: ready for ${ready.platforms.join(', ')}${ready.media.length ? ` with ${ready.media.length} file${ready.media.length > 1 ? 's' : ''}` : ''}`);
     onClose();
   };
 
@@ -123,6 +125,7 @@ export default function Compose({ initial, platforms, settings, onClose }) {
       </View>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32, gap: 14 }}>
         {post.error ? <Text style={styles.error}>The laptop refused this post: {post.error}</Text> : null}
+        {post.state === 'sending' && post.retryError ? <Text style={styles.error}>Last try to send it failed: {post.retryError} It will be tried again.</Text> : null}
         {post.state === 'ready' ? <Text style={styles.note}>Ready. It goes to the laptop the next time they're on the same Wi-Fi. Editing makes it a draft again.</Text> : null}
 
         <TextInput
@@ -191,7 +194,7 @@ export default function Compose({ initial, platforms, settings, onClose }) {
           </View>
         ) : null}
         {post.state === 'done' || post.state === 'draft' ? (
-          <Button kind="danger" label="Delete post" onPress={() => { deletePost(post.id); onClose(); }} />
+          <Button kind="danger" label="Delete post" onPress={() => { deletePost(post.id); log(`Deleted ${post.state === 'done' ? `finished post ${short(post.sendId)}` : 'a draft'}`); onClose(); }} />
         ) : null}
       </ScrollView>
     </Screen>

@@ -5,7 +5,10 @@ import { Button, Screen, colors } from './ui';
 function statusLine(post, live) {
   if (post.state === 'draft') return post.error ? `Draft · the laptop refused it: ${post.error}` : 'Draft';
   if (post.state === 'ready') return 'Ready · goes to the laptop when connected';
-  if (post.state === 'sending') return post.files ? `Sending to laptop · ${post.sent ?? 0} of ${post.files} files` : 'Sending to laptop';
+  if (post.state === 'sending') {
+    const progress = post.files ? `Sending to laptop · ${post.sent ?? 0} of ${post.files} files` : 'Sending to laptop';
+    return post.retryError ? `${progress} · last try failed: ${post.retryError}` : progress;
+  }
   if (post.state === 'handed') {
     const info = live?.[post.id];
     if (info?.state === 'posting') {
