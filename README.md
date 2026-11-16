@@ -18,7 +18,9 @@ npm start               # opens on http://localhost:3000
 
 ## Phone app (in progress)
 
-- **What it is:** an Android app in `mobile/` that pairs with this server over Wi-Fi. Posting from it is still being built.
+- **What it is:** an Android app in `mobile/`. Write posts anywhere; tapping Post queues them, and they go to this server automatically the next time the phone is on the same Wi-Fi with the app open.
+- **Not yet:** per-platform settings (X threads, YouTube title, Instagram options) and previews.
+- **Storage:** the app keeps copies of attached photos and videos; they're deleted a week after a post went out everywhere. Finished posts stay in the list until you delete them.
 - **Run it:** `cd mobile && npm install` once, then `npm run sp-mobile-app` from here and open it in **Expo Go**.
 - **Pair:** `npm start` prints a pairing QR code. Scan it in the app (not the camera app). The phone and laptop must be on the same Wi-Fi; allow Node.js on private networks if Windows asks.
 - **Unpair every phone:** delete `phone/pairing.json` and restart the server.

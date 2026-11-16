@@ -26,7 +26,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | `publish.js` | `publish()`: posting to the selected platforms (checks, compression, burn-ins, results), used by `/api/post` and the phone queue; also `describe`, `canCompress`, `failureMessage` |
 | `phone.js` | The phone app's server on `PHONE_PORT` (Wi-Fi): signature check, pairing key in `phone/pairing.json`, the pairing QR code, `/app/*` endpoints |
 | `queue.js` | Phone posts on the laptop: `queue/<id>/` (`post.json` and files by index), checked on arrival, posted one at a time through `publish()`, kept until the phone collects the results (7 days at most) |
-| `mobile/` | The phone app (Expo, Android). `App.js`; `src/laptop.js` (pairing, signed calls), `src/sign.js` (must match `signature()` in `phone.js`). `metro.config.js` lets it import `public/rules.js`. Follow `mobile/AGENTS.md` (Expo's own guidance) there |
+| `mobile/` | The phone app (Expo, Android). `App.js` (screens, the 5-second laptop check); `src/Posts.js` (the list), `src/Compose.js` (writing, checks from `rules.js`), `src/store.js` (posts in the app's document folder, media copies, cached platforms), `src/handover.js` (sending ready posts, collecting results), `src/laptop.js` (pairing, signed calls and uploads), `src/sign.js` (must match `signature()` in `phone.js`). `metro.config.js` lets it import `public/rules.js`. Follow `mobile/AGENTS.md` (Expo's own guidance) there |
 | `media.js` | Upload storage in `uploads/`, public `/media/*` serving (with Range), 24h cleanup, and ffmpeg copies: compressed (`fitVideo`) and with burned-in subtitles (`burnSubtitles`) |
 | `public/index.html` | The page's markup only (no build step) |
 | `public/styles.css` | All styles; light and dark tokens on `:root`, `data-theme` on `<html>` overrides the system theme |
@@ -171,7 +171,7 @@ Smaller things found in the same test:
 - **Posting to Reddit:** a new platform.
 - **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
 - **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
-- **Drafts and post history:** deferred (the mobile app keeps its own drafts).
+- **Drafts and post history:** deferred for the web page. The phone app keeps its own drafts, and its finished posts act as a simple history.
 - **YouTube Posts tab** (formerly Community: text, images, polls): the YouTube Data API reference lists no way to create these, so for now they're posted by hand. To be double-checked in the API docs.
 
 ### Mobile app (decided 2026-11-16, not built)
@@ -186,5 +186,7 @@ Smaller things found in the same test:
 - **Phone port (built):** a separate plain-HTTP port (`PHONE_PORT`, default 3001) with only `/app/*` endpoints and signed requests (invariant 6). HTTPS was dropped: it needed a certificate package and a custom Android build instead of Expo Go. Post content can be read on the Wi-Fi; the key and posting can't be abused. The web page's port stays local-only (invariant 1).
 - **Character counting on the phone:** Hermes has no `Intl.Segmenter`, so `rules.js` falls back to a close count (code points minus combining marks, emoji modifiers and Devanagari virama joins). It matched the exact count on Hindi and emoji samples; the server still counts exactly.
 - **`qrcode` npm package:** approved by the user as an exception to "No dependencies".
+- **Posts on the phone (built):** each post is a folder in the app's storage with copies of its photos and videos. States: draft → ready (Post tapped; gets a fresh `sendId`, the laptop queue's id) → sending → handed → done. Any edit to a ready post makes it a draft again; the post open on screen is never handed over. A post the laptop refuses (400) returns to draft with the reason. Hand-over only runs while the app is open.
+- **Finished posts are the history:** they stay in the list (text, links, results) until deleted by hand. A week after a post went out on every platform, its media copies are deleted to free space (`pruneOldMedia`, run when the app opens); posts with a failure keep theirs.
 - **First version:** the web page's features (per-platform settings, previews) for text, images and videos posted as they are. No subtitles: videos are edited and subtitled on the laptop.
 - **Later:** staggered sending (to be discussed), then scheduling with a calendar.

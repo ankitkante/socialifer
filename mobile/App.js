@@ -1,29 +1,36 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { countFor, exactCounting } from '../public/rules.js';
 import { call, forgetPairing, loadPairing, parsePairing, savePairing } from './src/laptop';
+import { handOver } from './src/handover';
+import { listPosts, loadPlatforms, loadSettings, newId, pruneOldMedia, savePlatforms } from './src/store';
+import Compose from './src/Compose';
+import Posts from './src/Posts';
+import { Button, Screen, colors } from './src/ui';
 
-// How often to look for the laptop while the app is open.
+// How often to look for the laptop (and hand over ready posts) while the app is open.
 const CHECK_MS = 5000;
-
-// rules.js counts exactly with Intl.Segmenter, or closely without it; this shows which the phone gets.
-// नमस्ते 👍🏽 is 5 characters (स्ते is one).
-function countingStatus() {
-  try {
-    return `${exactCounting ? 'exact' : 'close'}, test count ${countFor('x', 'नमस्ते 👍🏽')} of 5`;
-  } catch (err) {
-    return `broken: ${err.message}`;
-  }
-}
 
 export default function App() {
   const [pairing, setPairing] = useState(undefined); // undefined while loading, null when not paired
-  const [scanning, setScanning] = useState(false);
-  const [status, setStatus] = useState({ state: 'checking' });
+  const [screen, setScreen] = useState({ name: 'posts' });
+  const [connection, setConnection] = useState({ state: 'checking' });
+  const [posts, setPosts] = useState(() => {
+    pruneOldMedia();
+    return listPosts();
+  });
+  const [platforms, setPlatforms] = useState(() => loadPlatforms());
+  const [live, setLive] = useState({});
+  const openId = useRef(null);
+
+  const refresh = useCallback(() => setPosts(listPosts()), []);
 
   useEffect(() => { loadPairing().then(setPairing); }, []);
+
+  useEffect(() => {
+    openId.current = screen.name === 'compose' ? screen.post.id : null;
+  }, [screen]);
 
   useEffect(() => {
     if (!pairing) return undefined;
@@ -31,49 +38,89 @@ export default function App() {
     const check = async () => {
       try {
         const hello = await call(pairing, 'GET', '/app/hello');
-        if (!stopped) setStatus({ state: 'connected', platforms: hello.platforms.filter((p) => p.configured).length });
+        if (stopped) return;
+        setConnection({ state: 'connected' });
+        // Kept on the phone, so the platforms and their limits are there when writing offline.
+        savePlatforms(hello.platforms);
+        setPlatforms(hello.platforms);
+        const now = await handOver(pairing, refresh, openId.current);
+        if (!stopped && now) setLive(now);
       } catch (err) {
-        if (!stopped) setStatus({ state: 'away', message: err.message });
+        if (!stopped) setConnection({ state: 'away', message: err.message });
       }
     };
-    setStatus({ state: 'checking' });
+    setConnection({ state: 'checking' });
     check();
     const timer = setInterval(check, CHECK_MS);
     return () => { stopped = true; clearInterval(timer); };
-  }, [pairing]);
+  }, [pairing, refresh]);
 
-  const paired = async (next) => {
-    await savePairing(next);
-    setScanning(false);
-    setPairing(next);
-  };
+  const close = useCallback(() => {
+    setScreen({ name: 'posts' });
+    refresh();
+  }, [refresh]);
 
-  const unpair = async () => {
-    await forgetPairing();
-    setPairing(null);
-  };
-
-  if (pairing === undefined) return <View style={styles.screen} />;
-  if (scanning || !pairing) {
-    return <Scanner onPaired={paired} onCancel={pairing ? () => setScanning(false) : null} />;
+  if (pairing === undefined) return <View style={styles.blank} />;
+  if (!pairing || screen.name === 'pair') {
+    return (
+      <Scanner
+        onPaired={async (next) => { await savePairing(next); setPairing(next); setScreen({ name: 'posts' }); }}
+        onCancel={pairing ? () => setScreen({ name: 'laptop' }) : null}
+      />
+    );
   }
-
+  if (screen.name === 'laptop') {
+    return (
+      <Laptop
+        pairing={pairing}
+        connection={connection}
+        onBack={() => setScreen({ name: 'posts' })}
+        onPair={() => setScreen({ name: 'pair' })}
+        onUnpair={async () => { await forgetPairing(); setPairing(null); setScreen({ name: 'posts' }); }}
+      />
+    );
+  }
+  if (screen.name === 'compose') {
+    return <Compose initial={screen.post} platforms={platforms} settings={loadSettings()} onClose={close} />;
+  }
   return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Social Post</Text>
-      <Text style={styles.line}>
-        {status.state === 'checking' && 'Looking for the laptop…'}
-        {status.state === 'connected' && `Connected to laptop · ${status.platforms} platforms set up`}
-        {status.state === 'away' && status.message}
-      </Text>
-      <Text style={styles.small}>Laptop: {pairing.host}:{pairing.port}</Text>
-      <Text style={styles.small}>Character counting: {countingStatus()}</Text>
-      <View style={styles.row}>
-        <Button label="Pair again" onPress={() => setScanning(true)} />
-        <Button label="Unpair" onPress={unpair} />
+    <>
+      <Posts
+        posts={posts}
+        live={live}
+        connection={connection}
+        onOpen={(post) => setScreen({ name: 'compose', post })}
+        onNew={() => setScreen({
+          name: 'compose',
+          post: { id: newId(), text: '', platforms: loadSettings().selected, media: [], options: {}, state: 'draft', createdAt: Date.now() },
+        })}
+        onPair={() => setScreen({ name: 'laptop' })}
+      />
+      <StatusBar style="dark" />
+    </>
+  );
+}
+
+function Laptop({ pairing, connection, onBack, onPair, onUnpair }) {
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
+    return () => sub.remove();
+  }, [onBack]);
+  return (
+    <Screen>
+      <Pressable onPress={onBack} hitSlop={12}><Text style={styles.back}>‹ Posts</Text></Pressable>
+      <View style={styles.center}>
+        <Text style={styles.title}>Laptop</Text>
+        <Text style={styles.line}>
+          {connection.state === 'connected' ? 'Connected' : connection.state === 'checking' ? 'Looking for the laptop…' : connection.message}
+        </Text>
+        <Text style={styles.small}>{pairing.host}:{pairing.port}</Text>
+        <View style={styles.row}>
+          <Button kind="secondary" label="Pair again" onPress={onPair} />
+          <Button kind="danger" label="Unpair" onPress={onUnpair} />
+        </View>
       </View>
-      <StatusBar style="auto" />
-    </View>
+    </Screen>
   );
 }
 
@@ -83,14 +130,16 @@ function Scanner({ onPaired, onCancel }) {
   // The camera reports the same code many times a second; handle it once.
   const handled = useRef(false);
 
-  if (!permission) return <View style={styles.screen} />;
+  if (!permission) return <View style={styles.blank} />;
   if (!permission.granted) {
     return (
-      <View style={styles.screen}>
-        <Text style={styles.title}>Pair with your laptop</Text>
-        <Text style={styles.line}>The camera is needed to scan the QR code in the server's terminal.</Text>
-        <Button label="Allow camera" onPress={requestPermission} />
-      </View>
+      <Screen>
+        <View style={styles.center}>
+          <Text style={styles.title}>Pair with your laptop</Text>
+          <Text style={styles.line}>The camera is needed to scan the QR code in the server's terminal.</Text>
+          <Button label="Allow camera" onPress={requestPermission} />
+        </View>
+      </Screen>
     );
   }
 
@@ -106,32 +155,26 @@ function Scanner({ onPaired, onCancel }) {
   };
 
   return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Pair with your laptop</Text>
-      <Text style={styles.line}>Scan the QR code printed in the server's terminal.</Text>
-      <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={scanned} />
-      {problem ? <Text style={styles.error}>{problem}</Text> : null}
-      {onCancel ? <Button label="Cancel" onPress={onCancel} /> : null}
-    </View>
-  );
-}
-
-function Button({ label, onPress }) {
-  return (
-    <Pressable style={styles.button} onPress={onPress}>
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
+    <Screen>
+      <View style={styles.center}>
+        <Text style={styles.title}>Pair with your laptop</Text>
+        <Text style={styles.line}>Scan the QR code printed in the server's terminal.</Text>
+        <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={scanned} />
+        {problem ? <Text style={styles.error}>{problem}</Text> : null}
+        {onCancel ? <Button kind="secondary" label="Cancel" onPress={onCancel} /> : null}
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
-  title: { fontSize: 22, fontWeight: '600' },
-  line: { fontSize: 16, textAlign: 'center' },
-  small: { fontSize: 13, color: '#666' },
-  error: { fontSize: 14, color: '#b00020', textAlign: 'center' },
+  blank: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  back: { fontSize: 17, color: colors.accent },
+  title: { fontSize: 22, fontWeight: '600', color: colors.text },
+  line: { fontSize: 16, textAlign: 'center', color: colors.text },
+  small: { fontSize: 13, color: colors.muted },
+  error: { fontSize: 14, color: colors.danger, textAlign: 'center' },
   camera: { width: 280, height: 280 },
   row: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  button: { backgroundColor: '#1a73e8', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '500' },
 });
