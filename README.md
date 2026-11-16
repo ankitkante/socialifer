@@ -23,7 +23,8 @@ npm start               # opens on http://localhost:3000
 - **Previews:** each platform's card shows a preview under its settings.
 - **After posting:** links to each post, **Send again** for platforms that failed, and a reminder to post it on Substack by hand (Copy text, Share, Done).
 - **Storage:** the app keeps copies of attached photos and videos; they're deleted a week after a post went out everywhere. Finished posts stay in the list until you delete them.
-- **Run it:** `cd mobile && npm install` once, then `npm run sp-mobile-app` from here and open it in **Expo Go**.
+- **Install it:** `npm run sp-mobile-apk` builds an APK on Expo's servers (needs a free Expo account; takes 10–20 minutes). Open the link it prints on the phone and install it, allowing installs from unknown sources if asked.
+- **Develop it:** `cd mobile && npm install` once, then `npm run sp-mobile-app` from here and open it in **Expo Go**.
 - **Pair:** `npm start` prints a pairing QR code. Scan it in the app (not the camera app). The phone and laptop must be on the same Wi-Fi; allow Node.js on private networks if Windows asks.
 - **Unpair every phone:** delete `phone/pairing.json` and restart the server.
 
