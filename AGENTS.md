@@ -23,8 +23,9 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | Path | Role |
 |---|---|
 | `server.js` | HTTP server: routing, host/forwarding guard, `/api/*` endpoints, fan-out to platforms |
-| `publish.js` | What the page and the phone app are told about each platform (`describe`, `canCompress`) |
+| `publish.js` | `publish()`: posting to the selected platforms (checks, compression, burn-ins, results), used by `/api/post` and the phone queue; also `describe`, `canCompress`, `failureMessage` |
 | `phone.js` | The phone app's server on `PHONE_PORT` (Wi-Fi): signature check, pairing key in `phone/pairing.json`, the pairing QR code, `/app/*` endpoints |
+| `queue.js` | Phone posts on the laptop: `queue/<id>/` (`post.json` and files by index), checked on arrival, posted one at a time through `publish()`, kept until the phone collects the results (7 days at most) |
 | `mobile/` | The phone app (Expo, Android). `App.js`; `src/laptop.js` (pairing, signed calls), `src/sign.js` (must match `signature()` in `phone.js`). `metro.config.js` lets it import `public/rules.js`. Follow `mobile/AGENTS.md` (Expo's own guidance) there |
 | `media.js` | Upload storage in `uploads/`, public `/media/*` serving (with Range), 24h cleanup, and ffmpeg copies: compressed (`fitVideo`) and with burned-in subtitles (`burnSubtitles`) |
 | `public/index.html` | The page's markup only (no build step) |
@@ -179,6 +180,7 @@ Smaller things found in the same test:
 - **Code:** Expo (React Native), Android only, in `mobile/` in this repo, so it can share `public/rules.js` with the server.
 - **Offline first:** posts are saved on the phone. Tapping Post marks a post ready; drafts stay on the phone and are never sent.
 - **Hand-over:** when the phone reaches the laptop over Wi-Fi, every ready post goes to the server automatically. The server keeps the queue on disk (it must survive restarts), so the phone can leave afterwards.
+- **Queue endpoints (built):** `PUT /app/posts/<id>` (the phone makes the 32-hex id, so a resend never posts twice; image fields are `{ file: n }`), `PUT /app/posts/<id>/files/<n>`, `POST /app/posts/<id>/ready`, `GET /app/posts?ids=…` (state, missing files, live steps, results) and `DELETE /app/posts/<id>`. States: receiving → waiting → posting → done; a restart mid-posting makes it `unknown`, never retried. Files are copied into `uploads/` only while their post is being posted (`importFile`), then deleted.
 - **Processing:** the server checks (`problemsFor`) and compresses (`fitVideo`) phone posts exactly as it does web posts. Rejected posts and failed platforms are shown on the phone, and the post stays there to fix.
 - **Pairing (built):** at startup the server prints a QR code holding `SP:<ip>:<port>:<key>` (capitals and a 128-bit key keep it small enough to fit the terminal). Scan it in the app, not the camera app. Scan again if the address changes; `PHONE_HOST` overrides the guessed address.
 - **Phone port (built):** a separate plain-HTTP port (`PHONE_PORT`, default 3001) with only `/app/*` endpoints and signed requests (invariant 6). HTTPS was dropped: it needed a certificate package and a custom Android build instead of Expo Go. Post content can be read on the Wi-Fi; the key and posting can't be abused. The web page's port stays local-only (invariant 1).

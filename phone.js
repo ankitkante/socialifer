@@ -7,12 +7,14 @@ import os from 'node:os';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import QRCode from 'qrcode';
 import { platforms } from './platforms/index.js';
-import { canCompress, describe } from './publish.js';
+import { canCompress, describe, publish } from './publish.js';
+import { createQueue } from './queue.js';
 import { httpError } from './media.js';
 import { log } from './log.js';
 
 const DIR = new URL('./phone/', import.meta.url);
 const PAIRING = new URL('pairing.json', DIR);
+const QUEUE_DIR = new URL('./queue/', import.meta.url);
 const DEFAULT_PORT = 3001;
 // Phone and laptop clocks are both set from the internet, so a minute either way is plenty.
 const MAX_SKEW_MS = 60_000;
@@ -95,12 +97,20 @@ async function readBody(req) {
   return Buffer.concat(chunks);
 }
 
+function parseJson(raw) {
+  try {
+    return JSON.parse(raw?.toString('utf8') ?? '');
+  } catch {
+    throw httpError(400, "The request wasn't valid JSON");
+  }
+}
+
 function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(body));
 }
 
-export function createPhoneServer(key) {
+export function createPhoneServer(key, queue) {
   const seen = new Map();
   return http.createServer(async (req, res) => {
     try {
@@ -108,19 +118,37 @@ export function createPhoneServer(key) {
       const type = req.headers['content-type'] || '';
       // A file is checked before its body is read, so an unpaired device can't make us store anything.
       let digest;
+      let raw = null;
       if (/^(image|video)\//.test(type)) {
         const length = req.headers['content-length'] ?? '';
         if (!/^\d+$/.test(length)) throw httpError(411, 'The upload needs a Content-Length');
         digest = `${type}:${length}`;
       } else {
-        digest = sha256(await readBody(req));
+        raw = await readBody(req);
+        digest = sha256(raw);
       }
       const problem = rejection(key, seen, req, digest);
       if (problem) return sendJson(res, 401, { error: problem });
 
-      const { pathname } = new URL(req.url, 'http://phone');
+      const { pathname, searchParams } = new URL(req.url, 'http://phone');
       if (req.method === 'GET' && pathname === '/app/hello') {
         return sendJson(res, 200, { name: 'Social Post', ffmpeg: canCompress, platforms: platforms.map(describe) });
+      }
+      if (req.method === 'GET' && pathname === '/app/posts') {
+        const ids = (searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 100);
+        return sendJson(res, 200, queue.status(ids));
+      }
+      const post = /^\/app\/posts\/([a-f0-9]{32})(\/ready|\/files\/(\d{1,3}))?$/.exec(pathname);
+      if (post) {
+        const [, id, rest, n] = post;
+        if (req.method === 'PUT' && !rest) return sendJson(res, 200, await queue.create(id, parseJson(raw)));
+        if (req.method === 'PUT' && n !== undefined) return sendJson(res, 200, await queue.receiveFile(id, Number(n), req));
+        if (req.method === 'POST' && rest === '/ready') return sendJson(res, 200, await queue.ready(id));
+        if (req.method === 'DELETE' && !rest) {
+          await queue.remove(id);
+          res.writeHead(204);
+          return res.end();
+        }
       }
       sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
@@ -141,7 +169,10 @@ export async function startPhoneServer() {
     return null;
   }
   const key = await loadKey();
-  const server = createPhoneServer(key);
+  const queue = createQueue({ dir: QUEUE_DIR, publish });
+  await queue.load();
+  setInterval(() => queue.cleanup().catch((err) => log.warn(`Couldn't clean up old phone posts: ${err.message}`)), 60 * 60 * 1000).unref();
+  const server = createPhoneServer(key, queue);
   try {
     // All interfaces, because the Wi-Fi address can change; requests from outside home networks are refused.
     await new Promise((resolve, reject) => {
