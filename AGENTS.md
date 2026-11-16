@@ -158,11 +158,25 @@ Smaller things found in the same test:
 
 ### Ideas for later (priority order)
 
-- **Hosted server:** run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and a phone app has something to talk to. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg. Fallback if hosting doesn't work out: the phone app keeps the queue and hands it to the laptop server when they're on the same Wi-Fi.
-- **Scheduling: a queue and a calendar.** Write a post when the idea comes and add it to a queue; the app publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the hosted server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the server was down are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
-- **Mobile app (React Native):** a separate app, with the hosted server as its backend, using the same endpoints as the web page (`/api/platforms`, `/api/media`, `/api/post`). It could also **hand Notes over to Substack's app**: open Substack's composer with the text and images filled in, so you only tap Post. Not yet checked whether Substack's app accepts shared text and images.
+- **Mobile app (decided 2026-11-16, not built):** see "Mobile app" below.
+- **Hosted server (not for now, maybe later):** run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and the phone app can post from anywhere. Put off on 2026-11-16 to save costs; the mobile app uses the laptop server for now. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg.
+- **Scheduling: a queue and a calendar.** Comes after the mobile app's first version. Write a post when the idea comes and add it to a queue; the laptop server publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the laptop was off are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
+- **Hand Notes over to Substack's app** (from the mobile app): open Substack's composer with the text and images filled in, so you only tap Post. Not yet checked whether Substack's app accepts shared text and images.
 - **Posting to Reddit:** a new platform.
 - **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
 - **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
-- **Drafts and post history:** deferred.
+- **Drafts and post history:** deferred (the mobile app keeps its own drafts).
 - **YouTube Posts tab** (formerly Community: text, images, polls): the YouTube Data API reference lists no way to create these, so for now they're posted by hand. To be double-checked in the API docs.
+
+### Mobile app (decided 2026-11-16, not built)
+
+- **Laptop server as the backend:** to save costs, no hosted server for now (it stays in "Ideas for later").
+- **Code:** Expo (React Native), Android only, in `mobile/` in this repo, so it can share `public/rules.js` with the server.
+- **Offline first:** posts are saved on the phone. Tapping Post marks a post ready; drafts stay on the phone and are never sent.
+- **Hand-over:** when the phone reaches the laptop over Wi-Fi, every ready post goes to the server automatically. The server keeps the queue on disk (it must survive restarts), so the phone can leave afterwards.
+- **Processing:** the server checks (`problemsFor`) and compresses (`fitVideo`) phone posts exactly as it does web posts. Rejected posts and failed platforms are shown on the phone, and the post stays there to fix.
+- **Pairing:** at startup the server prints a QR code in the terminal (like Expo's) with its current Wi-Fi address, a secret key and its certificate's fingerprint. Scan again if the address changes.
+- **Phone port:** a separate HTTPS port on the Wi-Fi, with a self-made certificate the phone trusts via the QR code, and only the app's endpoints. Every request needs the key. The web page's port stays local-only (invariant 1).
+- **`qrcode` npm package:** approved by the user as an exception to "No dependencies".
+- **First version:** the web page's features (per-platform settings, previews) for text, images and videos posted as they are. No subtitles: videos are edited and subtitled on the laptop.
+- **Later:** staggered sending (to be discussed), then scheduling with a calendar.
