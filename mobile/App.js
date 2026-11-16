@@ -100,7 +100,7 @@ export default function App() {
   }
   if (screen.name === 'log') return <ActivityLog onBack={() => setScreen({ name: 'laptop' })} />;
   if (screen.name === 'compose') {
-    return <Compose initial={screen.post} platforms={platforms} settings={loadSettings()} onClose={close} />;
+    return <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} onClose={close} onOpen={(post) => setScreen({ name: 'compose', post })} />;
   }
   return (
     <>

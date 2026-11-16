@@ -5,6 +5,7 @@ import { FlatList, Image, Modal, Pressable, StyleSheet, Switch, Text, TextInput,
 import { FIELDS } from '../../public/fields.js';
 import { countFor, effectiveText, resolveTitle, splitThread } from '../../public/rules.js';
 import { mediaFile } from './store';
+import Preview from './Preview';
 import { colors } from './ui';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
@@ -74,6 +75,7 @@ export default function PlatformCard({ p, post, check, editable, onOption, onTex
           ) : null}
           {more ? extra.map(field) : null}
           {spec.info ? <Text style={styles.hint}>{spec.info}</Text> : null}
+          <Preview p={p} post={post} />
         </View>
       ) : null}
     </View>

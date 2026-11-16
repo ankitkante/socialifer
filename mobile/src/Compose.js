@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { problemsFor, adjustmentsFor, formatDuration } from '../../public/rules.js';
-import { addMedia, deletePost, loadSettings, mediaFile, newId, removeMedia, savePost, saveSettings } from './store';
+import { addMedia, copyPost, deletePost, loadSettings, mediaFile, newId, removeMedia, savePost, saveSettings } from './store';
+import Finished from './Finished';
 import { optionsFor, withDefaults } from './options';
 import PlatformCard from './Fields';
 import { log, short } from './log';
@@ -12,7 +13,8 @@ import { Button, Screen, colors } from './ui';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
 
-export default function Compose({ initial, platforms, settings, onClose }) {
+// onOpen: shows another post, e.g. the copy made by Send again.
+export default function Compose({ initial, platforms, settings, onClose, onOpen }) {
   // Posts saved before per-platform settings existed get the default values.
   const [post, setPost] = useState(() => ({ ...initial, options: withDefaults(initial.options, settings.sticky) }));
   const [notice, setNotice] = useState('');
@@ -185,7 +187,17 @@ export default function Compose({ initial, platforms, settings, onClose }) {
           />
         ))}
 
-        {post.results ? <Results results={post.results} /> : null}
+        {post.state === 'done' ? (
+          <Finished
+            post={post}
+            onUpdate={(changes) => { const next = { ...post, ...changes }; savePost(next); setPost(next); }}
+            onSendAgain={(ids) => {
+              const copy = copyPost(post, ids);
+              log(`Post ${short(post.sendId)}: copied to a new draft to send again to ${ids.join(', ')}`);
+              onOpen(copy);
+            }}
+          />
+        ) : null}
 
         {editable ? (
           <View style={{ gap: 6 }}>
@@ -204,19 +216,6 @@ export default function Compose({ initial, platforms, settings, onClose }) {
 export const STATE_LABEL = {
   draft: 'Draft', ready: 'Ready', sending: 'Sending to laptop', handed: 'On the laptop', done: 'Finished',
 };
-
-export function Results({ results }) {
-  return (
-    <View style={{ gap: 4 }}>
-      {results.map((r) => (
-        <Text key={r.id} style={r.ok ? styles.ok : styles.problem}>
-          {r.ok ? '✓' : '✕'} {r.name}{r.ok ? (r.url ? `: ${r.url}` : ': posted') : `: ${r.error}`}
-          {r.warnings?.length ? `\n  ⚠ ${r.warnings.join('\n  ⚠ ')}` : ''}
-        </Text>
-      ))}
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

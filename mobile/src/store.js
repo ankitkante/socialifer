@@ -85,11 +85,24 @@ const MEDIA_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 export function pruneOldMedia() {
   for (const post of listPosts()) {
     const allPosted = post.state === 'done' && post.results?.length && post.results.every((r) => r.ok);
-    if (!allPosted || post.mediaRemoved || !post.media.length || Date.now() - (post.finishedAt ?? 0) < MEDIA_KEEP_MS) continue;
+    // Kept until the Substack reminder is done, since its Share button sends these files.
+    if (!allPosted || !post.substackDone || post.mediaRemoved || !post.media.length || Date.now() - (post.finishedAt ?? 0) < MEDIA_KEEP_MS) continue;
     for (const item of [...post.media, ...fieldImages(post)]) removeMedia(post, item);
     savePost({ ...post, mediaRemoved: true });
     log(`Post ${short(post.sendId)}: removed its media copies, a week after it went out everywhere`);
   }
+}
+
+// A new draft from a finished post, for sending again to the platforms that failed. Its files are copied, so the
+// finished post keeps its own as history.
+export function copyPost(post, platforms) {
+  const copy = { ...post, id: newId(), platforms, state: 'draft', createdAt: Date.now() };
+  for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'substackDone', 'mediaRemoved']) delete copy[key];
+  const dir = postDir(copy.id);
+  dir.create({ intermediates: true });
+  for (const item of [...post.media, ...fieldImages(post)]) mediaFile(post, item).copySync(new File(dir, item.file));
+  savePost(copy);
+  return copy;
 }
 
 export function removeMedia(post, item) {

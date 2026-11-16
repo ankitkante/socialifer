@@ -19,7 +19,7 @@ function statusLine(post, live) {
   }
   const ok = (post.results ?? []).filter((r) => r.ok).length;
   const failed = (post.results ?? []).length - ok;
-  return `Finished · ${ok} posted${failed ? `, ${failed} failed` : ''}`;
+  return `Finished · ${ok} posted${failed ? `, ${failed} failed` : ''}${ok && !post.substackDone ? ' · Substack: not done' : ''}`;
 }
 
 export default function Posts({ posts, live, connection, onOpen, onNew, onPair }) {
