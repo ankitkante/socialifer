@@ -137,12 +137,22 @@ function copyButton(label, value) {
   return button;
 }
 
-// The reminder to post on Substack by hand. text is passed in because a successful post clears the box.
+// "Finish by hand": what's left to do by hand. text is passed in because a successful post clears the box.
+// substack: show the reminder to post on Substack (not on a retry, which is the same post).
 // files: the videos saved for it (null for a post without video); an empty list means saving them failed.
+// todos: platforms' own items, { name, text, label, url } (YouTube: make a private video public).
 // It closes only with Done: Escape is refused, and if the browser closes it anyway (Chrome does on a
 // second Escape), it opens again.
-function showSubstackReminder(text, files = null) {
-  const dialog = $('substack-reminder');
+function showFinishByHand(text, { substack = true, files = null, todos = [] } = {}) {
+  if (!substack && !todos.length) return;
+  const dialog = $('todo-dialog');
+  const items = $('todo-items');
+  items.hidden = !todos.length;
+  items.replaceChildren(...todos.map((t) => el('div', { className: 'todo-part' },
+    el('p', { textContent: t.text }),
+    el('a', { href: t.url, target: '_blank', rel: 'noopener', textContent: t.label }))));
+  $('substack-part').hidden = !substack;
+  if (!substack) files = null;
   $('substack-copy').replaceWith(Object.assign(copyButton('Copy text', text), { id: 'substack-copy', hidden: !text.trim() }));
   const list = $('substack-files');
   list.hidden = !files;
@@ -158,7 +168,7 @@ function showSubstackReminder(text, files = null) {
   let done = false;
   dialog.oncancel = (event) => event.preventDefault();
   dialog.onclose = () => { if (!done) dialog.showModal(); };
-  $('substack-done').onclick = () => {
+  $('todo-done').onclick = () => {
     done = true;
     dialog.close();
     // Nothing to tell the user if this fails: the server logs it, and the file just stays.
@@ -183,7 +193,7 @@ export async function post(targets, text) {
   setPhase('posting');
   setStatus('You can leave this page open. Slow steps, like video processing, show above.');
   // Text and images: the reminder doesn't wait for the platforms. Videos: it waits for the saved copy.
-  if (!retry && !hasVideo) showSubstackReminder(text);
+  if (!retry && !hasVideo) showFinishByHand(text);
   let saved = [];
 
   let done = false;
@@ -237,7 +247,9 @@ export async function post(targets, text) {
   }
 
   state.posting = false;
-  if (!retry && hasVideo && rows.some((r) => r.state === 'ok')) showSubstackReminder(text, saved);
+  // Videos: everything at the end, including platforms' items (only video platforms have them for now).
+  const todos = rows.filter((r) => r.state === 'ok' && r.todo).map((r) => r.todo);
+  if (hasVideo && rows.some((r) => r.state === 'ok')) showFinishByHand(text, { substack: !retry, files: saved, todos });
   const failed = rows.filter((r) => r.state === 'fail');
   const warnings = rows.reduce((n, r) => n + (r.warnings?.length ?? 0), 0);
   const warned = warnings ? `, with ${warnings} warning${warnings > 1 ? 's' : ''}` : '';

@@ -298,6 +298,10 @@ dialog.substack[open] { display: flex; flex-direction: column; gap: 12px; }
 dialog.substack::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog.substack strong { font-size: 17px; }
 dialog.substack p { margin: 0; color: var(--muted); font-size: 14px; }
+.todo-part, .todo-items { display: flex; flex-direction: column; gap: 8px; }
+.todo-part[hidden], .todo-items[hidden] { display: none; }
+.todo-part b { font-size: 15px; }
+.todo-items a { color: var(--accent); font-weight: 600; font-size: 14px; }
 .substack-files { display: flex; flex-direction: column; gap: 8px; }
 .substack-files[hidden] { display: none; }
 .substack-file { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--sunken); }

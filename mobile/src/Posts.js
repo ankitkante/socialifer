@@ -3,6 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button, Screen, colors } from './ui';
 import { tunnelProblem } from './status';
 import Logo from './Logo';
+import { needsFinishing } from './Substack';
 
 function statusLine(post, live) {
   if (post.state === 'draft') return post.error ? `Draft · the laptop refused it: ${post.error}` : 'Draft';
@@ -21,7 +22,7 @@ function statusLine(post, live) {
   }
   const ok = (post.results ?? []).filter((r) => r.ok).length;
   const failed = (post.results ?? []).length - ok;
-  return `Finished · ${ok} posted${failed ? `, ${failed} failed` : ''}${ok && !post.substackDone ? ' · Substack: not done' : ''}`;
+  return `Finished · ${ok} posted${failed ? `, ${failed} failed` : ''}${needsFinishing(post) ? ' · Finish by hand' : ''}`;
 }
 
 export default function Posts({ posts, live, platforms, connection, onOpen, onNew, onPair }) {

@@ -96,17 +96,23 @@
   <button type="button" class="primary" id="bar-post" disabled>Post</button>
 </div>
 
-<!-- Substack can't be posted to from the app (see AGENTS.md), so every post ends with a reminder to post it there
-     by hand: right after Post for text and images, once every platform has finished for videos (panel.js).
-     It closes only with Done. -->
-<dialog class="substack" id="substack-reminder" aria-labelledby="substack-title">
-  <strong id="substack-title">Post this on Substack too</strong>
-  <p>The app can't post to Substack, so add it there yourself.</p>
-  <div class="substack-files" id="substack-files" hidden></div>
+<!-- What's left to do by hand after posting (panel.js). Substack can't be posted to from the app (see AGENTS.md):
+     its part opens right after Post for text and images, once every platform has finished for videos. Platforms
+     add their own items (YouTube: make a private video public). It closes only with Done. -->
+<dialog class="substack" id="todo-dialog" aria-labelledby="todo-title">
+  <strong id="todo-title">Finish by hand</strong>
+  <div class="todo-items" id="todo-items" hidden></div>
+  <section class="todo-part" id="substack-part">
+    <b>Post this on Substack too</b>
+    <p>The app can't post to Substack, so add it there yourself.</p>
+    <div class="substack-files" id="substack-files" hidden></div>
+    <div class="substack-actions">
+      <a href="https://substack.com/" target="_blank" rel="noopener">Open Substack</a>
+      <button type="button" class="copy" id="substack-copy">Copy text</button>
+    </div>
+  </section>
   <div class="substack-actions">
-    <a href="https://substack.com/" target="_blank" rel="noopener">Open Substack</a>
-    <button type="button" class="copy" id="substack-copy">Copy text</button>
-    <button type="button" class="primary" id="substack-done">Done</button>
+    <button type="button" class="primary" id="todo-done">Done</button>
   </div>
 </dialog>
 

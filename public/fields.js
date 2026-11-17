@@ -21,7 +21,8 @@ export const FIELDS = {
     textLabel: 'Description',
     main: [
       { key: 'title', type: 'text', label: 'Title', wide: true, beforeText: true },
-      { key: 'privacy', type: 'select', label: 'Visibility', sticky: true, initial: 'public',
+      // Not remembered: every video starts private, and "Finish by hand" links to YouTube Studio to make it public.
+      { key: 'privacy', type: 'select', label: 'Visibility', initial: 'private',
         choices: [['public', 'Public'], ['unlisted', 'Unlisted'], ['private', 'Private']] },
       { key: 'publishAt', type: 'datetime-local', label: 'Schedule (optional)' },
       { key: 'audioLanguage', type: 'select', label: 'Audio language', sticky: true, initial: '', choices: AUDIO_LANGUAGES,
@@ -37,7 +38,7 @@ export const FIELDS = {
       { key: 'recordingDate', type: 'date', label: 'Recording date' },
       { key: 'language', type: 'select', label: 'Title and description language', sticky: true, initial: 'en', choices: LANGUAGES },
     ],
-    info: 'Until your Google API project passes YouTube\'s audit, uploads stay private whatever you choose here (see README).',
+    info: 'Videos go up private unless you choose otherwise; after posting, "Finish by hand" links to YouTube Studio to make one public. Until your Google API project passes YouTube\'s audit, YouTube may keep uploads private whatever you choose here (see README).',
   },
   instagram: {
     textLabel: 'Caption',
@@ -68,3 +69,6 @@ export const FIELDS = {
 
 export const fieldsOf = (id) => [...(FIELDS[id]?.main ?? []), ...(FIELDS[id]?.more ?? [])];
 export const initialOf = (f) => f.initial ?? (f.type === 'check' ? false : '');
+// A remembered value, unless the list no longer offers it (e.g. an audio language from before the Hindi/English list).
+export const savedOr = (f, saved) => saved === undefined || (f.type === 'select' && !f.choices.some(([v]) => v === saved))
+  ? initialOf(f) : saved;
