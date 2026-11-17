@@ -1,4 +1,4 @@
-# Social Post
+# Socialifer
 
 Write a post once, attach photos or videos, and publish it to several social platforms at the same time, from a single page.
 
@@ -102,7 +102,7 @@ To install ffmpeg on Windows, run `winget install --id Gyan.FFmpeg` (on a Mac, `
 **Generate** uses the separate transcribe project, which runs Whisper (`large-v3`) on this PC. It's optional, like ffmpeg: without it you can still upload an SRT. Set it up in this order:
 
 1. **ffmpeg**, for burning subtitles into videos (see above). Without it, YouTube tracks still work, but X, Instagram and the rest can't get subtitles.
-2. **transcribe:** get the project and follow its README. That sets up its `.venv` and downloads the Whisper model once (`python subtitles.py --download-model large-v3`, about 3 GB). Social Post never downloads the model.
+2. **transcribe:** get the project and follow its README. That sets up its `.venv` and downloads the Whisper model once (`python subtitles.py --download-model large-v3`, about 3 GB). Socialifer never downloads the model.
 3. **`TRANSCRIBE_DIR`** in `.env`: the transcribe folder, e.g. `C:\projects\transcribe`.
 4. **Restart** the server. The startup message and the header say whether it was found:
    - **Subtitles ready:** done; Generate appears under an attached video.
@@ -110,7 +110,7 @@ To install ffmpeg on Windows, run `winget install --id Gyan.FFmpeg` (on a Mac, `
    - **No subtitle generator:** `TRANSCRIBE_DIR` isn't set.
 
 - **Model missing:** Generate fails with transcribe's message, which gives the command to run once.
-- **Same environment:** start Social Post from a terminal that has the same environment variables you used for the model download (such as `HF_HOME`, if transcribe's README has you set it). Otherwise transcribe looks for the model in the wrong place.
+- **Same environment:** start Socialifer from a terminal that has the same environment variables you used for the model download (such as `HF_HOME`, if transcribe's README has you set it). Otherwise transcribe looks for the model in the wrong place.
 - **Fonts outside Windows:** burned-in text uses Noto Sans. Install **Noto Sans** and **Noto Sans Devanagari**, or Hindi burns in as empty boxes. Check with Review lines' Burned in preview first; on Windows, Nirmala UI is used and nothing is needed.
 - **Speed:** about 5 minutes for a 1-minute clip in Hindi and English, on this laptop's CPU.
 - **One at a time:** Whisper needs more than 4 GB of free memory, so several videos wait in a queue. Close Resolve or Chrome if it fails for lack of memory.
@@ -150,7 +150,7 @@ When YouTube is selected, its tab also has the title, visibility (private unless
 - On LinkedIn, simple hashtags like `#AI` become real hashtags, but `#with_underscore` is posted as plain text.
 - **X** has no free API plan for new developer accounts (pay-per-use since February 2026). Buy credits at [console.x.com](https://console.x.com) before posting; a post costs about $0.01. Set the app permissions to **Read and write** *before* generating the access token.
 - **LinkedIn** API versions expire after about a year. If you see a version error, set `LINKEDIN_VERSION` to a recent `YYYYMM` value.
-- **Substack** isn't supported: it has no official API for posting, and its website blocks Notes posted from outside a browser. After Post, a dialog reminds you to post it on Substack yourself, with a button that copies the text. For a video post it opens once every platform has finished, with the path of a copy saved in `Videos\Social Post` in your user folder (the one X got, with any burned-in subtitles). The copy is deleted when you click Done.
+- **Substack** isn't supported: it has no official API for posting, and its website blocks Notes posted from outside a browser. After Post, a dialog reminds you to post it on Substack yourself, with a button that copies the text. For a video post it opens once every platform has finished, with the path of a copy saved in `Videos\Socialifer` in your user folder (the one X got, with any burned-in subtitles). The copy is deleted when you click Done.
 
 ## Ideas for later
 

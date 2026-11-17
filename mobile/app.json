@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Socialifer",
-    "slug": "social-post",
+    "slug": "socialifer",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "socialifer",
@@ -47,8 +47,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "6da9c076-c48f-487f-8dae-f4f8313a6124"
+        "projectId": "450e18ac-a147-44bb-b805-0bca79f5521c"
       }
-    }
+    },
+    "owner": "ankitkante"
   }
 }

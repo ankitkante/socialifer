@@ -37,7 +37,7 @@ let script;
 let subtitler;
 
 before(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'social-post-lyrics-'));
+  dir = await mkdtemp(join(tmpdir(), 'socialifer-lyrics-'));
   const bin = process.platform === 'win32' ? join(dir, '.venv', 'Scripts') : join(dir, '.venv', 'bin');
   await mkdir(bin, { recursive: true });
   python = join(bin, process.platform === 'win32' ? 'python.exe' : 'python');
@@ -80,7 +80,7 @@ test('says what to fix when TRANSCRIBE_DIR is wrong, not transcribe, or has no v
   assert.match(await problemFor(join(dir, 'nowhere')), /there's no folder there\. Fix the path in \.env/);
   assert.match(await problemFor(join(dir, '.venv')), /isn't the transcribe folder: it has no subtitles\.py/);
 
-  const noVenv = await mkdtemp(join(tmpdir(), 'social-post-lyrics-novenv-'));
+  const noVenv = await mkdtemp(join(tmpdir(), 'socialifer-lyrics-novenv-'));
   t.after(() => rm(noVenv, { recursive: true, force: true }));
   await writeFile(join(noVenv, 'subtitles.py'), '');
   assert.match(await problemFor(noVenv), /virtual environment isn't set up .*transcribe's README/);

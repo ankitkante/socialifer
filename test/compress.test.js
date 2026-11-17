@@ -13,7 +13,7 @@ const tools = await videoTools();
 
 // Runs only where ffmpeg and ffprobe are installed; otherwise it's reported as skipped.
 test('compresses a video under a size limit with ffmpeg', { skip: !tools && 'ffmpeg is not installed' }, async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'social-post-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'socialifer-test-'));
   try {
     // 10 seconds of noisy 1080x1920 test video with a tone, encoded at a high bitrate (~15 MB).
     const source = join(dir, 'source.mp4');
@@ -56,7 +56,7 @@ test('ends each subtitle line when the next one starts, so lines never stack', (
 });
 
 test('burns SRT subtitles into a copy of a video with ffmpeg', { skip: !tools && 'ffmpeg is not installed' }, async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'social-post-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'socialifer-test-'));
   // The subtitles filter reads the SRT from the uploads folder by its id, as a real upload would be.
   const uploads = fileURLToPath(new URL('../uploads/', import.meta.url));
   const subtitlesId = 'e'.repeat(32);
@@ -89,7 +89,7 @@ test('burns SRT subtitles into a copy of a video with ffmpeg', { skip: !tools &&
 });
 
 test('burns subtitles and fits a size limit in one ffmpeg run', { skip: !tools && 'ffmpeg is not installed' }, async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'social-post-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'socialifer-test-'));
   const uploads = fileURLToPath(new URL('../uploads/', import.meta.url));
   const subtitlesId = 'c'.repeat(32);
   try {

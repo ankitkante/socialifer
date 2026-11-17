@@ -85,7 +85,7 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 
 ## 9. Branding: Socialifer (decided 2026-11-17)
 
-Decided in the branding thread. The designs are on the canvas https://claude.ai/artifact/QCqti7p3vUfmGdzSjmGL6L (private to the user), page "Final four". The web app and the app use it since 2026-11-17; the repo and docs still say "Social Post".
+Decided in the branding thread. The designs are on the canvas https://claude.ai/artifact/QCqti7p3vUfmGdzSjmGL6L (private to the user), page "Final four". The web app, the app and the docs use it since 2026-11-17.
 
 - **Name:** Socialifer (so·sha·LIE·fer): "social" + Latin "-fer", carrier. socialifer.com and socialifer.in are registered; socialifer.app was skipped (too expensive).
 - **Logo:** Ring of fire, a glowing ring with sparks streaking out, like a Diwali chakri. The app sends posts out everywhere; the logo sends light out everywhere. Small sizes (tab icon) use a simpler version with fewer, thicker sparks. It can read as a sun; accepted.
@@ -105,7 +105,7 @@ To do, in suggested order:
 - **Social profiles:** the user's own accounts' names and pictures, where the app is mentioned.
 - **Brand in the app** (B): name, logo, colours and fonts done on the web app and the app (2026-11-17), checked in Expo Go. Left:
   - **Rebuild the APK** for the icon, name and package `com.socialifer.app` (a new app to Android: pair it again, then uninstall the old Social Post app).
-  - **Renames:** the GitHub repo, README and docs, the `~/Videos/Social Post` folder, and the EAS project slug `social-post`.
+  - **Renames (done 2026-11-17):** the GitHub repo (`ankitkante/socialifer`), README, docs, package name, the kept-videos folder (`~/Videos/Socialifer`), and a new Expo project `socialifer` (a slug can't be renamed; the old `social-post` project was deleted).
   - **Saved settings** keep their `social-post:` keys on purpose, so nothing is lost.
 - **Before going public:** a trademark search in India, and a check of the Play Store and App Store for the name.
 - **Open source or not:** the GitHub repo is public but has no license, so it's "all rights reserved" (readable, not reusable). Kept as is on 2026-11-17; decide later, for example MIT. The website doesn't call it open source until then.

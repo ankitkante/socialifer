@@ -95,7 +95,7 @@ export async function importFile(path, type, name) {
 
 // Videos saved for posting on Substack by hand go in the user's Videos folder, outside uploads/ so the
 // 24-hour cleanup can't delete one before it's uploaded. They're deleted when the reminder's Done is clicked.
-export const KEPT_DIR = join(homedir(), 'Videos', 'Social Post');
+export const KEPT_DIR = join(homedir(), 'Videos', 'Socialifer');
 
 // Copies a video there under its own name (with (2), (3)… when taken) and returns the full path.
 export async function keepVideo(m) {
@@ -393,7 +393,7 @@ async function burn(m, subtitles, onProgress, maxBytes) {
   const out = fileURLToPath(fileUrl(id));
   // The subtitles filter can't take a Windows path (its drive colon is a separator), so the cleaned
   // SRT goes in a temporary folder and ffmpeg runs there, given just the file name.
-  const work = await mkdtemp(join(tmpdir(), 'social-post-subtitles-'));
+  const work = await mkdtemp(join(tmpdir(), 'socialifer-subtitles-'));
   try {
     await writeFile(join(work, 'subtitles.srt'), separateCues(await readFile(fileUrl(subtitles.id), 'utf8')));
     // If a capped run still overshoots the limit, it's retried once aiming lower, as compression is.
