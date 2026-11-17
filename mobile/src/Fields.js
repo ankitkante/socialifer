@@ -2,11 +2,13 @@
 // Cards instead of the web page's tabs, so they can't be mistaken for the "Post to" pills.
 import { useState } from 'react';
 import { FlatList, Image, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { FIELDS } from '../../public/fields.js';
 import { countFor, effectiveText, resolveTitle, splitThread } from '../../public/rules.js';
 import { mediaFile } from './store';
 import Preview from './Preview';
 import { colors } from './ui';
+import Logo from './Logo';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
 
@@ -47,7 +49,7 @@ export default function PlatformCard({ p, post, check, editable, onOption, onTex
   return (
     <View style={styles.card}>
       <Pressable style={styles.head} onPress={() => setOpen(!open)}>
-        <Text style={styles.name}>{p.name}</Text>
+        <Logo id={p.id} name={p.name} size={20} />
         <Text style={[styles.count, count.over && { color: colors.danger }]}>{count.label}</Text>
         <Text style={styles.toggle}>{open ? 'Close' : 'Settings ›'}</Text>
       </Pressable>
@@ -63,6 +65,8 @@ export default function PlatformCard({ p, post, check, editable, onOption, onTex
             multiline
             editable={editable}
             value={text}
+            placeholder="No text"
+            placeholderTextColor={colors.placeholder}
             onChangeText={(value) => onText(p.id, value)}
             textAlignVertical="top"
           />
@@ -82,8 +86,50 @@ export default function PlatformCard({ p, post, check, editable, onOption, onTex
   );
 }
 
-// Dates are typed, as the phone has no date picker yet: YYYY-MM-DD, and for a time YYYY-MM-DD HH:MM.
-const DATE_HINT = { date: 'YYYY-MM-DD', 'datetime-local': 'YYYY-MM-DD HH:MM (24-hour, your time)' };
+// Values are kept as a browser's pickers give them, in the phone's own time: YYYY-MM-DD, or YYYY-MM-DDTHH:MM.
+const pad = (n) => String(n).padStart(2, '0');
+const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const timeOf = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function parseLocal(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(value ?? '');
+  return m ? new Date(m[1], m[2] - 1, m[3], m[4] ?? 0, m[5] ?? 0) : null;
+}
+
+// Android's own date dialog, then its time dialog for a date and time. Clear empties the field.
+function DateField({ f, value, editable, onChange }) {
+  const withTime = f.type === 'datetime-local';
+  const current = parseLocal(value);
+  const choose = () => {
+    const start = current ?? new Date();
+    DateTimePickerAndroid.open({
+      value: start,
+      mode: 'date',
+      onValueChange: (_, day) => {
+        if (!withTime) { onChange(dayOf(day)); return; }
+        const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), start.getHours(), start.getMinutes());
+        DateTimePickerAndroid.open({
+          value: at,
+          mode: 'time',
+          is24Hour: true,
+          onValueChange: (__, time) => onChange(`${dayOf(day)}T${timeOf(time)}`),
+        });
+      },
+    });
+  };
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={styles.label}>{f.label}</Text>
+      <View style={styles.imageRow}>
+        <Pressable style={[styles.input, { flex: 1 }]} onPress={() => editable && choose()} accessibilityRole="button">
+          <Text style={current ? styles.selectText : styles.placeholder}>
+            {current ? (withTime ? `${dayOf(current)}  ${timeOf(current)}` : dayOf(current)) : withTime ? 'Choose a date and time' : 'Choose a date'}
+          </Text>
+        </Pressable>
+        {editable && value ? <Pressable onPress={() => onChange('')} hitSlop={8}><Text style={styles.remove}>Clear</Text></Pressable> : null}
+      </View>
+    </View>
+  );
+}
 
 function Field({ f, value, post, editable, placeholder, onChange, onPickImage, onRemoveImage }) {
   let control;
@@ -107,21 +153,22 @@ function Field({ f, value, post, editable, placeholder, onChange, onPickImage, o
         </View>
       </View>
     );
+  } else if (f.type === 'date' || f.type === 'datetime-local') {
+    control = <DateField f={f} value={value} editable={editable} onChange={onChange} />;
   } else {
-    const isDate = f.type in DATE_HINT;
     control = (
       <View style={{ gap: 4 }}>
         <Text style={styles.label}>{f.label}</Text>
         <TextInput
           style={styles.input}
           editable={editable}
-          value={isDate ? String(value ?? '').replace('T', ' ') : String(value ?? '')}
-          placeholder={isDate ? DATE_HINT[f.type] : placeholder}
-          keyboardType={f.type === 'number' ? 'decimal-pad' : isDate ? 'numbers-and-punctuation' : 'default'}
+          value={String(value ?? '')}
+          placeholder={placeholder}
+          placeholderTextColor={colors.placeholder}
+          keyboardType={f.type === 'number' ? 'decimal-pad' : 'default'}
           multiline={f.type === 'textarea'}
           autoCapitalize="none"
-          // The rules and the laptop read a time as YYYY-MM-DDTHH:MM, the format a browser's picker gives.
-          onChangeText={(text) => onChange(f.type === 'datetime-local' ? text.trim().replace(' ', 'T') : text)}
+          onChangeText={onChange}
         />
       </View>
     );
@@ -166,7 +213,6 @@ function Select({ f, value, editable, onChange }) {
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.soft, borderRadius: 8, padding: 10, gap: 3 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { fontWeight: '600', color: colors.text },
   count: { flex: 1, color: colors.muted },
   toggle: { color: colors.accent },
   problem: { color: colors.danger },
@@ -176,6 +222,7 @@ const styles = StyleSheet.create({
   textBox: { minHeight: 90, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 10, fontSize: 15, color: colors.text },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: colors.text },
   selectText: { fontSize: 15, color: colors.text },
+  placeholder: { fontSize: 15, color: colors.placeholder },
   hint: { fontSize: 12, color: colors.muted },
   link: { color: colors.accent },
   remove: { color: colors.danger },

@@ -2,6 +2,7 @@
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button, Screen, colors } from './ui';
 import { tunnelProblem } from './status';
+import Logo from './Logo';
 
 function statusLine(post, live) {
   if (post.state === 'draft') return post.error ? `Draft · the laptop refused it: ${post.error}` : 'Draft';
@@ -23,7 +24,7 @@ function statusLine(post, live) {
   return `Finished · ${ok} posted${failed ? `, ${failed} failed` : ''}${ok && !post.substackDone ? ' · Substack: not done' : ''}`;
 }
 
-export default function Posts({ posts, live, connection, onOpen, onNew, onPair }) {
+export default function Posts({ posts, live, platforms, connection, onOpen, onNew, onPair }) {
   const tunnel = connection.state === 'connected' ? tunnelProblem(connection.status) : null;
   return (
     <Screen>
@@ -41,6 +42,14 @@ export default function Posts({ posts, live, connection, onOpen, onNew, onPair }
         ListEmptyComponent={<Text style={styles.empty}>No posts yet.</Text>}
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => onOpen(item)}>
+            <View style={styles.logos}>
+              {item.platforms.map((id) => {
+                // A platform that failed is greyed; the status line below says how many.
+                const failed = item.state === 'done' && (item.results ?? []).some((r) => r.id === id && !r.ok);
+                const name = platforms.find((p) => p.id === id)?.name ?? id;
+                return <Logo key={id} id={id} size={16} name={failed ? `${name}: failed` : name} color={failed ? colors.line : undefined} />;
+              })}
+            </View>
             <Text style={styles.text} numberOfLines={2}>{item.text.trim() || (item.media.length ? `${item.media.length} file${item.media.length > 1 ? 's' : ''}` : '(empty)')}</Text>
             <Text style={[styles.status, item.state === 'done' && (item.results ?? []).some((r) => !r.ok) && { color: colors.danger }]}>
               {statusLine(item, live)}
@@ -62,6 +71,7 @@ const styles = StyleSheet.create({
   warn: { color: colors.warn },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 32 },
   row: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line, gap: 4 },
+  logos: { flexDirection: 'row', gap: 8 },
   text: { fontSize: 15, color: colors.text },
   status: { fontSize: 13, color: colors.muted },
 });

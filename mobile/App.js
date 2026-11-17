@@ -136,6 +136,7 @@ export default function App() {
       <Posts
         posts={posts}
         live={live}
+        platforms={platforms}
         connection={connection}
         onOpen={(post) => setScreen({ name: 'compose', post })}
         onNew={() => setScreen({

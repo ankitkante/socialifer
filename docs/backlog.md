@@ -35,13 +35,8 @@ Everything still to do: features and fixes not built, and things built but not y
 ## 5. Composing and layout
 
 - **"Post to" pills look like the tabs** (W · live test, design first): the pills choose platforms; the tabs right below (All / YouTube / X / Instagram) open each platform's settings. The user keeps clicking a pill when they mean the tab, which also unselects the platform.
-- **Placeholders don't show** (P · phone test): neither "What do you want to post?" in the compose box nor YouTube's "Defaults to: …" title hint. No `TextInput` in `mobile/src` sets `placeholderTextColor`; the likely cause is Android's default hint colour (maybe dark mode) on the white boxes. Fix: set it everywhere, then check in light and dark mode.
-- **Date and time pickers** (P · phone test): Schedule and Recording date are typed today (`YYYY-MM-DD HH:MM`). Needs a new package (`@react-native-community/datetimepicker`, approval needed) and an APK rebuild.
 - **Thumbnail title tool** (B · live test, design first): add a title to an existing thumbnail inside the app. The user does this today in a separate Claude conversation ("Add caption to thumbnails"); ask what it does and what goes wrong. The previews already know the safe areas: an Instagram cover keeps 7.5–92.5% of the width and 21.875–78.125% of the height (`.safe-box` in `styles.css`); the Shorts player covers the bottom 25%. Hindi needs Nirmala UI on Windows.
-- **Duplicate a post** (P · phone test): copy any post into a new draft with the same text, platforms, settings and media, then change what's needed. `copyPost` in `store.js` (used by Send again) already does this for chosen platforms. **Decision:** Duplicate is hidden once the post's media copies are pruned (`mediaRemoved`).
 - **Rethink image handling on the phone** (P · phone test, 2026-11-17, design first): photos taken on a phone are often too big for the platforms (Instagram 8 MB, X 5 MB, YouTube thumbnails 2 MB), so in practice photos and thumbnails can't be posted from the phone. Today the app takes photos as they are (`quality: 1` in `Compose.js`) and only reports the size. This revisits the thumbnail decision in section 1 ("never shrink it for the user"); discuss the options with the user first.
-- **Delete posts waiting to go** (P · phone test, 2026-11-17): while the laptop isn't connected, a post marked ready (or half sent) can't be deleted; Delete only shows for drafts and finished posts (`Compose.js`). Wanted: Delete for posts marked ready that haven't started going to the laptop, on the phone only; the laptop is never told. Once sending starts, there's no Delete.
-- **Platform logos on the phone** (P · phone test, 2026-11-17, design first): the app is all text today. Wanted: logos (`public/icons/*.svg`, as on the web page) in the posts list, for the platforms each post is for or went to, and in the new post screen ("Post to" pills, platform cards). **Decision: logos, not names.** Drawing SVGs needs `react-native-svg` (runs in Expo Go); **approved by the user on 2026-11-17.**
 - **Drafts and post history** (W · idea): deferred for the web page. The phone app keeps its own drafts, and its finished posts act as a simple history.
 
 ## 6. Phone ↔ laptop
@@ -61,6 +56,7 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **Video and multi-file hand-over:** a video over the platform's size limit (compressed), several files, and resuming after Wi-Fi drops mid-upload.
 - **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel.
 - **Media cleanup** a week after posting.
+- **Built 2026-11-17, needs the APK rebuilt:** placeholders in light and dark mode (compose box, YouTube's title hint); the date and time dialogs for Schedule and Recording date, and Clear; Delete on a ready post (and its refusal once sending has started); Duplicate post (hidden once media is pruned); logos in the posts list (failed platforms greyed), the "Post to" pills (TalkBack reads the name) and the cards.
 
 **Already tested:**
 - **Connection:** pairing, the laptop check with Wi-Fi off and on, the installed APK connecting, the activity log's Connected line.
