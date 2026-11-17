@@ -34,6 +34,7 @@ The whole feature will be re-reviewed separately; these items wait for that.
 - **"Post to" pills look like the tabs** (W · live test, design first): the pills choose platforms; the tabs right below (All / YouTube / X / Instagram) open each platform's settings. The user keeps clicking a pill when they mean the tab, which also unselects the platform.
 - **Thumbnail title tool** (B · live test, design first): add a title to an existing thumbnail inside the app. The user does this today in a separate Claude conversation ("Add caption to thumbnails"); ask what it does and what goes wrong. The previews already know the safe areas: an Instagram cover keeps 7.5–92.5% of the width and 21.875–78.125% of the height (`.safe-box` in `styles.css`); the Shorts player covers the bottom 25%. Hindi needs Nirmala UI on Windows.
 - **Rethink image handling on the phone** (P · phone test, 2026-11-17, design first): photos taken on a phone are often too big for the platforms (Instagram 8 MB, X 5 MB, YouTube thumbnails 2 MB), so in practice photos and thumbnails can't be posted from the phone. Today the app takes photos as they are (`quality: 1` in `Compose.js`) and only reports the size. This revisits the thumbnail decision in section 1 ("never shrink it for the user"); discuss the options with the user first.
+- **Posts screen redesign** (P · idea, 2026-11-17, design first): the app's landing screen feels crude, just the working screen. Suggested: New post as a round plum ＋ button at the bottom right; the "Connected to laptop" line as a small green/amber chip by the Laptop link; rows with a photo thumbnail, the start of the text and platform logos, grouped under Ready, On the laptop and Finished; an empty screen with the Ring of fire mark and a line on how posting works;Splash screen like traditional apps.
 - **Drafts and post history** (W · idea): deferred for the web page. The phone app keeps its own drafts, and its finished posts act as a simple history.
 
 ## 6. Phone ↔ laptop
@@ -84,7 +85,7 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 
 ## 9. Branding: Socialifer (decided 2026-11-17)
 
-Decided in the branding thread. The designs are on the canvas https://claude.ai/artifact/QCqti7p3vUfmGdzSjmGL6L (private to the user), page "Final four". The app still says "Social Post" everywhere.
+Decided in the branding thread. The designs are on the canvas https://claude.ai/artifact/QCqti7p3vUfmGdzSjmGL6L (private to the user), page "Final four". The web app and the app use it since 2026-11-17; the repo and docs still say "Social Post".
 
 - **Name:** Socialifer (so·sha·LIE·fer): "social" + Latin "-fer", carrier. socialifer.com and socialifer.in are registered; socialifer.app was skipped (too expensive).
 - **Logo:** Ring of fire, a glowing ring with sparks streaking out, like a Diwali chakri. The app sends posts out everywhere; the logo sends light out everywhere. Small sizes (tab icon) use a simpler version with fewer, thicker sparks. It can read as a sun; accepted.
@@ -95,17 +96,17 @@ Decided in the branding thread. The designs are on the canvas https://claude.ai/
 To do, in suggested order:
 - **Website and privacy policy:** live 2026-11-17 at https://socialifer.com (see [website.md](website.md)): home, privacy policy with data deletion, terms, SEO files. Domain verified in Google Search Console and sitemap submitted. Still to do: connect the Pages project to GitHub so it updates on push (it was uploaded by hand).
 - **Website redesign:** the home page works but looks poor (2026-11-17, user: "terrible right now"). Redesign it, mockup first, once the site is live and the developer apps are done.
-- **Use hello@socialifer.com:** after the website exists. Put it where people and reviewers look for a contact, such as the website, the privacy policy, the developer apps' support email, and the social profiles. Decide where with the user.
+- **Use hello@socialifer.com:** done on the website (home, privacy, terms) and the Meta app. Left: the social profiles (with the item below).
 - **Developer apps:** rename and re-logo the apps on Google Cloud (YouTube), Meta, X and LinkedIn; their names show on sign-in screens. Logo: `brand/png/app-icon-192.png` (512 where bigger is accepted). Done except Google, which is parked.
   - **Meta (done 2026-11-17):** display name Socialifer, icon, contact hello@socialifer.com, privacy and terms links, and the data deletion instructions URL `https://socialifer.com/privacy#delete-data`. The app stays unpublished (development mode): App Review is only needed when other people use Socialifer, like Google's verification.
   - **X (done 2026-11-17):** app named Socialifer with the icon and description; website, organization, terms and privacy links set; the unused callback URI changed from the user's personal site to https://socialifer.com. Permissions untouched, so the `.env` tokens still work.
   - **LinkedIn (done 2026-11-17):** app named Socialifer with the logo and privacy link. Its required Company Page, "Social Post", was renamed to Socialifer with the profile-picture logo, a description and the website. The tagline "Write once. Post everywhere." (also the homepage headline) isn't final.
   - **Google (parked 2026-11-17):** project renamed; Branding page saved with the name Socialifer, the logo, the socialifer.com home, privacy and terms links, and `socialifer.com` as an authorized domain. The automatic brand check rejected the logo ("does not uniquely identify your brand"), even after the website header was changed to the same plum-square icon. The appeal's questionnaire asks whether the app is for personal use only, and Google doesn't review personal-use apps in production. That's the truth today, so it was parked: the branding only shows to other people signing in, and YouTube posting works without it. **Verify the Google branding when Socialifer opens to other users** (appeal with "the finding is incorrect": it's Socialifer's own original mark, imitating no other brand, and the same logo appears next to the name on every page of the verified socialifer.com and as its favicon).
 - **Social profiles:** the user's own accounts' names and pictures, where the app is mentioned.
-- **Brand in the app** (B): name, logo, colours and fonts on the web page and the phone app. Watch for:
-  - **Phone package** `com.socialpost.app`: a new package name is a new app to Android, so it has to be paired again. Easier now than later.
-  - **Saved settings** use `social-post:` keys in `localStorage`; carry them over, or the user's saved choices are lost.
-  - **Renames:** the repo, README and docs, and the `~/Videos/Social Post` folder.
+- **Brand in the app** (B): name, logo, colours and fonts done on the web app and the app (2026-11-17), checked in Expo Go. Left:
+  - **Rebuild the APK** for the icon, name and package `com.socialifer.app` (a new app to Android: pair it again, then uninstall the old Social Post app).
+  - **Renames:** the GitHub repo, README and docs, the `~/Videos/Social Post` folder, and the EAS project slug `social-post`.
+  - **Saved settings** keep their `social-post:` keys on purpose, so nothing is lost.
 - **Before going public:** a trademark search in India, and a check of the Play Store and App Store for the name.
 - **Open source or not:** the GitHub repo is public but has no license, so it's "all rights reserved" (readable, not reusable). Kept as is on 2026-11-17; decide later, for example MIT. The website doesn't call it open source until then.
 - **Nice to have:** a one-page brand guide (logo, colours, fonts, voice, dos and don'ts); a share image for socialifer.com; a small burst animation when a post goes live (design first).
