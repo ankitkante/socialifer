@@ -2,7 +2,26 @@
 
 Write a post once, attach photos or videos, and publish it to several social platforms at the same time, from a single page.
 
-Supported platforms: **X, Bluesky, Mastodon, Threads, Instagram, YouTube (videos and Shorts), LinkedIn, Facebook Pages, Telegram and Discord**.
+Supported platforms: **X, Bluesky, Mastodon, Threads, Instagram, YouTube (videos and Shorts), LinkedIn, Facebook Pages, Telegram and Discord**. Reddit is planned (see below).
+
+## About this project
+
+- **What it is:** a personal, self-hosted tool. One person runs it on their own computer to share their own posts. There is no hosted service, no other users and no accounts to sign up for.
+- **Who it's for:** creators who write or film something once and want it on every platform they use, without opening each app in turn. It's built by and for its author, a writer and video creator who posts in Hindi and English.
+- **Official APIs only:** every platform is reached through its documented API with the user's own credentials, kept in a local `.env` file. Where there's no official API (Substack), the app doesn't post; it reminds you to post by hand instead.
+- **Write-only:** it publishes the user's own posts. It doesn't read feeds, collect other people's content, scrape, or train any AI model on platform data.
+- **Low volume:** each post is started by a person clicking Post, typically a few posts a day.
+- **Private by design:** the server listens only on `127.0.0.1`, keys never reach the browser, and a phone app talks to it only over signed requests on the home Wi-Fi.
+
+### Reddit (planned)
+
+> **Own profile only.** This app will post only to the user's own Reddit profile, the account that signed in. It will never post to any subreddit. The destination will be fixed in the code, not chosen per post, so there's no way to send a post to a community.
+
+- **Goal:** post text, image and video posts to the author's own profile, alongside the other platforms, from the same page.
+- **Access needed:** OAuth for a single account (the author's), with the `identity` and `submit` scopes. Nothing is read from Reddit beyond what's needed to confirm the post went up.
+- **Volume:** the same few posts a day the author makes by hand, each one started manually.
+- **Never:** posting to subreddits, scheduled or automated posting, voting, commenting, messaging, or reading other users' content.
+- **Until then:** Reddit isn't in the app; the author posts there by hand.
 
 ## Setup
 
