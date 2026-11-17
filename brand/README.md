@@ -6,7 +6,10 @@ Decided 2026-11-17 (see section 9 of [docs/backlog.md](../docs/backlog.md)). The
 
 - **Socialifer**, said so·sha·LIE·fer. "Social" + Latin "-fer", carrier: the app carries your posts to every platform.
 - **Written:** "Socialifer" in sentences; lowercase "socialifer" in the wordmark.
-- **Domains:** socialifer.com, socialifer.in.
+- **Domains:** socialifer.com and socialifer.in, both registered at GoDaddy.
+- **socialifer.in:** forwards to socialifer.com (GoDaddy, permanent 301); http, https and www all checked 2026-11-17.
+- **socialifer.com DNS:** on Cloudflare (free plan); GoDaddy points its nameservers there. No website yet.
+- **Email:** Cloudflare Email Routing forwards hello@socialifer.com to the owner's Gmail (receive only). A Gmail filter keeps it out of Spam. Sending as @socialifer.com isn't set up; it needs an outgoing mail service.
 
 ## Logo: Ring of fire
 

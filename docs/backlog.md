@@ -95,7 +95,8 @@ Decided in the branding thread. The designs are on the canvas https://claude.ai/
 To do, in suggested order:
 - **Claim the handles:** @socialifer on X, Instagram, YouTube, Threads, Bluesky, LinkedIn, Reddit and Substack, before someone else does.
 - **Final logo files:** done 2026-11-17, in [brand/](../brand/README.md). Still missing: a wordmark lockup file (mark plus "socialifer" with the text turned into outlines, so it doesn't depend on Inter being installed), and a `favicon.ico` for old browsers.
-- **Email:** an address such as hello@socialifer.com, forwarding to the user's Gmail.
+- **Email:** receiving done 2026-11-17 (Cloudflare Email Routing to the user's Gmail; see [brand/](../brand/README.md)). Still missing: sending as @socialifer.com from Gmail, which needs an outgoing mail service (for example Brevo's free plan).
+- **Use hello@socialifer.com:** put it where people and reviewers look for a contact, such as the website, the privacy policy, the developer apps' support email, and the social profiles. Decide where with the user.
 - **Website and privacy policy:** a simple page at socialifer.com. Google and Meta ask for a privacy policy link when reviewing apps.
 - **Developer apps:** rename and re-logo the apps on Google Cloud (YouTube), Meta, X and LinkedIn; their names show on sign-in screens. Check first whether renaming sends the Google or Meta app through review again.
 - **Social profiles:** the user's own accounts' names and pictures, where the app is mentioned.
