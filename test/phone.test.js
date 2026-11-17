@@ -31,6 +31,9 @@ test('a signed hello returns the platforms', async () => {
   assert.equal(hello.name, 'Social Post');
   assert.ok(hello.platforms.length >= 9);
   assert.ok(hello.platforms.every((p) => Array.isArray(p.envVars) && p.media));
+  assert.equal(typeof hello.status.ffmpeg, 'boolean');
+  assert.equal(typeof hello.status.subtitles, 'boolean');
+  assert.equal(typeof hello.status.tunnel.configured, 'boolean');
 });
 
 test('refuses unsigned requests and the wrong key', async () => {

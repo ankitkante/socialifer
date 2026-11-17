@@ -46,7 +46,6 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 6. Phone ↔ laptop
 
-- **Laptop status on the phone** (P + S · phone test): while connected, show what the web page's status dots show: tunnel connected, ffmpeg ready, subtitles ready. The server already works these out for `/api/status`; the phone's laptop check would need them from an `/app/*` endpoint. Most useful for Instagram, which fails without the tunnel.
 - **Keep logs on the laptop** (P + S · phone test, 2026-11-17): for history and tracing problems later. Today the server logs only to the terminal (`log.js`, lost when it closes), and the phone's activity log keeps its last 500 lines on the phone and is never sent (`mobile/src/log.js`). **Decision:** keep both the server's and the phone's, and delete lines older than 6 months.
 - **Staggered sending** (phone build): to be discussed, then scheduling (see section 8).
 

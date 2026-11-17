@@ -11,6 +11,7 @@ import { canCompress, describe, publish } from './publish.js';
 import { createQueue } from './queue.js';
 import { httpError } from './media.js';
 import { log } from './log.js';
+import { laptopStatus } from './status.js';
 
 const DIR = new URL('./phone/', import.meta.url);
 const PAIRING = new URL('pairing.json', DIR);
@@ -148,7 +149,7 @@ export function createPhoneServer(key, queue) {
 
       const { pathname, searchParams } = new URL(req.url, 'http://phone');
       if (req.method === 'GET' && pathname === '/app/hello') {
-        return sendJson(res, 200, { name: 'Social Post', ffmpeg: canCompress, platforms: platforms.map(describe) });
+        return sendJson(res, 200, { name: 'Social Post', ffmpeg: canCompress, platforms: platforms.map(describe), status: await laptopStatus({ wait: false }) });
       }
       if (req.method === 'GET' && pathname === '/app/posts') {
         const ids = (searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 100);

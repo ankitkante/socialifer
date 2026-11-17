@@ -11,6 +11,7 @@ import {
 import { checkGenerator, NOT_SET, queueJob, getJob, stopJob, watch, finished, stopLeftover, cleanupTranscripts } from './subtitler.js';
 import { canCompress, describe, publish, failureMessage } from './publish.js';
 import { startPhoneServer } from './phone.js';
+import { laptopStatus } from './status.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const SRT = 'application/x-subrip';
@@ -28,22 +29,6 @@ const STATIC_FILES = {
 };
 // The page's own modules live in public/js/ and are served by name only, never by path.
 const SCRIPT_RE = /^\/js\/([a-z-]+)\.js$/;
-
-// Whether the tunnel actually reaches this server: fetch our own health file through it.
-// Cached briefly, since the page asks every minute.
-let tunnelCheck = { at: 0, reachable: false };
-async function tunnelReachable() {
-  const base = publicBaseUrl();
-  if (!base) return false;
-  if (Date.now() - tunnelCheck.at < 20_000) return tunnelCheck.reachable;
-  let reachable = false;
-  try {
-    const res = await fetch(`${base}/media/health`, { signal: AbortSignal.timeout(5000) });
-    reachable = res.status === 204;
-  } catch {}
-  tunnelCheck = { at: Date.now(), reachable };
-  return reachable;
-}
 
 // A stray error must never take the server down mid-post; log it and carry on.
 process.on('unhandledRejection', (err) => log.error('Unhandled error (the server kept running)', err?.stack ?? String(err)));
@@ -143,14 +128,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && pathname === '/api/status') {
-      const { tool, problem } = await checkGenerator();
-      return sendJson(res, 200, {
-        ffmpeg: canCompress,
-        // subtitlesProblem: what to fix when LYRICS_VIDEO_DIR is set but unusable; null when it's fine or not set.
-        subtitles: Boolean(tool),
-        subtitlesProblem: problem ?? null,
-        tunnel: { configured: Boolean(publicBaseUrl()), reachable: await tunnelReachable() },
-      });
+      return sendJson(res, 200, await laptopStatus());
     }
 
     if (req.method === 'POST' && pathname === '/api/media') {

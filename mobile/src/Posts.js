@@ -1,6 +1,7 @@
 // The list of posts on the phone, newest first, with where each one is: draft, ready, on the laptop, finished.
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button, Screen, colors } from './ui';
+import { tunnelProblem } from './status';
 
 function statusLine(post, live) {
   if (post.state === 'draft') return post.error ? `Draft · the laptop refused it: ${post.error}` : 'Draft';
@@ -23,14 +24,15 @@ function statusLine(post, live) {
 }
 
 export default function Posts({ posts, live, connection, onOpen, onNew, onPair }) {
+  const tunnel = connection.state === 'connected' ? tunnelProblem(connection.status) : null;
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>Social Post</Text>
         <Pressable onPress={onPair} hitSlop={8}><Text style={styles.link}>Laptop</Text></Pressable>
       </View>
-      <Text style={[styles.connection, connection.state === 'connected' ? styles.on : styles.off]}>
-        {connection.state === 'connected' ? '● Connected to laptop' : connection.state === 'checking' ? '○ Looking for the laptop…' : `○ ${connection.message}`}
+      <Text style={[styles.connection, connection.state === 'connected' ? (tunnel ? styles.warn : styles.on) : styles.off]}>
+        {connection.state === 'connected' ? `● Connected to laptop${tunnel ? ` · ${tunnel}` : ''}` : connection.state === 'checking' ? '○ Looking for the laptop…' : `○ ${connection.message}`}
       </Text>
       <Button label="New post" onPress={onNew} style={{ marginVertical: 12 }} />
       <FlatList
@@ -57,6 +59,7 @@ const styles = StyleSheet.create({
   connection: { marginTop: 6, fontSize: 13 },
   on: { color: colors.ok },
   off: { color: colors.muted },
+  warn: { color: colors.warn },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 32 },
   row: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line, gap: 4 },
   text: { fontSize: 15, color: colors.text },

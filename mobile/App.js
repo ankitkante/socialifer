@@ -10,6 +10,7 @@ import Posts from './src/Posts';
 import { SubstackDialog } from './src/Substack';
 import { Button, Screen, colors } from './src/ui';
 import { clearLog, log, logErrors, readLog } from './src/log';
+import { statusLines, tunnelProblem } from './src/status';
 
 logErrors();
 
@@ -59,8 +60,9 @@ export default function App() {
         return;
       }
       if (stopped) return;
-      setConnection({ state: 'connected' });
-      note(`Connected to the laptop at ${pairing.host}:${pairing.port} (${hello.platforms.filter((p) => p.configured).length} platforms set up)`);
+      setConnection({ state: 'connected', status: hello.status ?? null });
+      const tunnel = tunnelProblem(hello.status);
+      note(`Connected to the laptop at ${pairing.host}:${pairing.port} (${hello.platforms.filter((p) => p.configured).length} platforms set up${tunnel ? `, ${tunnel}` : ''})`);
       // Kept on the phone, so the platforms and their limits are there when writing offline.
       savePlatforms(hello.platforms);
       setPlatforms(hello.platforms);
@@ -109,6 +111,7 @@ export default function App() {
       <Laptop
         pairing={pairing}
         connection={connection}
+        platforms={platforms}
         onBack={() => setScreen({ name: 'posts' })}
         onPair={() => setScreen({ name: 'pair' })}
         onUnpair={async () => { await forgetPairing(); log('Unpaired from the laptop'); setPairing(null); setScreen({ name: 'posts' }); }}
@@ -153,7 +156,7 @@ function reminderFor(post, connection) {
   return connection.state === 'away' ? post : false;
 }
 
-function Laptop({ pairing, connection, onBack, onPair, onUnpair, onLog }) {
+function Laptop({ pairing, connection, platforms, onBack, onPair, onUnpair, onLog }) {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
     return () => sub.remove();
@@ -166,6 +169,11 @@ function Laptop({ pairing, connection, onBack, onPair, onUnpair, onLog }) {
         <Text style={styles.line}>
           {connection.state === 'connected' ? 'Connected' : connection.state === 'checking' ? 'Looking for the laptop…' : connection.message}
         </Text>
+        {connection.state === 'connected' && statusLines(connection.status, platforms).map(({ ok, text }) => (
+          <Text key={text} style={[styles.status, { color: ok ? colors.ok : ok === null ? colors.muted : colors.warn }]}>
+            {ok ? '●' : '○'} {text}
+          </Text>
+        ))}
         <Text style={styles.small}>{pairing.host}:{pairing.port}</Text>
         <View style={styles.row}>
           <Button kind="secondary" label="Pair again" onPress={onPair} />
@@ -252,6 +260,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '600', color: colors.text },
   line: { fontSize: 16, textAlign: 'center', color: colors.text },
   small: { fontSize: 13, color: colors.muted },
+  status: { fontSize: 14, textAlign: 'center' },
   error: { fontSize: 14, color: colors.danger, textAlign: 'center' },
   camera: { width: 280, height: 280 },
   row: { flexDirection: 'row', gap: 12, marginTop: 12 },
