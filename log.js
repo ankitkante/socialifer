@@ -1,4 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { readFile, readdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Every platform posts inside its own context ({ postId, platform, step, onStep }), so any code, however
 // deep, can log with the right "[post 7] YouTube:" prefix and report what it's doing to the page.
@@ -11,11 +15,75 @@ function prefix() {
   return c ? `[post ${c.postId}] ${c.platform}: ` : '';
 }
 
+// ---- Log files: logs/server-YYYY-MM.log and logs/phone-YYYY-MM.log, kept 6 months ----
+// Only what goes through log.* is kept, not everything printed: the startup QR code holds the pairing key.
+// Off until startLogFiles(), so modules imported by tests don't write. LOG_DIR moves the folder (tests use it).
+
+const KEEP_MONTHS = 6;
+let logDir = null;
+let failed = false;
+const pad = (n) => String(n).padStart(2, '0');
+const month = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+const stamp = (d = new Date()) => `${month(d)}-${pad(d.getDate())} ${time()}`;
+
+export function startLogFiles() {
+  logDir = process.env.LOG_DIR?.trim() || fileURLToPath(new URL('./logs/', import.meta.url));
+  return logDir;
+}
+
+// Never throws: a log that can't be written must not break posting. Says so once, in the terminal.
+function writeLines(kind, lines) {
+  if (!logDir || !lines.length) return;
+  try {
+    mkdirSync(logDir, { recursive: true });
+    appendFileSync(join(logDir, `${kind}-${month()}.log`), `${lines.join('\n')}\n`);
+  } catch (err) {
+    if (!failed) console.error(`Couldn't write the log file in ${logDir}: ${err.message}`);
+    failed = true;
+  }
+}
+
+// The phone's activity log lines, already stamped with the phone's time.
+export function appendPhoneLog(lines) {
+  writeLines('phone', lines);
+}
+
+// The newest phone lines, oldest first, for the phone's Activity log screen.
+export async function readPhoneLog(limit) {
+  if (!logDir) return [];
+  const names = (await readdir(logDir).catch(() => []))
+    .filter((name) => /^phone-\d{4}-\d{2}\.log$/.test(name)).sort().reverse();
+  let lines = [];
+  for (const name of names) {
+    const text = await readFile(join(logDir, name), 'utf8').catch(() => '');
+    lines = [...text.split('\n').filter(Boolean), ...lines];
+    if (lines.length >= limit) break;
+  }
+  return lines.slice(-limit);
+}
+
+// Deletes a month's file once all its lines are over 6 months old (on 1 December, May's file goes).
+export async function cleanupLogs() {
+  if (!logDir) return;
+  const now = new Date();
+  const oldest = month(new Date(now.getFullYear(), now.getMonth() - KEEP_MONTHS, 1));
+  const names = await readdir(logDir).catch(() => []);
+  for (const name of names) {
+    const m = /^(server|phone)-(\d{4}-\d{2})\.log$/.exec(name);
+    if (m && m[2] < oldest) await rm(join(logDir, name), { force: true });
+  }
+}
+
+function out(print, line) {
+  print(`${time()} ${line}`);
+  writeLines('server', [`${stamp()} ${line}`]);
+}
+
 export const log = {
-  info: (message) => console.log(`${time()} ${prefix()}${message}`),
-  warn: (message) => console.warn(`${time()} ${prefix()}⚠ ${message}`),
-  // detail: extra lines for the terminal only, such as a stack trace or an API's full response.
-  error: (message, detail) => console.error(`${time()} ${prefix()}✕ ${message}${detail ? `\n${detail}` : ''}`),
+  info: (message) => out(console.log, `${prefix()}${message}`),
+  warn: (message) => out(console.warn, `${prefix()}⚠ ${message}`),
+  // detail: extra lines, such as a stack trace or an API's full response.
+  error: (message, detail) => out(console.error, `${prefix()}✕ ${message}${detail ? `\n${detail}` : ''}`),
 };
 
 export function runWithContext(ctx, fn) {

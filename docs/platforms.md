@@ -118,7 +118,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 These are wired to the documented API parameters but haven't been used on a live account yet:
 
 - **X:** reply settings are left at X's default (everyone). Polls and the paid-partnership label were removed at the user's request.
-- **Instagram:** trial reels map Manual to `MANUAL` and Auto to `SS_PERFORMANCE`. Collaborators, tagging people and the first comment were removed at the user's request; @mentions in the caption still link and notify.
+- **Instagram:** trial reels map Manual to `MANUAL` and Auto to `SS_PERFORMANCE`. Untested: Instagram refuses them for small accounts (code 10, subcode 2207081, "does not meet the trial reel follower requirement"), so test them once the account has 200 followers. Instagram's [eligibility criteria](https://help.instagram.com/1013292530224018/): a public account eligible for recommendations, with at least 200 followers for a professional (business or creator) account. Collaborators, tagging people and the first comment were removed at the user's request; @mentions in the caption still link and notify.
 - **YouTube:** scheduling forces `privacyStatus: private` and sets `publishAt`. With no category picked, `categoryId` is `YOUTUBE_CATEGORY_ID` or 22 (People & Blogs), YouTube's own default; Studio's upload defaults don't apply to API uploads. License, embedding, public stats and subscriber notifications are left at YouTube's defaults. Thumbnails use `thumbnails.set` with the existing `youtube.upload` scope, and a rejection (common on channels that aren't phone-verified) produces a warning rather than failing the upload.
 
 ## Not supported

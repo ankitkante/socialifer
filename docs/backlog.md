@@ -21,8 +21,6 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 3. Instagram
 
-- **Trial reel error** (B · phone test): Instagram refuses trial reels for small accounts (code 10, subcode 2207081, "does not meet the trial reel follower requirement"). The message reaches the phone fine; add what to do: "Set Trial reel to Off and post again." Maybe hide the field, but the follower threshold isn't known.
-- **Test live:** trial reels (Manual → `MANUAL`, Auto → `SS_PERFORMANCE`).
 - **Text-only posts as a carousel** (idea): turn the text into an image carousel, since Instagram needs an image or video.
 
 ## 4. Subtitles (web page only for now)
@@ -48,8 +46,7 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 6. Phone ↔ laptop
 
-- **Laptop status on the phone** (P + S · phone test): while connected, show what the web page's status dots show: tunnel connected, ffmpeg ready, subtitles ready. The server already works these out for `/api/status`; the phone's laptop check would need them from an `/app/*` endpoint. Most useful for Instagram, which fails without the tunnel.
-- **Keep logs on the laptop** (P + S · phone test, 2026-11-17): for history and tracing problems later. Today the server logs only to the terminal (`log.js`, lost when it closes), and the phone's activity log keeps its last 500 lines on the phone and is never sent (`mobile/src/log.js`). **Decision:** keep both the server's and the phone's, and delete lines older than 6 months.
+- **Filter the logs** (idea, 2026-11-17): find log lines by date/time and by a keyword or text. The logs are in `logs/server-YYYY-MM.log` and `logs/phone-YYYY-MM.log`; the phone's Activity log shows the laptop's last 500 phone lines.
 - **Staggered sending** (phone build): to be discussed, then scheduling (see section 8).
 
 ### Not yet tested on the phone

@@ -10,7 +10,8 @@ import { platforms } from './platforms/index.js';
 import { canCompress, describe, publish } from './publish.js';
 import { createQueue } from './queue.js';
 import { httpError } from './media.js';
-import { log } from './log.js';
+import { appendPhoneLog, log, readPhoneLog } from './log.js';
+import { laptopStatus } from './status.js';
 
 const DIR = new URL('./phone/', import.meta.url);
 const PAIRING = new URL('pairing.json', DIR);
@@ -21,6 +22,8 @@ const MAX_SKEW_MS = 60_000;
 // A nonce only needs remembering while its time would still be accepted.
 const NONCE_TTL_MS = 2 * MAX_SKEW_MS;
 const JSON_LIMIT = 1_000_000;
+// The phone keeps at most 500 unsent lines, and its Activity log screen shows the laptop's last 500.
+const MAX_LOG_LINES = 500;
 
 const NOT_PAIRED = "This phone isn't paired with this laptop. Scan the QR code in the server's terminal again.";
 const BAD_CLOCK = "The phone's clock and the laptop's are more than a minute apart. Set both to the correct time automatically.";
@@ -148,7 +151,20 @@ export function createPhoneServer(key, queue) {
 
       const { pathname, searchParams } = new URL(req.url, 'http://phone');
       if (req.method === 'GET' && pathname === '/app/hello') {
-        return sendJson(res, 200, { name: 'Social Post', ffmpeg: canCompress, platforms: platforms.map(describe) });
+        return sendJson(res, 200, { name: 'Social Post', ffmpeg: canCompress, platforms: platforms.map(describe), status: await laptopStatus({ wait: false }) });
+      }
+      if (req.method === 'GET' && pathname === '/app/log') {
+        return sendJson(res, 200, { lines: await readPhoneLog(MAX_LOG_LINES) });
+      }
+      if (req.method === 'POST' && pathname === '/app/log') {
+        const { lines } = parseJson(raw) ?? {};
+        if (!Array.isArray(lines) || lines.length > MAX_LOG_LINES || !lines.every((l) => typeof l === 'string')) {
+          throw httpError(400, `Send the activity log as { lines: [...] }, at most ${MAX_LOG_LINES} lines of text.`);
+        }
+        // One line per entry, so a stray line break can't fake another line in the file.
+        appendPhoneLog(lines.map((l) => l.replace(/[\r\n]+/g, ' ').slice(0, 2000)));
+        res.writeHead(204);
+        return res.end();
       }
       if (req.method === 'GET' && pathname === '/app/posts') {
         const ids = (searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 100);
