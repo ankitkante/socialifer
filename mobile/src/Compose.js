@@ -13,8 +13,8 @@ import { Button, Screen, colors } from './ui';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
 
-// onOpen: shows another post, e.g. the copy made by Send again.
-export default function Compose({ initial, platforms, settings, onClose, onOpen }) {
+// onPosted: Post was tapped (closes the post, then the Substack reminder opens); onOpen: shows another post, e.g. the copy made by Send again.
+export default function Compose({ initial, platforms, settings, onClose, onPosted, onOpen }) {
   // Posts saved before per-platform settings existed get the default values.
   const [post, setPost] = useState(() => ({ ...initial, options: withDefaults(initial.options, settings.sticky) }));
   const [notice, setNotice] = useState('');
@@ -116,7 +116,7 @@ export default function Compose({ initial, platforms, settings, onClose, onOpen 
     const ready = { ...post, state: 'ready', sendId: newId(), error: null };
     savePost(ready);
     log(`Post ${short(ready.sendId)}: ready for ${ready.platforms.join(', ')}${ready.media.length ? ` with ${ready.media.length} file${ready.media.length > 1 ? 's' : ''}` : ''}`);
-    onClose();
+    onPosted(ready);
   };
 
   return (

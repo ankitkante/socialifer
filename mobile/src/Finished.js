@@ -1,10 +1,7 @@
 // What a finished post shows: each platform's result (links open the post), Send again for the ones that failed,
 // and the reminder to post it on Substack by hand, since Substack has no API (see AGENTS.md).
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import * as Sharing from 'expo-sharing';
-import { mediaFile } from './store';
-import { log, short } from './log';
+import { SubstackReminder } from './Substack';
 import { Button, colors } from './ui';
 
 export default function Finished({ post, onUpdate, onSendAgain }) {
@@ -40,33 +37,11 @@ export default function Finished({ post, onUpdate, onSendAgain }) {
         </View>
       ) : null}
 
-      {anyPosted ? <Substack post={post} onUpdate={onUpdate} /> : null}
-    </View>
-  );
-}
-
-function Substack({ post, onUpdate }) {
-  if (post.substackDone) return <Text style={styles.note}>✓ Substack: done</Text>;
-  const files = post.mediaRemoved ? [] : post.media;
-  const copy = async () => {
-    await Clipboard.setStringAsync(post.text);
-    log(`Post ${short(post.sendId)}: text copied for Substack`);
-  };
-  const share = async (item) => {
-    if (!(await Sharing.isAvailableAsync())) return;
-    await Sharing.shareAsync(mediaFile(post, item).uri, { mimeType: item.type, dialogTitle: 'Share to Substack' });
-  };
-  return (
-    <View style={styles.reminder}>
-      <Text style={styles.reminderTitle}>Post this on Substack by hand</Text>
-      <Text style={styles.note}>Substack has no way for apps to post, so copy the text and share the files to Substack's app.</Text>
-      <View style={styles.row}>
-        {post.text.trim() ? <Button kind="secondary" label="Copy text" onPress={copy} /> : null}
-        {files.map((item, i) => (
-          <Button key={item.file} kind="secondary" label={files.length > 1 ? `Share ${item.type.startsWith('video/') ? 'video' : 'photo'} ${i + 1}` : `Share ${item.type.startsWith('video/') ? 'video' : 'photo'}`} onPress={() => share(item)} />
-        ))}
-      </View>
-      <Button label="Done" onPress={() => { onUpdate({ substackDone: true }); log(`Post ${short(post.sendId)}: Substack marked done`); }} />
+      {anyPosted ? (post.substackDone ? <Text style={styles.note}>✓ Substack: done</Text> : (
+        <View style={styles.reminder}>
+          <SubstackReminder post={post} onDone={() => onUpdate({ substackDone: true })} />
+        </View>
+      )) : null}
     </View>
   );
 }
@@ -78,6 +53,4 @@ const styles = StyleSheet.create({
   link: { color: colors.accent, textDecorationLine: 'underline' },
   note: { color: colors.muted },
   reminder: { borderWidth: 1, borderColor: colors.warn, borderRadius: 8, padding: 12, gap: 8 },
-  reminderTitle: { fontWeight: '600', color: colors.text },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
