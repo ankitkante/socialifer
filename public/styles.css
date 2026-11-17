@@ -289,6 +289,24 @@ dialog.confirm p { margin: 0; font-weight: 600; }
 dialog.confirm .review-actions { justify-content: flex-end; }
 dialog.confirm::backdrop { background: rgba(0, 0, 0, 0.3); }
 
+/* The Substack reminder after Post. */
+dialog.substack {
+  width: min(480px, calc(100vw - 32px)); padding: 20px; border: none; border-radius: 12px;
+  background: var(--surface); color: var(--text); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+dialog.substack[open] { display: flex; flex-direction: column; gap: 12px; }
+dialog.substack::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog.substack strong { font-size: 17px; }
+dialog.substack p { margin: 0; color: var(--muted); font-size: 14px; }
+.substack-files { display: flex; flex-direction: column; gap: 8px; }
+.substack-files[hidden] { display: none; }
+.substack-file { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--sunken); }
+.substack-file code { flex: 1; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.substack-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.substack-actions a { color: var(--accent); font-weight: 600; font-size: 14px; }
+.substack-actions .primary { margin-left: auto; }
+dialog.substack .copy { border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; padding: 3px 8px; cursor: pointer; flex: none; }
+
 /* ---- Platform picker ---- */
 
 .picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 20px; }
@@ -519,12 +537,6 @@ details.more .fields { margin-top: 12px; }
 .results .links { display: flex; gap: 12px; align-items: center; }
 .results a { color: var(--accent); font-weight: 600; font-size: 13px; }
 .results .copy { border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; padding: 3px 8px; cursor: pointer; }
-.reminder { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; background: var(--warn-soft); color: var(--text); font-size: 13px; }
-.reminder[hidden] { display: none; }
-.reminder p { margin: 0; }
-.reminder .links { display: flex; gap: 12px; align-items: center; }
-.reminder a { color: var(--accent); font-weight: 600; }
-.reminder .copy { border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; padding: 3px 8px; cursor: pointer; }
 .bar { height: 6px; border-radius: 999px; background: var(--thumb-bg); overflow: hidden; }
 .bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.3s; }
 .bar.indeterminate span { width: 35%; animation: slide 1.4s ease-in-out infinite; }

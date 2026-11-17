@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
-import { createReadStream, createWriteStream, openAsBlob } from 'node:fs';
+import { constants as fsConstants, createReadStream, createWriteStream, openAsBlob } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { basename, join, resolve } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
@@ -91,6 +91,40 @@ export async function importFile(path, type, name) {
   const meta = { id, name, type, size, createdAt: Date.now() };
   await writeFile(metaUrl(id), JSON.stringify(meta));
   return meta;
+}
+
+// Videos saved for posting on Substack by hand go in the user's Videos folder, outside uploads/ so the
+// 24-hour cleanup can't delete one before it's uploaded. They're deleted when the reminder's Done is clicked.
+export const KEPT_DIR = join(homedir(), 'Videos', 'Social Post');
+
+// Copies a video there under its own name (with (2), (3)… when taken) and returns the full path.
+export async function keepVideo(m) {
+  await mkdir(KEPT_DIR, { recursive: true });
+  const name = m.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
+  const dot = name.lastIndexOf('.');
+  const [base, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ''];
+  for (let n = 1; ; n++) {
+    const path = join(KEPT_DIR, n === 1 ? name : `${base} (${n})${ext}`);
+    try {
+      await copyFile(m.path, path, fsConstants.COPYFILE_EXCL);
+      return path;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+    }
+  }
+}
+
+// Deletes one of those copies. Only a file directly inside KEPT_DIR is touched, whatever path the page sends.
+export async function deleteKept(path) {
+  const name = basename(path);
+  if (resolve(KEPT_DIR, name) !== resolve(path) || !name || name.startsWith('.')) return;
+  try {
+    await rm(join(KEPT_DIR, name), { force: true });
+    log.info(`Deleted ${name} from ${KEPT_DIR} (Substack done)`);
+  } catch (err) {
+    // Windows refuses while another program has the file open; it stays for the user to delete.
+    log.warn(`Couldn't delete ${join(KEPT_DIR, name)}: ${err.message}. Delete it by hand.`);
+  }
 }
 
 // A path inside the uploads folder, for work files that belong to an upload (generated subtitles).

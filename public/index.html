@@ -83,14 +83,6 @@
     <h2 class="panel-title" id="panel-title">Ready to post</h2>
     <ul class="checklist" id="checklist"></ul>
     <ul class="results" id="results" hidden></ul>
-    <!-- Substack can't be posted to from the app (see AGENTS.md), so text and image posts end with a nudge to post it there by hand. -->
-    <div class="reminder" id="substack-reminder" hidden>
-      <p><strong>Post this on Substack too.</strong> The app can't post Notes, so add it there yourself.</p>
-      <div class="links">
-        <a href="https://substack.com/" target="_blank" rel="noopener">Open Substack</a>
-        <button type="button" class="copy" id="substack-copy">Copy text</button>
-      </div>
-    </div>
     <button class="primary" id="post" disabled><span id="post-label">Post</span> <kbd>Ctrl ↵</kbd></button>
     <p class="reason" id="post-reason" hidden></p>
     <p class="status" id="status"></p>
@@ -103,6 +95,20 @@
   <button type="button" class="bar-summary" id="bar-summary"><strong id="bar-count">Post</strong><span id="bar-state"></span></button>
   <button type="button" class="primary" id="bar-post" disabled>Post</button>
 </div>
+
+<!-- Substack can't be posted to from the app (see AGENTS.md), so every post ends with a reminder to post it there
+     by hand: right after Post for text and images, once every platform has finished for videos (panel.js).
+     It closes only with Done. -->
+<dialog class="substack" id="substack-reminder" aria-labelledby="substack-title">
+  <strong id="substack-title">Post this on Substack too</strong>
+  <p>The app can't post to Substack, so add it there yourself.</p>
+  <div class="substack-files" id="substack-files" hidden></div>
+  <div class="substack-actions">
+    <a href="https://substack.com/" target="_blank" rel="noopener">Open Substack</a>
+    <button type="button" class="copy" id="substack-copy">Copy text</button>
+    <button type="button" class="primary" id="substack-done">Done</button>
+  </div>
+</dialog>
 
 <!-- Review lines: a video's subtitles beside it, one tab per language (review.js). -->
 <dialog class="review" id="review" aria-label="Subtitles"></dialog>

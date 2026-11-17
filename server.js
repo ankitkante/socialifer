@@ -6,7 +6,7 @@ import { isVideo, isSubtitleLanguage, SUBTITLE_LANGUAGES_ONLY } from './public/r
 import { log } from './log.js';
 import {
   saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError,
-  probeDuration, burnSubtitles,
+  probeDuration, burnSubtitles, deleteKept,
 } from './media.js';
 import { checkGenerator, NOT_SET, queueJob, getJob, stopJob, watch, finished, stopLeftover, cleanupTranscripts } from './subtitler.js';
 import { canCompress, describe, publish, failureMessage } from './publish.js';
@@ -166,6 +166,16 @@ const server = http.createServer(async (req, res) => {
       return res.end();
     }
 
+    // Done in the Substack reminder: the videos saved for it are no longer needed.
+    if (req.method === 'POST' && pathname === '/api/kept/delete') {
+      requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
+      const { files } = await readJsonBody(req);
+      if (!Array.isArray(files) || files.some((f) => typeof f !== 'string')) throw httpError(400, 'Invalid request');
+      for (const file of files) await deleteKept(file);
+      res.writeHead(204);
+      return res.end();
+    }
+
     // Burns subtitles into a video ahead of posting, so the page can play the real result. The copy is
     // cached by video and subtitles, so posting to X or Instagram afterwards reuses it.
     if (req.method === 'POST' && pathname === '/api/subtitled') {
@@ -261,7 +271,7 @@ const server = http.createServer(async (req, res) => {
       const send = (event) => {
         if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
       };
-      const results = await publish(text.trim(), ids, media, options, subtitles, send);
+      const results = await publish(text.trim(), ids, media, options, subtitles, send, { keepVideos: true });
       send({ type: 'done', results });
       return res.end();
     }

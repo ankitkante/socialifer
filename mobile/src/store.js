@@ -94,10 +94,10 @@ export function pruneOldMedia() {
 }
 
 // A new draft from a finished post, for sending again to the platforms that failed. Its files are copied, so the
-// finished post keeps its own as history.
+// finished post keeps its own as history. substackDone carries over, so a post already on Substack isn't reminded about again.
 export function copyPost(post, platforms) {
   const copy = { ...post, id: newId(), platforms, state: 'draft', createdAt: Date.now() };
-  for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'substackDone', 'mediaRemoved']) delete copy[key];
+  for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'mediaRemoved']) delete copy[key];
   const dir = postDir(copy.id);
   dir.create({ intermediates: true });
   for (const item of [...post.media, ...fieldImages(post)]) mediaFile(post, item).copySync(new File(dir, item.file));

@@ -4,9 +4,10 @@ import { BackHandler, Pressable, ScrollView, Share, StyleSheet, Text, View } fro
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { call, forgetPairing, loadPairing, parsePairing, savePairing } from './src/laptop';
 import { handOver } from './src/handover';
-import { listPosts, loadPlatforms, loadSettings, newId, pruneOldMedia, savePlatforms } from './src/store';
+import { listPosts, loadPlatforms, loadSettings, newId, pruneOldMedia, savePlatforms, savePost } from './src/store';
 import Compose from './src/Compose';
 import Posts from './src/Posts';
+import { SubstackDialog } from './src/Substack';
 import { Button, Screen, colors } from './src/ui';
 import { clearLog, log, logErrors, readLog } from './src/log';
 
@@ -26,6 +27,9 @@ export default function App() {
   const [platforms, setPlatforms] = useState(() => loadPlatforms());
   const [live, setLive] = useState({});
   const openId = useRef(null);
+  const checkNow = useRef(null);
+  // The post just marked ready, whose Substack reminder opens once it's dealt with (see reminderFor).
+  const [remind, setRemind] = useState(null);
 
   const refresh = useCallback(() => setPosts(listPosts()), []);
 
@@ -66,16 +70,30 @@ export default function App() {
         if (!stopped && now) setLive(now);
       } catch {}
     };
+    checkNow.current = check;
     setConnection({ state: 'checking' });
     check();
     const timer = setInterval(check, CHECK_MS);
-    return () => { stopped = true; clearInterval(timer); };
+    return () => { stopped = true; checkNow.current = null; clearInterval(timer); };
   }, [pairing, refresh]);
 
   const close = useCallback(() => {
     setScreen({ name: 'posts' });
     refresh();
   }, [refresh]);
+
+  // Post tapped: hand it over now rather than on the next 5-second check, so the reminder isn't kept waiting.
+  const posted = useCallback((post) => {
+    setRemind(post.id);
+    openId.current = null;
+    close();
+    checkNow.current?.();
+  }, [close]);
+
+  const reminding = reminderFor(posts.find((p) => p.id === remind), connection);
+  useEffect(() => {
+    if (remind && reminding === null) setRemind(null);
+  }, [remind, reminding]);
 
   if (pairing === undefined) return <View style={styles.blank} />;
   if (!pairing || screen.name === 'pair') {
@@ -100,7 +118,7 @@ export default function App() {
   }
   if (screen.name === 'log') return <ActivityLog onBack={() => setScreen({ name: 'laptop' })} />;
   if (screen.name === 'compose') {
-    return <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} onClose={close} onOpen={(post) => setScreen({ name: 'compose', post })} />;
+    return <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} onClose={close} onPosted={posted} onOpen={(post) => setScreen({ name: 'compose', post })} />;
   }
   return (
     <>
@@ -115,9 +133,24 @@ export default function App() {
         })}
         onPair={() => setScreen({ name: 'laptop' })}
       />
+      {reminding ? (
+        <SubstackDialog
+          post={reminding}
+          onDone={() => { savePost({ ...reminding, substackDone: true }); setRemind(null); refresh(); }}
+        />
+      ) : null}
       <StatusBar style="dark" />
     </>
   );
+}
+
+// The Substack reminder opens once the post has been dealt with: handed to the laptop when it's connected,
+// or saved here when it isn't. It doesn't wait for the platforms. Returns the post to remind about, false to
+// keep waiting, or null when there's nothing to remind about (refused, deleted, or already done).
+function reminderFor(post, connection) {
+  if (!post || post.substackDone || post.state === 'draft') return null;
+  if (post.state === 'handed' || post.state === 'done' || post.retryError) return post;
+  return connection.state === 'away' ? post : false;
 }
 
 function Laptop({ pairing, connection, onBack, onPair, onUnpair, onLog }) {
