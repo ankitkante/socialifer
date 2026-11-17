@@ -93,7 +93,6 @@ Decided in the branding thread. The designs are on the canvas https://claude.ai/
 - **Voice:** friendly when things go well (a post went out), calm everywhere else (errors, buttons, empty screens).
 
 To do, in suggested order:
-- **Email:** receiving done 2026-11-17 (Cloudflare Email Routing to the user's Gmail; see [brand/](../brand/README.md)). Still missing: sending as @socialifer.com from Gmail, which needs an outgoing mail service (for example Brevo's free plan).
 - **Use hello@socialifer.com:** put it where people and reviewers look for a contact, such as the website, the privacy policy, the developer apps' support email, and the social profiles. Decide where with the user.
 - **Website and privacy policy:** a simple page at socialifer.com. Google and Meta ask for a privacy policy link when reviewing apps.
 - **Developer apps:** rename and re-logo the apps on Google Cloud (YouTube), Meta, X and LinkedIn; their names show on sign-in screens. Check first whether renaming sends the Google or Meta app through review again.
@@ -106,3 +105,4 @@ To do, in suggested order:
 - **Nice to have:** a one-page brand guide (logo, colours, fonts, voice, dos and don'ts); a share image for socialifer.com; a small burst animation when a post goes live (design first).
 - **Claim the handles:** @socialifer on X, Instagram, YouTube, Threads, Bluesky, LinkedIn, Reddit and Substack. The user will do this last.
 - **Wordmark lockup:** one image file with the mark plus "socialifer", the text turned into outlines so it doesn't need Inter installed. Only needed for images (share image, profile banners, email signature); the website uses the mark next to live text. Make it when those images are made.
+- **Sending email as @socialifer.com:** from Gmail, through an outgoing mail service (for example Brevo's free plan). Low priority: receiving is what matters, and it works (Cloudflare Email Routing to the user's Gmail since 2026-11-17; see [brand/](../brand/README.md)).
