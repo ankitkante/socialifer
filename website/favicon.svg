@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <title>Socialifer</title>
+  <!-- Browser tab icon: white mark on a plum tile, so it reads on light and dark tabs alike
+       (a bare mark can't know the tab's colour; prefers-color-scheme often doesn't match it). -->
+  <rect width="48" height="48" rx="10" fill="#5b4a8b"/>
+  <g transform="translate(4.8 4.8) scale(0.8)" fill="none" stroke="#ffffff" stroke-linecap="round">
+    <circle cx="24" cy="24" r="6.5" stroke-width="5.5"/>
+    <path stroke-width="3.4" d="M33.5 23.3L36.8 23.6M33.2 27.7L41 32.5M30.2 31L36.2 40.1M25.7 33.7L25.9 42.1M20.6 32.5L16.2 40M16.7 30.6L6.4 37.3M14.4 26.3L4.6 27.1M14.8 21.6L7.2 18.4M18 17L12 7.3M22.2 13.9L22 4.8M28.7 14.9L33.6 8.3M32.2 20.1L41.9 17.2"/>
+  </g>
+</svg>

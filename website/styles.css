@@ -1,0 +1,64 @@
+:root {
+  --plum: #5b4a8b;
+  --on-plum: #ffffff;
+  --ink: #1e1b26;
+  --muted: #5f5a6b;
+  --bg: #f5f4f7;
+  --card: #ffffff;
+  --line: #e6e3ec;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --plum: #b3a4e6;
+    --on-plum: #16131f;
+    --ink: #ebe8f2;
+    --muted: #aaa4b8;
+    --bg: #16151a;
+    --card: #1f1d25;
+    --line: #2e2b37;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.6 Inter, 'Noto Sans Devanagari', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+a { color: var(--plum); }
+a:hover { text-decoration-thickness: 2px; }
+
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+header.site { border-bottom: 1px solid var(--line); }
+header.site .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 21px; letter-spacing: -0.02em; }
+.brand svg { color: var(--plum); flex: none; }
+nav.site { display: flex; gap: 20px; font-size: 15px; }
+nav.site a { color: var(--muted); text-decoration: none; }
+nav.site a:hover, nav.site a[aria-current] { color: var(--ink); }
+
+main { padding: 48px 0 64px; }
+h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 16px; }
+h2 { font-size: 22px; letter-spacing: -0.01em; margin: 40px 0 8px; }
+h3 { font-size: 18px; margin: 24px 0 4px; }
+.lead { font-size: 20px; color: var(--muted); margin: 0 0 32px; }
+.updated { color: var(--muted); font-size: 15px; margin: 0 0 32px; }
+ul { padding-left: 22px; }
+li { margin: 6px 0; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 32px 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.card h3 { margin-top: 0; }
+.card p { margin: 0; color: var(--muted); font-size: 16px; }
+
+.button { display: inline-block; background: var(--plum); color: var(--on-plum); text-decoration: none; font-weight: 600; border-radius: 10px; padding: 12px 18px; }
+
+footer.site { border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+footer.site .wrap { display: flex; flex-wrap: wrap; gap: 8px 20px; padding-top: 24px; padding-bottom: 32px; }
+footer.site a { color: var(--muted); }

@@ -44,6 +44,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | `scripts/youtube-auth.js` | Standalone OAuth loopback + PKCE flow for YouTube |
 | `scripts/tunnel.js` | Runs `cloudflared tunnel --url`, finds the `trycloudflare.com` address in its log and saves it as `TUNNEL_URL` |
 | `brand/` | The Socialifer brand: logo SVGs, app icons, favicons, PNG exports in `png/`, and colours, fonts and voice in its README. The web page uses only its favicons so far (served from here as `/favicon.ico` and `/favicon.svg`) |
+| `website/` | socialifer.com: home, privacy policy, terms, 404, SEO files. Plain HTML for Cloudflare Pages; see [docs/website.md](docs/website.md). The privacy policy must match what the app does |
 | `test/` | `node:test` suites |
 | `.env.example` | Every supported setting, with where to get each credential |
 
