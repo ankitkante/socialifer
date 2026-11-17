@@ -1,0 +1,234 @@
+<title>Socialifer Brand Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; logo, colour and voice sections use grids that stack on phones. */
+:root {
+  --plum: #5b4a8b; --plum-light: #b3a4e6;
+  --ink: #1e1b26; --mist: #f5f4f7; --night: #16151a; --moon: #ebe8f2;
+  --bg: var(--mist); --surface: #ffffff; --fg: var(--ink); --muted: #5f5a6b; --line: #e6e3ec;
+  --accent: var(--plum); --on-accent: #ffffff;
+  --ok: #1f7a45; --bad: #b42318; --ok-soft: #e5f4ea; --bad-soft: #fdecea;
+  --sans: Inter, 'Noto Sans Devanagari', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: var(--night); --surface: #1f1d25; --fg: var(--moon); --muted: #aaa4b8; --line: #2e2b37;
+    --accent: var(--plum-light); --on-accent: #16131f;
+    --ok: #5cd394; --bad: #ff8a80; --ok-soft: #173325; --bad-soft: #3a1a17; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: var(--night); --surface: #1f1d25; --fg: var(--moon); --muted: #aaa4b8; --line: #2e2b37;
+  --accent: var(--plum-light); --on-accent: #16131f;
+  --ok: #5cd394; --bad: #ff8a80; --ok-soft: #173325; --bad-soft: #3a1a17; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); }
+.wrap { max-width: 960px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 56px; }
+h1, h2, h3 { margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+h2 { font-size: 26px; }
+h3 { font-size: 16px; }
+p { margin: 0; max-width: 65ch; }
+section { display: flex; flex-direction: column; gap: 20px; }
+.lede { color: var(--muted); }
+code { font: 13px var(--mono); }
+a { color: var(--accent); }
+
+header.top { display: flex; flex-direction: column; gap: 20px; }
+.lockup { display: flex; align-items: center; gap: 16px; }
+.lockup svg { flex: none; }
+.lockup h1 { font-size: 44px; font-weight: 700; }
+.say { color: var(--muted); }
+.say b { color: var(--fg); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.tile { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.tile .art { height: 140px; display: flex; align-items: center; justify-content: center; }
+.tile .cap { padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--line); }
+.tile .cap strong { font-size: 14px; }
+.tile .cap span { font-size: 13px; color: var(--muted); }
+.on-light { background: #ffffff; }
+.on-dark { background: #16151a; }
+.on-plum { background: #5b4a8b; }
+
+.lockup-demo { display: flex; align-items: center; gap: 12px; padding: 28px; border-radius: 12px; background: #ffffff; border: 1px solid var(--line); color: #1e1b26; flex-wrap: wrap; }
+.lockup-demo span { font-weight: 700; font-size: 32px; letter-spacing: -0.02em; }
+.sizes { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.swatch { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); display: flex; flex-direction: column; }
+.swatch .chip { height: 88px; }
+.swatch .info { padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.swatch .info strong { font-size: 14px; }
+.swatch .info span { font-size: 13px; color: var(--muted); }
+.swatch button { align-self: flex-start; margin-top: 4px; font: 13px var(--mono); background: none; border: 1px solid var(--line); color: var(--fg); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.swatch button:hover { border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.type-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.specimen { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.specimen .big { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+.specimen .weights { display: flex; gap: 14px; flex-wrap: wrap; font-size: 18px; }
+.specimen .meta { font-size: 13px; color: var(--muted); }
+.hi { font-family: 'Noto Sans Devanagari', var(--sans); }
+
+.voice { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.voice .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.ex { border-radius: 8px; padding: 10px 12px; font-size: 15px; display: flex; flex-direction: column; gap: 2px; }
+.ex small { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.ex.do { background: var(--ok-soft); }
+.ex.do small { color: var(--ok); }
+.ex.dont { background: var(--bad-soft); }
+.ex.dont small { color: var(--bad); }
+
+.donts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.donts .tile .cap strong { color: var(--bad); }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.table-box { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+footer { font-size: 13px; color: var(--muted); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="sparks"><circle cx="24" cy="24" r="6.5" stroke-width="4"/><path stroke-width="1.7" d="M33.5 23.3L36.8 23.6M32.8 26.1L37.9 28.2M33.2 27.7L41 32.5M32.1 30.5L39.7 38.8M30.2 31L36.2 40.1M28.4 32.1L30.9 39.1M25.7 33.7L25.9 42.1M23.6 33.6L21.9 41.9M22 33L20.5 36.9M20.6 32.5L16.2 40M17.9 30.7L11.4 35.9M16.7 30.6L6.4 37.3M14.8 28.4L8.1 30.3M14.4 26.3L4.6 27.1M13.5 23.8L7.3 22.7M14.8 21.6L7.2 18.4M14.9 20L12.1 18.2M17 17.6L12.3 11.5M18 17L12 7.3M20 15.3L16.8 3.6M22.2 13.9L22 4.8M23.8 14.5L25.1 4.6M25.7 13.9L26.9 10.3M28.7 14.9L33.6 8.3M29.6 16.6L31.9 14.5M31.4 18.4L39.7 14M32.2 20.1L41.9 17.2M34.1 22.3L40.8 22.2"/><path stroke-width="1.5" d="M44.1 24L45.3 24M30.2 5.1L30.6 4M6.4 33.2L5.4 33.7M39.7 37.6L40.6 38.4M3.5 30.5L2.3 30.8M43.1 28.9L44.2 29.2"/></g>
+    <g id="tile"><rect width="48" height="48" rx="10" fill="#5b4a8b"/><g transform="translate(5.25 5.25) scale(0.78125)" fill="none" stroke="#ffffff" stroke-linecap="round"><use href="#sparks"/></g></g>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <div class="lockup">
+      <svg width="56" height="56" viewBox="0 0 48 48" role="img" aria-label="Socialifer mark"><use href="#tile"/></svg>
+      <h1>socialifer</h1>
+    </div>
+    <p class="say">Said <b>so·sha·LIE·fer</b>: "social" + Latin <i>-fer</i>, carrier. The app carries your posts to every platform at once. Write <b>Socialifer</b> in sentences and lowercase <b>socialifer</b> in the wordmark.</p>
+  </header>
+
+  <section aria-labelledby="logo">
+    <h2 id="logo">Logo: Ring of fire</h2>
+    <p class="lede">A glowing ring with sparks streaking out, like a Diwali chakri. The app sends posts out everywhere; the mark sends light out everywhere.</p>
+    <div class="tiles">
+      <figure class="tile" style="margin:0"><div class="art on-light"><svg width="88" height="88" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#5b4a8b" stroke-linecap="round"><use href="#sparks"/></g></svg></div><figcaption class="cap"><strong>Main mark</strong><span>Plum on white or Mist · <code>logo.svg</code></span></figcaption></figure>
+      <figure class="tile" style="margin:0"><div class="art on-dark"><svg width="88" height="88" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#b3a4e6" stroke-linecap="round"><use href="#sparks"/></g></svg></div><figcaption class="cap"><strong>On dark</strong><span>Light plum · <code>logo-on-dark.svg</code></span></figcaption></figure>
+      <figure class="tile" style="margin:0"><div class="art on-plum"><svg width="88" height="88" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#ffffff" stroke-linecap="round"><use href="#sparks"/></g></svg></div><figcaption class="cap"><strong>On plum or photos</strong><span>White · <code>logo-white.svg</code></span></figcaption></figure>
+      <figure class="tile" style="margin:0"><div class="art on-light"><svg width="72" height="72" viewBox="0 0 48 48" aria-hidden="true"><use href="#tile"/></svg></div><figcaption class="cap"><strong>Plum tile</strong><span>Favicon, app icon, headers · <code>favicon.svg</code></span></figcaption></figure>
+    </div>
+
+    <h3>With the name</h3>
+    <div class="lockup-demo">
+      <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><use href="#tile"/></svg>
+      <span>socialifer</span>
+    </div>
+    <p class="lede">Mark on the left, "socialifer" in Inter Bold with letter-spacing about −2%. The mark is about 1.5× the text height. The web app, the app and socialifer.com all use the plum tile next to live text.</p>
+
+    <h3>Small sizes</h3>
+    <div class="sizes">
+      <figure><svg width="64" height="64" viewBox="0 0 48 48" aria-hidden="true"><use href="#tile"/></svg>64 px</figure>
+      <figure><svg width="32" height="32" viewBox="0 0 48 48" aria-hidden="true"><use href="#tile"/></svg>32 px</figure>
+      <figure><svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><use href="#tile"/></svg>16 px</figure>
+    </div>
+    <p class="lede">At 32 px and below, use <code>logo-small.svg</code> (fewer, thicker sparks); the full mark blurs.</p>
+  </section>
+
+  <section aria-labelledby="colour">
+    <h2 id="colour">Colour</h2>
+    <p class="lede">Dusk Plum is the one brand colour. Everything else is a neutral with a faint plum tint. Platform logos keep their own colours; green and red are only for ready and problem states.</p>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background:#5b4a8b"></div><div class="info"><strong>Plum</strong><span>Logo, buttons, links. White text on it.</span><button type="button" data-hex="#5b4a8b">#5b4a8b</button></div></div>
+      <div class="swatch"><div class="chip" style="background:#b3a4e6"></div><div class="info"><strong>Light plum</strong><span>Plum in the dark theme. Dark text on it.</span><button type="button" data-hex="#b3a4e6">#b3a4e6</button></div></div>
+      <div class="swatch"><div class="chip" style="background:#1e1b26"></div><div class="info"><strong>Ink</strong><span>Text, light theme.</span><button type="button" data-hex="#1e1b26">#1e1b26</button></div></div>
+      <div class="swatch"><div class="chip" style="background:#f5f4f7"></div><div class="info"><strong>Mist</strong><span>Background, light theme.</span><button type="button" data-hex="#f5f4f7">#f5f4f7</button></div></div>
+      <div class="swatch"><div class="chip" style="background:#16151a"></div><div class="info"><strong>Night</strong><span>Background, dark theme.</span><button type="button" data-hex="#16151a">#16151a</button></div></div>
+      <div class="swatch"><div class="chip" style="background:#ebe8f2"></div><div class="info"><strong>Moon</strong><span>Text, dark theme.</span><button type="button" data-hex="#ebe8f2">#ebe8f2</button></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="type">
+    <h2 id="type">Fonts</h2>
+    <p class="lede">Both are free (SIL Open Font License) and bundled with the web app and the app, so they look the same everywhere.</p>
+    <div class="type-row">
+      <div class="specimen">
+        <div class="big">Write once. Post everywhere.</div>
+        <div class="weights"><span style="font-weight:400">Regular</span><span style="font-weight:500">Medium</span><span style="font-weight:600">SemiBold</span><span style="font-weight:700">Bold</span></div>
+        <div class="meta"><b>Inter</b> · English and numbers · <code>font-family: Inter, 'Noto Sans Devanagari', sans-serif;</code></div>
+      </div>
+      <div class="specimen">
+        <div class="big hi" lang="hi">एक बार लिखें, हर जगह पोस्ट करें।</div>
+        <div class="weights hi" lang="hi"><span style="font-weight:400">सामान्य</span><span style="font-weight:600">गहरा</span></div>
+        <div class="meta"><b>Noto Sans Devanagari</b> · Hindi · on Android it's the phone's own Devanagari font</div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="voice">
+    <h2 id="voice">Voice</h2>
+    <p class="lede">Friendly when things go well. Calm everywhere else: short, plain, no exclamation marks. Say what happened, then what to do.</p>
+    <div class="voice">
+      <div class="card">
+        <h3>A post went out</h3>
+        <div class="ex do"><small>Do</small>Done! Your post is live on YouTube, X and Instagram.</div>
+        <div class="ex dont"><small>Don't</small>Request completed successfully.</div>
+      </div>
+      <div class="card">
+        <h3>Something failed</h3>
+        <div class="ex do"><small>Do</small>X didn't take the video: it's 3 minutes long and X allows 2:20. Trim it, then post to X again.</div>
+        <div class="ex dont"><small>Don't</small>Oops! Something went wrong!! 😕</div>
+      </div>
+      <div class="card">
+        <h3>Buttons and empty screens</h3>
+        <div class="ex do"><small>Do</small>Post · New post · No posts yet.</div>
+        <div class="ex dont"><small>Don't</small>Let's go! 🚀 · Nothing here… yet! ✨</div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="donts">
+    <h2 id="donts">Don't</h2>
+    <div class="donts">
+      <figure class="tile" style="margin:0"><div class="art on-light"><svg width="120" height="70" viewBox="0 0 48 48" preserveAspectRatio="none" aria-hidden="true"><g fill="none" stroke="#5b4a8b" stroke-linecap="round"><use href="#sparks"/></g></svg></div><figcaption class="cap"><strong>Stretch it</strong><span>Scale the mark evenly.</span></figcaption></figure>
+      <figure class="tile" style="margin:0"><div class="art on-light"><svg width="88" height="88" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#e06a1b" stroke-linecap="round"><use href="#sparks"/></g></svg></div><figcaption class="cap"><strong>Recolour it</strong><span>Only plum, light plum or white.</span></figcaption></figure>
+      <figure class="tile" style="margin:0"><div class="art on-light"><svg width="88" height="88" viewBox="0 0 48 48" aria-hidden="true" style="filter: drop-shadow(0 4px 6px rgba(91,74,139,.7)) drop-shadow(0 0 10px rgba(255,170,0,.8))"><g fill="none" stroke="#5b4a8b" stroke-linecap="round"><use href="#sparks"/></g></svg></div><figcaption class="cap"><strong>Add glows or shadows</strong><span>The mark already glows.</span></figcaption></figure>
+      <figure class="tile" style="margin:0"><div class="art on-dark"><svg width="88" height="88" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#5b4a8b" stroke-linecap="round"><use href="#sparks"/></g></svg></div><figcaption class="cap"><strong>Plum on dark</strong><span>Use light plum on dark backgrounds.</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="files">
+    <h2 id="files">Files</h2>
+    <p class="lede">Everything is in the <code>brand/</code> folder of the socialifer repo.</p>
+    <div class="table-box">
+      <table>
+        <thead><tr><th>File</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td><code>logo.svg</code>, <code>logo-on-dark.svg</code>, <code>logo-white.svg</code></td><td>The mark on light, dark, and plum or photos</td></tr>
+          <tr><td><code>logo-small.svg</code></td><td>32 px and below</td></tr>
+          <tr><td><code>favicon.svg</code>, <code>favicon.ico</code></td><td>Browser tabs: white mark on the plum tile</td></tr>
+          <tr><td><code>app-icon.svg</code>, <code>app-icon-dark.svg</code>, <code>android-adaptive-foreground.svg</code></td><td>App icons; the adaptive icon's background is <code>#5b4a8b</code></td></tr>
+          <tr><td><code>profile-picture.svg</code></td><td>Social media profile pictures (cropped to a circle)</td></tr>
+          <tr><td><code>png/</code></td><td>Ready-made PNGs of all of the above</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Decided 2026-11-17. Details and history: <code>brand/README.md</code>.</footer>
+</div>
+
+<script>
+document.querySelectorAll('.swatch button').forEach((b) => {
+  b.addEventListener('click', async () => {
+    const hex = b.dataset.hex;
+    try { await navigator.clipboard.writeText(hex); b.textContent = 'Copied'; }
+    catch { const r = document.createRange(); r.selectNodeContents(b); getSelection().removeAllRanges(); getSelection().addRange(r); return; }
+    setTimeout(() => { b.textContent = hex; }, 1200);
+  });
+});
+</script>

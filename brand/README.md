@@ -1,5 +1,7 @@
 # Socialifer brand
 
+**One-page guide:** `guide.html`, published at https://claude.ai/artifact/983ztzcSQY5nsdyQBvReRJ (private to the owner; share it from its Share menu). Keep it in step with this README.
+
 Decided 2026-11-17 (see section 9 of [docs/backlog.md](../docs/backlog.md)). The designs and the exploration behind them are on the canvas https://claude.ai/artifact/QCqti7p3vUfmGdzSjmGL6L (private to the owner), page "Final four".
 
 ## Name
