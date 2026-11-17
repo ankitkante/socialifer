@@ -28,7 +28,7 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 | Threads | No | Media URLs must be reachable by Meta through `TUNNEL_URL`. |
 | Instagram | **Yes** (2026-11-04: Reel from a 447 MB video, compressed to fit 300 MB and fetched through the cloudflared tunnel) | Media URLs must be reachable by Meta through `TUNNEL_URL`. `me` as the user id: set `INSTAGRAM_USER_ID` (required with Unified login tokens on graph.facebook.com). |
 | YouTube | **Yes** (2026-11-04, private test upload) | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
-| LinkedIn | No | The `LinkedIn-Version` header expires after about a year (default `202510`). |
+| LinkedIn | **Partly** (2026-11-17, text post with a hashtag and brackets; photos and video not yet) | The `LinkedIn-Version` header expires after about a year (default `202611`, active until 16 Nov 2027). Tokens from LinkedIn's token tool last 60 days and can't be refreshed. |
 | Facebook | No | Low. Uses the standard Graph endpoints. |
 | Telegram | No | Low. |
 | Discord | Partly | The webhook multipart format matched a mock. |
@@ -88,9 +88,9 @@ As of 2026-11-04, every flow has been checked offline: request order and payload
 
 ## LinkedIn
 
-- **Auth:** a Bearer token with `w_member_social` (or `w_organization_social`). The author is `urn:li:person:<sub>` or `urn:li:organization:<id>`. Every call sends the `LinkedIn-Version` (default `202510`) and `X-Restli-Protocol-Version: 2.0.0` headers.
+- **Auth:** a Bearer token with `w_member_social` (or `w_organization_social`). The author is `urn:li:person:<sub>` or `urn:li:organization:<id>`. Every call sends the `LinkedIn-Version` (default `202611`) and `X-Restli-Protocol-Version: 2.0.0` headers.
 - **Text:** `commentary` uses LinkedIn's "little text" format, where reserved characters (`\ | { } @ [ ] ( ) < > # * _ ~`) must be backslash-escaped or the post is silently truncated. Hashtags made only of letters and numbers become `{hashtag|\#|tag}`.
-- **Images:** `POST /rest/images?action=initializeUpload`, then a `PUT` of the bytes to `uploadUrl` with the Bearer token. One image is posted as `content.media.id`, and 2 to 20 as `content.multiImage.images`.
+- **Images:** `POST /rest/images?action=initializeUpload`, then a `PUT` of the bytes to `uploadUrl` with the Bearer token. One image is posted as `content.media.id`, and 2 to 20 as `content.multiImage.images`. Only JPEG, PNG and GIF are accepted, under 36,152,320 pixels (the pixel count isn't checked).
 - **Video:** `POST /rest/videos?action=initializeUpload` (`fileSizeBytes`), then a `PUT` of each byte range from `uploadInstructions` (no auth header) while collecting the `ETag`s. Then `POST /rest/videos?action=finalizeUpload` with `uploadedPartIds`, and polling `GET /rest/videos/{urn}` until `AVAILABLE`.
 - **Post:** `POST /rest/posts`. The new post's URN comes back in the `x-restli-id` header.
 

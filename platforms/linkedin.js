@@ -18,7 +18,7 @@ function headers() {
     Authorization: `Bearer ${env('LINKEDIN_ACCESS_TOKEN')}`,
     'Content-Type': 'application/json',
     // LinkedIn retires API versions after about a year; bump this if you get a version error.
-    'LinkedIn-Version': env('LINKEDIN_VERSION') || '202510',
+    'LinkedIn-Version': env('LINKEDIN_VERSION') || '202611',
     'X-Restli-Protocol-Version': '2.0.0',
   };
 }
@@ -71,7 +71,10 @@ async function uploadVideo(m) {
   await poll(async () => {
     const { data: status } = await request(`${API}/videos/${encodeURIComponent(video)}`, { headers: headers() });
     if (status.status === 'AVAILABLE') return true;
-    if (status.status === 'PROCESSING_FAILED') throw new ApiError(`LinkedIn could not process ${m.name}`);
+    if (status.status === 'PROCESSING_FAILED') {
+      const reason = status.processingFailureReason ? ` (${status.processingFailureReason})` : '';
+      throw new ApiError(`LinkedIn could not process ${m.name}${reason}`);
+    }
   }, { what: `LinkedIn to process ${m.name}` });
   return video;
 }
@@ -88,7 +91,12 @@ export default {
   id: 'linkedin',
   name: 'LinkedIn',
   limit: 3000,
-  media: { maxImages: 20, maxVideos: 1, maxItems: 20, mix: false, imageMB: null, videoMB: 5000, videoMinSeconds: 3, videoMaxSeconds: 30 * 60 },
+  media: {
+    maxImages: 20, maxVideos: 1, maxItems: 20, mix: false, imageMB: null, videoMB: 5000, videoMinSeconds: 3, videoMaxSeconds: 30 * 60,
+    // The Images API takes only these formats.
+    imageTypes: ['image/jpeg', 'image/png', 'image/gif'],
+    imageTypesLabel: 'LinkedIn only accepts JPEG, PNG and GIF images',
+  },
   envVars: ENV,
   isConfigured: () => hasEnv(...ENV),
   async post(text, media) {
