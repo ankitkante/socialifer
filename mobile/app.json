@@ -41,7 +41,8 @@
       ],
       "expo-secure-store",
       "expo-sharing",
-      "./plugins/allow-http.js"
+      "./plugins/allow-http.js",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {
