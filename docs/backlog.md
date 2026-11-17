@@ -7,13 +7,10 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 1. YouTube
 
-- **Find out why an upload came out Public** (B · phone test): a phone post with Visibility Public (2026-11-17) went live as public, though uploads are expected to be forced private until the API audit. Cause unknown (the user doesn't know of an audit). Check before building the reminder below; it may not be needed.
-- **Reminder to make the video public** (B · live test): Visibility already defaults to Public, but YouTube forces uploads from an unaudited API project to private. After a YouTube upload, show a reminder with a link to that video in YouTube Studio, like the Substack reminder. Only when Public was chosen and nothing is scheduled.
-- **Thumbnail over 2 MB** (B · phone test): today it's only "The thumbnail must be 2 MB or smaller", with no size given. Wanted: say its size and what to do, e.g. "The thumbnail is 3.4 MB; YouTube takes 2 MB at most. Save a smaller copy (1280×720 JPEG is plenty) and choose that." **Decision: never shrink it for the user.** They make the smaller copy themselves and so see how it looks; an automatic shrink could spoil the thumbnail and the app would get the blame.
+- **Thumbnail decision:** never shrink a thumbnail for the user. They make the smaller copy themselves and so see how it looks; an automatic shrink could spoil it and the app would get the blame.
 - **Tags as chips** (B · phone test, design first, good to have): the Tags field is one comma-separated text box today. Wanted: type a tag, it becomes a chip, tap to remove.
-- **Old Audio language** (W · live test): an Audio language saved before the Hindi/English list (e.g. French) isn't reset and is still sent.
 - **Test a schedule from the phone** (P · phone build): to be tested with the app's own scheduling later.
-- **Posts tab** (idea): formerly Community (text, images, polls). The YouTube Data API reference lists no way to create these, so for now they're posted by hand. To be double-checked in the API docs.
+- **Posts tab** (idea): formerly Community (text, images, polls). Checked 2026-11-17: the YouTube Data API reference has no resource or method for them (`commentThreads` only makes comments), and Google hasn't announced one. They stay posted by hand.
 
 ## 2. X
 
@@ -25,11 +22,11 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 4. Subtitles (web page only for now)
 
-- **Live lyrics-video logs** (S · live test): show `subtitles.py`'s own messages in this server's terminal as they arrive (e.g. with a `[subtitles]` prefix). Today `subtitler.js` keeps the child's stderr only to print it when a job fails, so a running job looks silent.
+The whole feature will be re-reviewed separately; these items wait for that.
+
 - **Review: edit timing as well as text** (W · live test): like YouTube's subtitle editor, each line should show its start and end time and let both be changed. Example: the English line "And it is very important for" was on screen for 0.6 s and flashed by. Still open: whether adding, deleting, merging and splitting lines are also wanted.
 - **Review: two-line subtitles** (W · live test): a 35-character English line reached the edges of a vertical video when burned in. The editor's single-line text box can't add a line break. Also check the burn-in's side margins on vertical videos.
 - **"Replace with SRT" removes every language** (W · live test): without warning (`pickSrt(item, true)` in `public/js/subtitles.js`). The user replaced English and lost Hindi. Decide with the user: replace one language only, or ask first.
-- **English cues can be too short** (live test): the cause and fix are recorded in lyrics-video's AGENTS.md.
 - **Test:** several videos in one post, Stop during a run, a leftover run after a server restart, a burn-in that also has to fit a size limit, and the platforms besides YouTube, X and Instagram.
 
 ## 5. Composing and layout
@@ -41,14 +38,14 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 6. Phone ↔ laptop
 
-- **Filter the logs** (idea, 2026-11-17): find log lines by date/time and by a keyword or text. The logs are in `logs/server-YYYY-MM.log` and `logs/phone-YYYY-MM.log`; the phone's Activity log shows the laptop's last 500 phone lines.
+- **Filter the logs** (idea, 2026-11-17, lowest priority): find log lines by date/time and by a keyword or text. The logs are in `logs/server-YYYY-MM.log` and `logs/phone-YYYY-MM.log`; the phone's Activity log shows the laptop's last 500 phone lines.
 - **Staggered sending** (phone build): to be discussed, then scheduling (see section 8).
 
-### Not yet tested on the phone
+### Not yet tested (phone and web page)
 
 Built but not tried live. Move an item to "Already tested" once it's confirmed.
 
-**How to test:** run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log.
+**How to test:** run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log. For the web page, reload it after restarting the server.
 
 **Still to test:**
 - **Platform settings reaching a platform:** a YouTube schedule (see section 1). Instagram Stories skipped: the user won't use them.
@@ -58,6 +55,13 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **Media cleanup** a week after posting.
 - **LinkedIn from the phone:** LinkedIn showing in "Post to" after the laptop check, a text post, and a non-JPEG/PNG/GIF photo flagged before Post. LinkedIn's text post worked from the web page on 2026-11-17.
 - **Built 2026-11-17, needs the APK rebuilt:** placeholders in light and dark mode (compose box, YouTube's title hint); the date and time dialogs for Schedule and Recording date, and Clear; Delete on a ready post (and its refusal once sending has started); Duplicate post (hidden once media is pruned); logos in the posts list (failed platforms greyed), the "Post to" pills (TalkBack reads the name) and the cards.
+- **Built 2026-11-17 on `feature/quick-fixes`** (APK rebuild for the phone parts):
+  - **Finish by hand:** a YouTube video starts Private; the web page's dialog shows the YouTube Studio link with the Substack part; on the phone, the dialog mentions the link and the finished post shows it until Done ("Finish by hand" in the posts list until then). Also a retry on the web page (YouTube item only) and a scheduled video (no item).
+  - **Private default:** Visibility starts at Private on every post, even after choosing Public on the last one.
+  - **Old Audio language:** a saved language outside Hindi/English (e.g. French) shows as Not set; the server refuses one sent anyway.
+  - **Thumbnail over 2 MB:** the message gives its size and what to do.
+  - **Subtitles:** lyrics-video's messages appear live in the terminal as `[subtitles]` lines.
+  - **Microphone:** the app no longer asks for it (Android's App info → Permissions).
 
 **Already tested:**
 - **Connection:** pairing, the laptop check with Wi-Fi off and on, the installed APK connecting, the activity log's Connected line.
@@ -69,7 +73,6 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 ## 7. Housekeeping
 
 - **Uploads left behind by a page reload** (W · live test): reloading or closing the page with files attached leaves them in `uploads/` until the 24-hour cleanup (about 430 MB after a day of testing). The page also forgets a running subtitle job. Both are the deferred "post survives a reload" idea.
-- **Microphone permission** (P · phone build): the APK asks for microphone access (RECORD_AUDIO), which expo-camera adds by default; the app never records. Removing it means `"recordAudioAndroid": false` in expo-camera's plugin options in `mobile/app.json` (check expo-camera's docs first), then a rebuild.
 
 ## 8. New platforms and big ideas
 
@@ -78,4 +81,4 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **Scheduling: a queue and a calendar** (idea, after the phone app's first version): write a post when the idea comes and add it to a queue; the laptop server publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the laptop was off are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
 - **Posting to Reddit** (idea): a new platform.
 - **Hosted server** (idea, not for now): run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and the phone app can post from anywhere. Put off on 2026-11-16 to save costs. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg.
-- **A logo** (idea): the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
+- **A logo** (idea): handled in the separate branding thread. The header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
