@@ -60,7 +60,7 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
   - **Private default:** Visibility starts at Private on every post, even after choosing Public on the last one.
   - **Old Audio language:** a saved language outside Hindi/English (e.g. French) shows as Not set; the server refuses one sent anyway.
   - **Thumbnail over 2 MB:** the message gives its size and what to do.
-  - **Subtitles:** lyrics-video's messages appear live in the terminal as `[subtitles]` lines.
+  - **Subtitles:** transcribe's messages appear live in the terminal as `[subtitles]` lines.
   - **Microphone:** the app no longer asks for it (Android's App info → Permissions).
 
 **Already tested:**

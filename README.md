@@ -55,7 +55,7 @@ The page has two columns: you write on the left, and the **Post panel** stays pi
 - **Your post:** type it once, and attach photos or videos with **+ Add photo or video**, by dragging files onto the box, or by pasting an image.
 - **Subtitles:** a Subtitles strip appears under an attached video.
   - **Languages:** Hindi and English for now.
-  - **Generate:** say which language the video is in and which subtitles to make (that language and/or English), then Generate. It runs Whisper on this PC through the separate lyrics-video project, takes a few minutes, and you can keep writing meanwhile. Each language shows up as a chip as soon as it's done; **Stop** keeps the languages already made. Posting waits until it's done or stopped. Needs `LYRICS_VIDEO_DIR` in `.env` (see below); without it, only Upload SRT shows.
+  - **Generate:** say which language the video is in and which subtitles to make (that language and/or English), then Generate. It runs Whisper on this PC through the separate transcribe project, takes a few minutes, and you can keep writing meanwhile. Each language shows up as a chip as soon as it's done; **Stop** keeps the languages already made. Posting waits until it's done or stopped. Needs `TRANSCRIBE_DIR` in `.env` (see below); without it, only Upload SRT shows.
   - **Upload SRT:** or drop an `.srt` file. Its chip has a language dropdown, because YouTube needs each track's language. With several videos, each video has its own row; drop an SRT on the row it belongs to.
   - **Review lines:** the video plays beside its lines, the line being spoken is highlighted, and clicking a line jumps there. Fix words by typing (timings stay as they are). Preview it burned in or as a YouTube track; for vertical videos the part Reels and Shorts buttons cover is shaded. Edits change the app's copy, never your file; **Download SRT** saves the corrected one. Closing without Done asks before discarding edits.
   - **Where they go:** YouTube gets one subtitle track per language (untick a language in its tab to leave it off), and its Audio language follows the video's language. X and Instagram get one language burned into the video, chosen in their tab ("Burned in · English", "Burned in · Hindi" or "None"; remembered per platform). Other platforms get English burned in, or the only language there is. Burning in needs ffmpeg; it starts as soon as the subtitles are ready, and the Post panel shows its progress. Platforms with the same language share one copy.
@@ -99,18 +99,18 @@ To install ffmpeg on Windows, run `winget install --id Gyan.FFmpeg` (on a Mac, `
 
 ## Generating subtitles
 
-**Generate** uses the separate lyrics-video project, which runs Whisper (`large-v3`) on this PC. It's optional, like ffmpeg: without it you can still upload an SRT. Set it up in this order:
+**Generate** uses the separate transcribe project, which runs Whisper (`large-v3`) on this PC. It's optional, like ffmpeg: without it you can still upload an SRT. Set it up in this order:
 
 1. **ffmpeg**, for burning subtitles into videos (see above). Without it, YouTube tracks still work, but X, Instagram and the rest can't get subtitles.
-2. **lyrics-video:** get the project and follow its README. That sets up its `.venv` and downloads the Whisper model once (`python subtitles.py --download-model large-v3`, about 3 GB). Social Post never downloads the model.
-3. **`LYRICS_VIDEO_DIR`** in `.env`: the lyrics-video folder, e.g. `C:\projects\lyrics-video`.
+2. **transcribe:** get the project and follow its README. That sets up its `.venv` and downloads the Whisper model once (`python subtitles.py --download-model large-v3`, about 3 GB). Social Post never downloads the model.
+3. **`TRANSCRIBE_DIR`** in `.env`: the transcribe folder, e.g. `C:\projects\transcribe`.
 4. **Restart** the server. The startup message and the header say whether it was found:
    - **Subtitles ready:** done; Generate appears under an attached video.
-   - **Subtitles not set up:** hover it (or read the startup message) for what's wrong: a wrong path, a folder that isn't lyrics-video, or a missing `.venv`.
-   - **No subtitle generator:** `LYRICS_VIDEO_DIR` isn't set.
+   - **Subtitles not set up:** hover it (or read the startup message) for what's wrong: a wrong path, a folder that isn't transcribe, or a missing `.venv`.
+   - **No subtitle generator:** `TRANSCRIBE_DIR` isn't set.
 
-- **Model missing:** Generate fails with lyrics-video's message, which gives the command to run once.
-- **Same environment:** start Social Post from a terminal that has the same environment variables you used for the model download (such as `HF_HOME`, if lyrics-video's README has you set it). Otherwise lyrics-video looks for the model in the wrong place.
+- **Model missing:** Generate fails with transcribe's message, which gives the command to run once.
+- **Same environment:** start Social Post from a terminal that has the same environment variables you used for the model download (such as `HF_HOME`, if transcribe's README has you set it). Otherwise transcribe looks for the model in the wrong place.
 - **Fonts outside Windows:** burned-in text uses Noto Sans. Install **Noto Sans** and **Noto Sans Devanagari**, or Hindi burns in as empty boxes. Check with Review lines' Burned in preview first; on Windows, Nirmala UI is used and nothing is needed.
 - **Speed:** about 5 minutes for a 1-minute clip in Hindi and English, on this laptop's CPU.
 - **One at a time:** Whisper needs more than 4 GB of free memory, so several videos wait in a queue. Close Resolve or Chrome if it fails for lack of memory.

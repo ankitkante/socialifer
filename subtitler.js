@@ -1,5 +1,5 @@
-// Generates subtitles for an uploaded video with the separate lyrics-video project (Whisper, run locally).
-// How to call it is lyrics-video's to define: see "Calling it from another program" in its AGENTS.md.
+// Generates subtitles for an uploaded video with the separate transcribe project (Whisper, run locally).
+// How to call it is transcribe's to define: see "Calling it from another program" in its AGENTS.md.
 import crypto from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
@@ -12,8 +12,8 @@ import { enqueue, WHISPER } from './work.js';
 import { log } from './log.js';
 
 const SRT = 'application/x-subrip';
-// The version of lyrics-video's --json contract this app understands, announced in its first `hello` event.
-// lyrics-video raises it when it renames or removes anything, so a run with another number is refused
+// The version of transcribe's --json contract this app understands, announced in its first `hello` event.
+// transcribe raises it when it renames or removes anything, so a run with another number is refused
 // rather than misread.
 export const PROTOCOL = 1;
 const ID_RE = /^[a-f0-9]{32}$/;
@@ -23,32 +23,32 @@ const KEEP_FINISHED_MS = 60 * 60_000;
 // Whisper's saved transcripts are kept this long after they were last used, so adding the same video
 // again (or posting it again tomorrow) skips Whisper.
 export const TRANSCRIPT_MAX_AGE_MS = 24 * 60 * 60_000;
-// One folder per video content (its sha256) for lyrics-video's --out-dir, plus the running job's record.
+// One folder per video content (its sha256) for transcribe's --out-dir, plus the running job's record.
 const TRANSCRIPTS = uploadsPath('transcripts/');
 const RUNNING = join(TRANSCRIPTS, 'running.json');
 
 const exists = (path) => access(path).then(() => true, () => false);
-export const NOT_SET = 'Generating subtitles needs the lyrics-video project. Set LYRICS_VIDEO_DIR in .env to its folder (see "Generating subtitles" in the README), then restart the server.';
+export const NOT_SET = 'Generating subtitles needs the transcribe project. Set TRANSCRIBE_DIR in .env to its folder (see "Generating subtitles" in the README), then restart the server.';
 
-// lyrics-video runs with its own virtual environment's Python, which has Whisper installed.
-// Optional, like ffmpeg: without LYRICS_VIDEO_DIR the page only offers uploading an SRT.
-// Returns { tool } when it's usable, { problem } saying what to fix when LYRICS_VIDEO_DIR is set but
+// transcribe runs with its own virtual environment's Python, which has Whisper installed.
+// Optional, like ffmpeg: without TRANSCRIBE_DIR the page only offers uploading an SRT.
+// Returns { tool } when it's usable, { problem } saying what to fix when TRANSCRIBE_DIR is set but
 // something's wrong, and {} when it isn't set at all. Checked on every call, so a venv created after the
 // server started is found without a restart (the page asks every minute).
 export async function checkGenerator() {
-  const dir = process.env.LYRICS_VIDEO_DIR?.trim().replace(/^["']|["']$/g, '');
+  const dir = process.env.TRANSCRIBE_DIR?.trim().replace(/^["']|["']$/g, '');
   if (!dir) return {};
   const isFolder = await stat(dir).then((s) => s.isDirectory(), () => false);
   if (!isFolder) {
-    return { problem: `LYRICS_VIDEO_DIR is set to ${dir}, but there's no folder there. Fix the path in .env, then restart the server.` };
+    return { problem: `TRANSCRIBE_DIR is set to ${dir}, but there's no folder there. Fix the path in .env, then restart the server.` };
   }
   const script = join(dir, 'subtitles.py');
   if (!(await exists(script))) {
-    return { problem: `${dir} isn't the lyrics-video folder: it has no subtitles.py. Point LYRICS_VIDEO_DIR at lyrics-video in .env, then restart the server.` };
+    return { problem: `${dir} isn't the transcribe folder: it has no subtitles.py. Point TRANSCRIBE_DIR at transcribe in .env, then restart the server.` };
   }
   const python = process.platform === 'win32' ? join(dir, '.venv', 'Scripts', 'python.exe') : join(dir, '.venv', 'bin', 'python');
   if (!(await exists(python))) {
-    return { problem: `lyrics-video's virtual environment isn't set up (${python} is missing). Follow lyrics-video's README to create it; Generate appears within a minute, no restart needed.` };
+    return { problem: `transcribe's virtual environment isn't set up (${python} is missing). Follow transcribe's README to create it; Generate appears within a minute, no restart needed.` };
   }
   return { tool: { dir, python, script } };
 }
@@ -221,7 +221,7 @@ export function queueJob(video, language, subtitles) {
   return job;
 }
 
-// Stopping keeps the languages already written: lyrics-video renames each SRT into place only when it's complete.
+// Stopping keeps the languages already written: transcribe renames each SRT into place only when it's complete.
 export function stopJob(job) {
   if (finished(job)) return;
   if (job.child) {
@@ -291,7 +291,7 @@ async function launch(job) {
   let failure = null; // our own failure while handling an event
   let handling = Promise.resolve(); // file events save uploads one after another, in order
   let greeted = false; // the first event was a matching `hello`
-  let mismatch = null; // why this lyrics-video was refused
+  let mismatch = null; // why this transcribe was refused
 
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk) => {
@@ -314,8 +314,8 @@ async function launch(job) {
           continue;
         }
         const theirs = event.type === 'hello' && typeof event.protocol === 'number'
-          ? `lyrics-video speaks protocol ${event.protocol}` : "lyrics-video didn't say which protocol it speaks";
-        mismatch = `lyrics-video and Social Post don't match: ${theirs}, and this app needs protocol ${PROTOCOL}. Update both projects.`;
+          ? `transcribe speaks protocol ${event.protocol}` : "transcribe didn't say which protocol it speaks";
+        mismatch = `transcribe and Social Post don't match: ${theirs}, and this app needs protocol ${PROTOCOL}. Update both projects.`;
         killProcess(child.pid);
         return;
       }
@@ -361,9 +361,9 @@ async function launch(job) {
       return finish(job, { status: 'done' });
     }
     // Its messages are already in the terminal, as [subtitles] lines.
-    log.error(`lyrics-video exited with code ${code}`);
+    log.error(`transcribe exited with code ${code}`);
     // Exit code 2 is a refused request (argparse), which prints no JSON.
-    const error = reported || (code === 2 ? `lyrics-video didn't accept the request: ${lastLine(stderr)}` : 'Making the subtitles failed. The details are in the terminal.');
+    const error = reported || (code === 2 ? `transcribe didn't accept the request: ${lastLine(stderr)}` : 'Making the subtitles failed. The details are in the terminal.');
     return finish(job, { status: 'error', error });
   };
   child.on('error', (err) => end(null, err));
@@ -378,7 +378,7 @@ async function handle(job, event, outDir) {
   } else if (event.type === 'file') {
     // Only read files from the folder this job was given.
     const path = resolve(String(event.path));
-    if (!path.startsWith(resolve(outDir) + sep) || basename(path) === 'running.json') throw new Error(`lyrics-video reported a file outside its folder: ${path}`);
+    if (!path.startsWith(resolve(outDir) + sep) || basename(path) === 'running.json') throw new Error(`transcribe reported a file outside its folder: ${path}`);
     const stem = job.video.name.replace(/\.[^.]+$/, '');
     const saved = await saveFile(await readFile(path), SRT, `${stem}.${event.lang}.srt`);
     // The SRT now lives on as an upload (deleted with the others); only the transcripts stay as a cache.

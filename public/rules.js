@@ -303,7 +303,7 @@ export function problemsFor(platform, text, media, options = {}) {
 // ---- Subtitles ----
 
 // Languages offered for a video's speech, its subtitles and YouTube's language fields. The codes are
-// Whisper's (what lyrics-video takes), which are also the codes YouTube uses for these languages.
+// Whisper's (what transcribe takes), which are also the codes YouTube uses for these languages.
 export const LANGUAGES = [
   ['en', 'English'], ['hi', 'Hindi'], ['bn', 'Bengali'], ['mr', 'Marathi'], ['ta', 'Tamil'], ['te', 'Telugu'],
   ['ur', 'Urdu'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['pt', 'Portuguese'], ['ar', 'Arabic'],
@@ -312,7 +312,7 @@ export const LANGUAGES = [
 export const languageName = (code) => LANGUAGES.find(([c]) => c === code)?.[1] ?? code;
 
 // The languages subtitles can be in (spoken, generated, uploaded) and YouTube's audio language. The codes
-// are the same in Whisper (lyrics-video's --language) and YouTube's API; adding a language means checking
+// are the same in Whisper (transcribe's --language) and YouTube's API; adding a language means checking
 // both accept its code.
 export const SUBTITLE_LANGUAGES = [['hi', 'Hindi'], ['en', 'English']];
 export const isSubtitleLanguage = (code) => SUBTITLE_LANGUAGES.some(([c]) => c === code);

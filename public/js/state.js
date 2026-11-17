@@ -29,8 +29,8 @@ export const state = {
   // attached files: { key, file, preview, status, progress, id, error, xhr, meta, thumb }; videos also get
   // subs: { [lang]: { lang, name, source: 'generated' | 'uploaded', status, id, lines, edited } } and job (see subtitles.js)
   items: [],
-  generator: false, // whether the server can make subtitles (lyrics-video), from /api/status
-  generatorProblem: null, // what to fix when LYRICS_VIDEO_DIR is set but unusable
+  generator: false, // whether the server can make subtitles (transcribe), from /api/status
+  generatorProblem: null, // what to fix when TRANSCRIBE_DIR is set but unusable
   burns: new Map(), // `${videoId}:${srtId}` -> a copy with subtitles burned in: { status, progress, id, error }
   tracksOff: new Set(), // YouTube subtitle languages unticked for this post
   settings: {}, // per-platform field values, see fields.js

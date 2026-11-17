@@ -46,10 +46,10 @@ async function refresh(needsTunnel) {
     ? dot('ok', 'ffmpeg ready', 'Videos too big for a platform are compressed to fit, and subtitles can be burned in.')
     : dot('', 'No ffmpeg', 'Videos too big for a platform are rejected for it, and subtitles can\'t be burned in. Install ffmpeg (see README).'));
   dots.push(status.subtitles
-    ? dot('ok', 'Subtitles ready', 'Generate makes subtitles on this PC with the lyrics-video project (Whisper).')
+    ? dot('ok', 'Subtitles ready', 'Generate makes subtitles on this PC with the transcribe project (Whisper).')
     : status.subtitlesProblem
       ? dot('warn', 'Subtitles not set up', status.subtitlesProblem)
-      : dot('', 'No subtitle generator', 'To generate subtitles, set up lyrics-video and set LYRICS_VIDEO_DIR in .env (see "Generating subtitles" in the README). Uploading an SRT works without it.'));
+      : dot('', 'No subtitle generator', 'To generate subtitles, set up transcribe and set TRANSCRIBE_DIR in .env (see "Generating subtitles" in the README). Uploading an SRT works without it.'));
   $('topbar-status').replaceChildren(...dots);
   // Generate only shows when the server can run it; when it's set up wrongly, the strip says why.
   const problem = status.subtitlesProblem ?? null;

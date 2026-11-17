@@ -126,7 +126,7 @@ test('making subtitles needs a real video, a plain language code and a JSON requ
   assert.equal((await make({ video: '0'.repeat(32), language: 'hi', subtitles: ['hi', 'en'] })).status, 400);
   assert.equal((await make({}, 'text/plain')).status, 415);
 
-  // A PNG isn't a video; and only codes like "hi" reach lyrics-video's command line.
+  // A PNG isn't a video; and only codes like "hi" reach transcribe's command line.
   const { id } = await (await upload(PNG, 'image/png')).json();
   assert.match((await (await make({ video: id, language: 'hi', subtitles: ['hi'] })).json()).error, /expired/);
   await fetch(`${base}/api/media/${id}`, { method: 'DELETE' });
@@ -137,9 +137,9 @@ test('making subtitles needs a real video, a plain language code and a JSON requ
   assert.match((await (await make({ video, language: 'fr', subtitles: ['en'] })).json()).error, only);
   assert.match((await (await make({ video, language: 'hi', subtitles: ['hi', 'fr'] })).json()).error, only);
   assert.match((await (await make({ video, language: '--fresh', subtitles: ['en'] })).json()).error, only);
-  // Hindi and English get past the language check (this test's server has no lyrics-video).
-  assert.match((await (await make({ video, language: 'hi', subtitles: ['hi', 'en'] })).json()).error, /LYRICS_VIDEO_DIR/);
-  assert.match((await (await make({ video, language: 'en', subtitles: ['en'] })).json()).error, /LYRICS_VIDEO_DIR/);
+  // Hindi and English get past the language check (this test's server has no transcribe).
+  assert.match((await (await make({ video, language: 'hi', subtitles: ['hi', 'en'] })).json()).error, /TRANSCRIBE_DIR/);
+  assert.match((await (await make({ video, language: 'en', subtitles: ['en'] })).json()).error, /TRANSCRIBE_DIR/);
 
   // Subtitles sent with a post are held to the same languages.
   const srt = (await (await upload(Buffer.from('1\n00:00:00,000 --> 00:00:01,000\nBonjour\n'), 'application/x-subrip', 'fr.srt')).json()).id;
@@ -220,7 +220,7 @@ test('serves the page assets and only known script names', async () => {
 test('reports ffmpeg and tunnel status', async () => {
   const status = await (await fetch(`${base}/api/status`)).json();
   assert.equal(typeof status.ffmpeg, 'boolean');
-  // No LYRICS_VIDEO_DIR in the test's environment, so no subtitle generator.
+  // No TRANSCRIBE_DIR in the test's environment, so no subtitle generator.
   assert.equal(status.subtitles, false);
   assert.equal(status.subtitlesProblem, null);
   assert.deepEqual(status.tunnel, { configured: false, reachable: false });

@@ -1,4 +1,4 @@
-// One heavy job at a time on this PC: Whisper (lyrics-video) and ffmpeg's subtitle burn-ins both use every
+// One heavy job at a time on this PC: Whisper (transcribe) and ffmpeg's subtitle burn-ins both use every
 // CPU core, and Whisper's large-v3 also needs more than 4 GB of free memory, so running them together
 // slows both down or fails for memory. Waiting jobs run in priority order (Whisper first), then in the
 // order they were asked for. A job never waits on another queued job, so nothing can deadlock.

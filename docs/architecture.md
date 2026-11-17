@@ -11,7 +11,7 @@ Browser (public/index.html, styles.css, js/*.js)
   │  POST /api/media      raw file body → { id, name, type, size }
   │  DELETE /api/media/:id
   │  POST /api/subtitled  { video, subtitles, maxBytes? } → NDJSON progress, then the burned-in copy's id
-  │  POST /api/subtitles  { video, language, subtitles: [lang] } → NDJSON job snapshots (lyrics-video)
+  │  POST /api/subtitles  { video, language, subtitles: [lang] } → NDJSON job snapshots (transcribe)
   │  POST /api/subtitles/<id>/stop
   │  POST /api/post       { text, platforms: [id], media: [mediaId], options, subtitles?: { videoId: { lang: srtId } } }
   ▼
@@ -42,7 +42,7 @@ The server's request timeout only covers receiving the request, so a slow video 
 - **Length:** the browser reads each video's duration when it is attached and sends it with the post as `media: [{ id, duration }]`. If ffprobe is installed, the server reads the real duration and uses that instead.
 - **Compression:** after a platform passes `problemsFor`, `mediaFor()` in `server.js` swaps any video over that platform's `videoMB` for `fitVideo(m, maxBytes)`. That runs ffmpeg once per original and target size (concurrent platforms with the same limit share the run), writes the copy as a new upload with `derivedFrom` in its metadata, and retries once at 85% if the first pass overshoots. Copies are deleted with their original or by the 24-hour cleanup. The UI shows these as notes (`adjustmentsFor`), not problems.
 - **Public serving:** `GET/HEAD /media/<id>.<ext>` streams the file with Range support. The extension is cosmetic; some fetchers expect one. `/media/health` answers 204, so `/api/status` can check that the tunnel reaches this server.
-- **Subtitles:** `subtitler.js` runs lyrics-video's `subtitles.py` (contract: lyrics-video's AGENTS.md) with `--out-dir uploads/transcripts/<sha256 of the video>/`. Each SRT it writes is saved as a new upload (`saveFile` in `media.js`) and removed from that folder; the transcripts stay for 24 hours after their last use. Edits from Review lines are uploaded by the page as another SRT. Burned-in copies (`burnSubtitles`) are cached per video, SRT and size target. Whisper runs and burn-ins take turns (`work.js`), Whisper first.
+- **Subtitles:** `subtitler.js` runs transcribe's `subtitles.py` (contract: transcribe's AGENTS.md) with `--out-dir uploads/transcripts/<sha256 of the video>/`. Each SRT it writes is saved as a new upload (`saveFile` in `media.js`) and removed from that folder; the transcripts stay for 24 hours after their last use. Edits from Review lines are uploaded by the page as another SRT. Burned-in copies (`burnSubtitles`) are cached per video, SRT and size target. Whisper runs and burn-ins take turns (`work.js`), Whisper first.
 - **Deletion:** the browser deletes files on removal or after a fully successful post. Anything older than 24 hours is removed when the server starts and every hour after.
 
 ## Security model

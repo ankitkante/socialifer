@@ -27,6 +27,6 @@ export function statusLines(status, platforms) {
     status.ffmpeg ? { ok: true, text: 'ffmpeg ready' }
       : { ok: false, text: "ffmpeg not found: videos too big for a platform can't be compressed" },
     status.subtitles ? { ok: true, text: 'Subtitles ready' }
-      : { ok: false, text: status.subtitlesProblem ?? 'Subtitles not set up (LYRICS_VIDEO_DIR)' },
+      : { ok: false, text: status.subtitlesProblem ?? 'Subtitles not set up (TRANSCRIBE_DIR)' },
   ];
 }

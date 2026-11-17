@@ -1,4 +1,4 @@
-// Subtitles for attached videos: the strip under the videos (generate them with lyrics-video, or upload an
+// Subtitles for attached videos: the strip under the videos (generate them with transcribe, or upload an
 // SRT), one chip per language, the burned-in copies made ahead of posting, and each platform's choice.
 import { $, el, readEvents, errorOf } from './dom.js';
 import { SUBTITLE_LANGUAGES, isSubtitleLanguage, languageName, burnLanguage, burnTarget, parseSrt } from '/rules.js';
@@ -247,7 +247,7 @@ function chip(item, s, { removable = true } = {}) {
   return el('span', { className: 'sub-chip' + (s.source === 'uploaded' ? ' file' : '') + (s.status === 'error' ? ' error' : '') }, ...parts);
 }
 
-// LYRICS_VIDEO_DIR is set but unusable: say why Generate is missing, where the user is looking for it.
+// TRANSCRIBE_DIR is set but unusable: say why Generate is missing, where the user is looking for it.
 const setupProblem = () => (!state.generator && state.generatorProblem
   ? [el('p', { className: 'hint error', textContent: `Generate isn't available: ${state.generatorProblem}` })]
   : []);

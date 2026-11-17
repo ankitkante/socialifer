@@ -30,7 +30,7 @@ export async function laptopStatus({ wait = true } = {}) {
   const { tool, problem } = await checkGenerator();
   return {
     ffmpeg: canCompress,
-    // subtitlesProblem: what to fix when LYRICS_VIDEO_DIR is set but unusable; null when it's fine or not set.
+    // subtitlesProblem: what to fix when TRANSCRIBE_DIR is set but unusable; null when it's fine or not set.
     subtitles: Boolean(tool),
     subtitlesProblem: problem ?? null,
     tunnel: { configured: Boolean(publicBaseUrl()), reachable: await tunnelReachable(wait) },

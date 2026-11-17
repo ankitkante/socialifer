@@ -180,14 +180,14 @@ const server = http.createServer(async (req, res) => {
       return res.end();
     }
 
-    // Makes subtitles for an uploaded video with lyrics-video. Jobs run one at a time on the server, and keep
+    // Makes subtitles for an uploaded video with transcribe. Jobs run one at a time on the server, and keep
     // running if the page goes away. The response streams the job's state as NDJSON until it finishes.
     if (req.method === 'POST' && pathname === '/api/subtitles') {
       requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
       const { video: videoId, language, subtitles: wanted } = await readJsonBody(req);
       const video = typeof videoId === 'string' ? await getMedia(videoId) : null;
       if (!video || !isVideo(video)) throw httpError(400, 'The video has expired. Remove it and add it again.');
-      // Only the supported languages reach lyrics-video's command line, checked before any job starts.
+      // Only the supported languages reach transcribe's command line, checked before any job starts.
       if (!isSubtitleLanguage(language)) throw httpError(400, SUBTITLE_LANGUAGES_ONLY);
       if (!Array.isArray(wanted) || !wanted.length || wanted.some((lang) => !isSubtitleLanguage(lang))) throw httpError(400, SUBTITLE_LANGUAGES_ONLY);
       if (wanted.some((lang) => lang !== language && lang !== 'en')) {
@@ -286,9 +286,9 @@ server.listen(PORT, HOST, async () => {
     console.log('Burned-in subtitles use Noto Sans: install Noto Sans and Noto Sans Devanagari, or Hindi shows as empty boxes.');
   }
   const { tool, problem } = await checkGenerator();
-  console.log(tool ? `Generate subtitles: using lyrics-video in ${tool.dir}`
+  console.log(tool ? `Generate subtitles: using transcribe in ${tool.dir}`
     : problem ? `Generate subtitles is off: ${problem}`
-      : 'Generate subtitles is off: LYRICS_VIDEO_DIR isn\'t set (see "Generating subtitles" in the README). Uploading an SRT still works.');
+      : 'Generate subtitles is off: TRANSCRIBE_DIR isn\'t set (see "Generating subtitles" in the README). Uploading an SRT still works.');
   await startPhoneServer();
 });
 

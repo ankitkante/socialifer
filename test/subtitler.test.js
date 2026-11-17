@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { uploadsPath } from '../media.js';
 
-// A fake lyrics-video: Node itself stands in for the venv's Python, and subtitles.py is a short script
+// A fake transcribe: Node itself stands in for the venv's Python, and subtitles.py is a short script
 // that prints what FAKE_LYRICS tells it to. No Whisper, no model.
 const FAKE = `
 const fs = require('fs');
@@ -46,12 +46,12 @@ before(async () => {
   await writeFile(script, FAKE);
   await writeFile(join(dir, 'talk.mp4'), CONTENT);
   await writeFile(join(dir, 'talk-again.mp4'), CONTENT);
-  process.env.LYRICS_VIDEO_DIR = dir;
+  process.env.TRANSCRIBE_DIR = dir;
   subtitler = await import('../subtitler.js');
 });
 
 after(async () => {
-  delete process.env.LYRICS_VIDEO_DIR;
+  delete process.env.TRANSCRIBE_DIR;
   await rm(join(TRANSCRIPTS, HASH), { recursive: true, force: true });
   await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
@@ -67,26 +67,26 @@ function runFake(mode, video = { id: 'a'.repeat(32), name: 'talk.mp4', path: joi
   });
 }
 
-test('finds the fake lyrics-video through LYRICS_VIDEO_DIR', async () => {
+test('finds the fake transcribe through TRANSCRIBE_DIR', async () => {
   assert.ok(await subtitler.generator());
 });
 
-test('says what to fix when LYRICS_VIDEO_DIR is wrong, not lyrics-video, or has no venv', async (t) => {
-  t.after(() => { process.env.LYRICS_VIDEO_DIR = dir; });
+test('says what to fix when TRANSCRIBE_DIR is wrong, not transcribe, or has no venv', async (t) => {
+  t.after(() => { process.env.TRANSCRIBE_DIR = dir; });
   const problemFor = async (value) => {
-    process.env.LYRICS_VIDEO_DIR = value;
+    process.env.TRANSCRIBE_DIR = value;
     return (await subtitler.checkGenerator()).problem;
   };
   assert.match(await problemFor(join(dir, 'nowhere')), /there's no folder there\. Fix the path in \.env/);
-  assert.match(await problemFor(join(dir, '.venv')), /isn't the lyrics-video folder: it has no subtitles\.py/);
+  assert.match(await problemFor(join(dir, '.venv')), /isn't the transcribe folder: it has no subtitles\.py/);
 
   const noVenv = await mkdtemp(join(tmpdir(), 'social-post-lyrics-novenv-'));
   t.after(() => rm(noVenv, { recursive: true, force: true }));
   await writeFile(join(noVenv, 'subtitles.py'), '');
-  assert.match(await problemFor(noVenv), /virtual environment isn't set up .*lyrics-video's README/);
+  assert.match(await problemFor(noVenv), /virtual environment isn't set up .*transcribe's README/);
 
   // Not set at all is not a problem, just off.
-  delete process.env.LYRICS_VIDEO_DIR;
+  delete process.env.TRANSCRIBE_DIR;
   assert.deepEqual(await subtitler.checkGenerator(), {});
 });
 
@@ -99,7 +99,7 @@ test('a run that greets with the expected protocol goes ahead', async () => {
 test('a different protocol number stops the run with a message naming both', async () => {
   const job = await runFake('wrong');
   assert.equal(job.status, 'error');
-  assert.match(job.error, /lyrics-video and Social Post don't match/);
+  assert.match(job.error, /transcribe and Social Post don't match/);
   assert.match(job.error, /protocol 2/);
   assert.match(job.error, new RegExp(`needs protocol ${subtitler.PROTOCOL}`));
   assert.match(job.error, /Update both/);
@@ -110,7 +110,7 @@ test('a different protocol number stops the run with a message naming both', asy
 test('a run that starts without a hello is refused too', async () => {
   const job = await runFake('missing');
   assert.equal(job.status, 'error');
-  assert.match(job.error, /don't match: lyrics-video didn't say which protocol it speaks/);
+  assert.match(job.error, /don't match: transcribe didn't say which protocol it speaks/);
   assert.equal(job.stage, null);
 });
 
@@ -156,7 +156,7 @@ test('at startup, stops a subtitle run the last server left behind', async () =>
 });
 
 test("never stops a process it can't confirm is that run, as when its PID was reused", async () => {
-  // Same PID as recorded, but a different program: not lyrics-video's python running subtitles.py.
+  // Same PID as recorded, but a different program: not transcribe's python running subtitles.py.
   const { child, exited } = await leftover(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { python, script });
   try {
     assert.equal(await subtitler.stopLeftover(), null);
