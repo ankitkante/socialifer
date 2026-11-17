@@ -166,6 +166,21 @@ Smaller things found in the same test:
 - **Old Audio language:** a YouTube Audio language saved before the Hindi/English list (e.g. French) isn't reset and is still sent.
 - **English cues from lyrics-video can be too short;** the cause and fix are recorded in lyrics-video's AGENTS.md.
 
+### Feedback from phone testing (2026-11-17)
+
+- **Substack reminder as a dialog:** today it only shows inside a finished post (`Finished.js`), which the user will rarely open, so it isn't a reminder. Wanted: a prominent dialog right after tapping Post, once the post has been dealt with: handed to the laptop if it's connected, otherwise saved on the phone. It doesn't wait for the platforms' results.
+- **Same on the web page:** show the reminder right after Post for every post, video included (today it's only for posts without video). This ties in with "Substack reminder for video posts too" above.
+- **X thread numbering: an empty line before `(1/3)`.** Today `splitThread` in `rules.js` adds one line break, so the number sits right under the text. Wanted: `\n\n`. It's shared, so it changes the web page, the phone and what's posted to X. The extra character counts toward each part's limit.
+- **Placeholders don't show on the phone:** neither "What do you want to post?" in the compose box nor YouTube's "Defaults to: …" title hint. No `TextInput` in `mobile/src` sets `placeholderTextColor`; the likely cause is Android's default hint colour (maybe dark mode) on the white boxes. Fix: set it everywhere, then check in light and dark mode.
+- **Date and time pickers on the phone:** Schedule and Recording date are typed today (`YYYY-MM-DD HH:MM`). The user wants pickers. It needs a new package (`@react-native-community/datetimepicker`, approval needed) and an APK rebuild.
+- **YouTube upload came out Public:** a phone post with Visibility Public (2026-11-17) went live as public, though uploads are expected to be forced private until the API audit. Cause unknown (the user doesn't know of an audit). Check before building "Reminder to make the YouTube video public"; it may not be needed.
+- **Substack reminder's Share button is useless for video:** the share sheet opens, but Substack's app isn't in it, so the video can't be handed over. Copy text works. Sharing a photo works (Substack shows in the sheet and the image posts). **Decision: remove Share for videos only;** the user picks the video from the phone's own gallery inside Substack. Copy text, Share for photos and Done stay.
+- **Duplicate a post (phone):** copy any post into a new draft with the same text, platforms, settings and media, then change what's needed. `copyPost` in `store.js` (used by Send again) already does this for chosen platforms. **Decision:** Duplicate is hidden once the post's media copies are pruned (`mediaRemoved`).
+- **Tags as chips (good to have):** YouTube's Tags field is one comma-separated text box today. Wanted: chips on the web page and the phone (type a tag, it becomes a chip, tap to remove). Design first.
+- **Laptop status on the phone:** while connected, show what the web page's status dots show: tunnel connected, ffmpeg ready, subtitles ready. The server already works these out for `/api/status`; the phone's laptop check would need them from an `/app/*` endpoint. Most useful for Instagram, which fails without the tunnel.
+- **Trial reels need followers:** Instagram refuses them for small accounts (code 10, subcode 2207081, "does not meet the trial reel follower requirement"). The message reached the phone fine; add what to do: "Set Trial reel to Off and post again." Maybe hide the field, but the follower threshold isn't known.
+- **Thumbnail over 2 MB:** today it's only "The thumbnail must be 2 MB or smaller", with no size given. Wanted: say its size and what to do, e.g. "The thumbnail is 3.4 MB; YouTube takes 2 MB at most. Save a smaller copy (1280×720 JPEG is plenty) and choose that." On the web page and the phone. **Decision: never shrink it for the user.** They make the smaller copy themselves and so see how it looks; an automatic shrink could spoil the thumbnail and the app would get the blame.
+
 ### Ideas for later (priority order)
 
 - **Mobile app (decided 2026-11-16, not built):** see "Mobile app" below.
@@ -200,12 +215,10 @@ Smaller things found in the same test:
 - **Installed app (built):** an APK built with EAS (`npm run sp-mobile-apk`, profile `apk` in `mobile/eas.json`), package `com.socialpost.app`. `plugins/allow-http.js` sets `usesCleartextTraffic`, because release builds block plain HTTP and the phone port has no HTTPS. It has its own storage, so it's paired separately from Expo Go. Rebuild after changing app code or `app.json`.
 - **Later:** staggered sending (to be discussed), then scheduling with a calendar.
 
-**Not yet tested on the phone** (built, but not tried live; remove an item once it's confirmed). Tested so far: pairing, the laptop check with Wi-Fi off and on, an offline draft handed over and posted to X, the thread count on X's card, the activity log's Connected line, and the installed APK connecting. To test: run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log.
-- **Platform settings reaching a platform:** an X thread, a YouTube title, tags, schedule or thumbnail, Instagram's Post as, cover or alt text sent from the phone.
+**Not yet tested on the phone** (built, but not tried live; remove an item once it's confirmed). Tested so far: pairing, the laptop check with Wi-Fi off and on, an offline draft handed over and posted to X, the thread count on X's card, the activity log's Connected line, the installed APK connecting, and (2026-11-17) a 4-part X thread posted from the phone, its `Phone post …` journey lines, the app's hand-over lines and its result link opening the thread; a 32 MB video handed over and posted to YouTube with the title defaulting to the first line; a second one with a typed title, tags, Private and a custom thumbnail (two files handed over); the Substack reminder's Copy text, Share for a photo and Done; an Instagram photo post with alt text; an Instagram Reel with an uploaded cover, made with Send again after a failed try. To test: run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log.
+- **Platform settings reaching a platform:** a YouTube schedule (to be tested with the app's own scheduling later). Instagram Stories skipped: the user won't use them.
 - **The laptop refusing a post:** it returns to draft with the reason; a failed try shows "last try failed" on the post.
-- **Video and multi-file hand-over:** a large video, several files, and resuming after Wi-Fi drops mid-upload.
-- **Logging:** the server's `Phone post …` journey lines and the app's hand-over lines in a real post.
-- **Finished posts:** result links opening, Send again, Copy text, Share to Substack's app, Done.
+- **Video and multi-file hand-over:** a video over the platform's size limit (compressed), several files, and resuming after Wi-Fi drops mid-upload.
 - **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel, X thread.
 - **Media cleanup** a week after posting.
 
