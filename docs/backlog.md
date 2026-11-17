@@ -81,4 +81,27 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **Scheduling: a queue and a calendar** (idea, after the phone app's first version): write a post when the idea comes and add it to a queue; the laptop server publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the laptop was off are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
 - **Posting to Reddit** (idea): a new platform.
 - **Hosted server** (idea, not for now): run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and the phone app can post from anywhere. Put off on 2026-11-16 to save costs. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg.
-- **A logo** (idea): handled in the separate branding thread. The header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
+
+## 9. Branding: Socialifer (decided 2026-11-17)
+
+Decided in the branding thread. The designs are on the canvas https://claude.ai/artifact/QCqti7p3vUfmGdzSjmGL6L (private to the user), page "Final four". The app still says "Social Post" everywhere.
+
+- **Name:** Socialifer (so·sha·LIE·fer): "social" + Latin "-fer", carrier. socialifer.com and socialifer.in are registered; socialifer.app was skipped (too expensive).
+- **Logo:** Ring of fire, a glowing ring with sparks streaking out, like a Diwali chakri. The app sends posts out everywhere; the logo sends light out everywhere. Small sizes (tab icon) use a simpler version with fewer, thicker sparks. It can read as a sun; accepted.
+- **Colour:** Dusk Plum `#5b4a8b`, `#b3a4e6` in the dark theme. Replaces today's blue.
+- **Fonts:** Inter for English, Noto Sans Devanagari for Hindi.
+- **Voice:** friendly when things go well (a post went out), calm everywhere else (errors, buttons, empty screens).
+
+To do, in suggested order:
+- **Claim the handles:** @socialifer on X, Instagram, YouTube, Threads, Bluesky, LinkedIn, Reddit and Substack, before someone else does.
+- **Final logo files:** done 2026-11-17, in [brand/](../brand/README.md). Still missing: a wordmark lockup file (mark plus "socialifer" with the text turned into outlines, so it doesn't depend on Inter being installed), and a `favicon.ico` for old browsers.
+- **Email:** an address such as hello@socialifer.com, forwarding to the user's Gmail.
+- **Website and privacy policy:** a simple page at socialifer.com. Google and Meta ask for a privacy policy link when reviewing apps.
+- **Developer apps:** rename and re-logo the apps on Google Cloud (YouTube), Meta, X and LinkedIn; their names show on sign-in screens. Check first whether renaming sends the Google or Meta app through review again.
+- **Social profiles:** the user's own accounts' names and pictures, where the app is mentioned.
+- **Brand in the app** (B): name, logo, colours and fonts on the web page and the phone app. Watch for:
+  - **Phone package** `com.socialpost.app`: a new package name is a new app to Android, so it has to be paired again. Easier now than later.
+  - **Saved settings** use `social-post:` keys in `localStorage`; carry them over, or the user's saved choices are lost.
+  - **Renames:** the repo, README and docs, and the `~/Videos/Social Post` folder.
+- **Before going public:** a trademark search in India, and a check of the Play Store and App Store for the name.
+- **Nice to have:** a one-page brand guide (logo, colours, fonts, voice, dos and don'ts); a share image for socialifer.com; a small burst animation when a post goes live (design first).

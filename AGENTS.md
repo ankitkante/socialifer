@@ -43,6 +43,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | `platforms/http.js` | `request()` (fetch + error extraction + timeout), `poll()`, `env()` helpers |
 | `scripts/youtube-auth.js` | Standalone OAuth loopback + PKCE flow for YouTube |
 | `scripts/tunnel.js` | Runs `cloudflared tunnel --url`, finds the `trycloudflare.com` address in its log and saves it as `TUNNEL_URL` |
+| `brand/` | The Socialifer brand: logo SVGs, app icons, favicons, PNG exports in `png/`, and colours, fonts and voice in its README. Not used by the app yet |
 | `test/` | `node:test` suites |
 | `.env.example` | Every supported setting, with where to get each credential |
 
@@ -125,6 +126,7 @@ export default {
 - **Videos are compressed, never trimmed.** A video that is too long for a platform is a problem the user must fix; only size is adjusted automatically. Compression targets the platform's `videoMB` with H.264/AAC, scaling so the shorter side is at most 1080 px (`SCALE` in `media.js`), and refusing to go below 400 kbps video (`compressionBitrate` in `public/rules.js`).
 - **YouTube uploads start private** until the user's Google Cloud project passes YouTube's API audit. This can't be worked around in code; the UI and README say so. Shorts are not a separate upload type.
 - **Subtitles: a track per language on YouTube, one language burned in elsewhere.** Generating them belongs to the separate transcribe project; this app only runs it (see "Subtitles" below). Waiting for YouTube's automatic captions before posting to the others was rejected, because posts must not wait. Overlapping lines (as in YouTube's auto captions) are trimmed with `separateCues` in `public/rules.js` everywhere, never in the user's file. Generated SRTs never overlap (transcribe promises it), but `separateCues` still runs on every SRT: it's needed for uploaded ones, and it's the last check before a platform. On a Windows PC, burned-in text uses Nirmala UI because Arial has no Devanagari.
+- **Brand: Socialifer (2026-11-17).** New name, Ring of fire logo, Dusk Plum colour, Inter and Noto Sans Devanagari, and the voice (friendly on success, calm otherwise). Not in the app yet; the details and the rollout to-dos are in section 9 of [docs/backlog.md](docs/backlog.md). Until it's rolled out, the app keeps the name "Social Post".
 - **X limit defaults to 280**; `X_CHAR_LIMIT` exists for Premium accounts (up to 25,000).
 
 ## Subtitles (built and first posted live on 2026-11-12)
