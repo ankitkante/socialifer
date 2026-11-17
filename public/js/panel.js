@@ -16,7 +16,6 @@ export function setPhase(next) {
   $('checklist').hidden = next !== 'ready';
   $('results').hidden = next === 'ready';
   $('new-post').hidden = next !== 'done';
-  if (next !== 'done') $('substack-reminder').hidden = true;
   if (next === 'ready') setStatus('');
   hooks.update();
 }
@@ -125,27 +124,57 @@ function renderResults() {
   }));
 }
 
-// Shown once a text or image post (no video) is out somewhere. The text is copied now, because a
-// successful post clears the box.
-function showSubstackReminder(text) {
-  const copy = $('substack-copy');
-  copy.textContent = 'Copy text';
-  copy.hidden = !text.trim();
-  copy.onclick = async () => {
+function copyButton(label, value) {
+  const button = el('button', { type: 'button', className: 'copy', textContent: label });
+  button.addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(text);
-      copy.textContent = 'Copied';
+      await navigator.clipboard.writeText(value);
+      button.textContent = 'Copied';
     } catch {
-      copy.textContent = "Couldn't copy";
+      button.textContent = "Couldn't copy";
+    }
+  });
+  return button;
+}
+
+// The reminder to post on Substack by hand. text is passed in because a successful post clears the box.
+// files: the videos saved for it (null for a post without video); an empty list means saving them failed.
+// It closes only with Done: Escape is refused, and if the browser closes it anyway (Chrome does on a
+// second Escape), it opens again.
+function showSubstackReminder(text, files = null) {
+  const dialog = $('substack-reminder');
+  $('substack-copy').replaceWith(Object.assign(copyButton('Copy text', text), { id: 'substack-copy', hidden: !text.trim() }));
+  const list = $('substack-files');
+  list.hidden = !files;
+  if (files) {
+    const many = files.length > 1;
+    list.replaceChildren(
+      el('p', { textContent: files.length
+        ? `Upload ${many ? 'these videos' : 'this video'} in Substack. ${many ? 'They\'re' : 'It\'s'} deleted from here when you click Done:`
+        : "Couldn't save a copy of the video for Substack (the terminal says why). Upload the one you added instead." }),
+      ...files.map((path) => el('div', { className: 'substack-file' }, el('code', { textContent: path }), copyButton('Copy path', path))),
+    );
+  }
+  let done = false;
+  dialog.oncancel = (event) => event.preventDefault();
+  dialog.onclose = () => { if (!done) dialog.showModal(); };
+  $('substack-done').onclick = () => {
+    done = true;
+    dialog.close();
+    // Nothing to tell the user if this fails: the server logs it, and the file just stays.
+    if (files?.length) {
+      fetch('/api/kept/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files }) }).catch(() => {});
     }
   };
-  $('substack-reminder').hidden = false;
+  if (!dialog.open) dialog.showModal();
 }
 
 // targets: the platforms to post to; text: the main post exactly as typed.
 export async function post(targets, text) {
   if ($('post').disabled) return;
-  const remindSubstack = !state.items.some((i) => isVideoFile(i.file));
+  const hasVideo = state.items.some((i) => isVideoFile(i.file));
+  // Retrying the failed platforms is the same post, so Substack was already reminded about.
+  const retry = state.phase === 'done';
   state.posting = true;
   const rows = targets.map((p) => ({ id: p.id, name: p.name, state: 'working', step: '' }));
   const row = (id) => rows.find((r) => r.id === id);
@@ -153,6 +182,9 @@ export async function post(targets, text) {
   renderResults();
   setPhase('posting');
   setStatus('You can leave this page open. Slow steps, like video processing, show above.');
+  // Text and images: the reminder doesn't wait for the platforms. Videos: it waits for the saved copy.
+  if (!retry && !hasVideo) showSubstackReminder(text);
+  let saved = [];
 
   let done = false;
   // Each platform's subtitles choice travels with its other options.
@@ -180,6 +212,7 @@ export async function post(targets, text) {
     await readEvents(res, (event) => {
       if (event.type === 'status') Object.assign(row(event.id), { step: event.step, progress: event.progress });
       if (event.type === 'result') Object.assign(row(event.id), { ...event, state: event.ok ? 'ok' : 'fail' });
+      if (event.type === 'substack') saved = event.files;
       if (event.type === 'done') done = true;
       renderResults();
       hooks.update();
@@ -204,7 +237,7 @@ export async function post(targets, text) {
   }
 
   state.posting = false;
-  if (remindSubstack && rows.some((r) => r.state === 'ok')) showSubstackReminder(text);
+  if (!retry && hasVideo && rows.some((r) => r.state === 'ok')) showSubstackReminder(text, saved);
   const failed = rows.filter((r) => r.state === 'fail');
   const warnings = rows.reduce((n, r) => n + (r.warnings?.length ?? 0), 0);
   const warned = warnings ? `, with ${warnings} warning${warnings > 1 ? 's' : ''}` : '';

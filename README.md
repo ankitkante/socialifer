@@ -21,7 +21,7 @@ npm start               # opens on http://localhost:3000
 - **What it is:** an Android app in `mobile/`. Write posts anywhere; tapping Post queues them, and they go to this server automatically the next time the phone is on the same Wi-Fi with the app open.
 - **Platform settings:** tap **Settings ›** on a platform's card for its own text and options (X threads, YouTube title, Instagram cover...). Dates are typed as `2026-11-20 18:00`.
 - **Previews:** each platform's card shows a preview under its settings.
-- **After posting:** links to each post, **Send again** for platforms that failed, and a reminder to post it on Substack by hand (Copy text, Share, Done).
+- **After posting:** links to each post, **Send again** for platforms that failed, and a reminder to post it on Substack by hand (Copy text, Share for photos, Done), which opens right after Post.
 - **Storage:** the app keeps copies of attached photos and videos; they're deleted a week after a post went out everywhere. Finished posts stay in the list until you delete them.
 - **Install it:** `npm run sp-mobile-apk` builds an APK on Expo's servers (needs a free Expo account; takes 10–20 minutes). Open the link it prints on the phone and install it, allowing installs from unknown sources if asked.
 - **Develop it:** `cd mobile && npm install` once, then `npm run sp-mobile-app` from here and open it in **Expo Go**.
@@ -130,7 +130,7 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 - On LinkedIn, simple hashtags like `#AI` become real hashtags, but `#with_underscore` is posted as plain text.
 - **X** has no free API plan for new developer accounts (pay-per-use since February 2026). Buy credits at [console.x.com](https://console.x.com) before posting; a post costs about $0.01. Set the app permissions to **Read and write** *before* generating the access token.
 - **LinkedIn** API versions expire after about a year. If you see a version error, set `LINKEDIN_VERSION` to a recent `YYYYMM` value.
-- **Substack** isn't supported: it has no official API for posting, and its website blocks Notes posted from outside a browser. After a text or image post, the page reminds you to post it on Substack yourself, with a button that copies the text.
+- **Substack** isn't supported: it has no official API for posting, and its website blocks Notes posted from outside a browser. After Post, a dialog reminds you to post it on Substack yourself, with a button that copies the text. For a video post it opens once every platform has finished, with the path of a copy saved in `Videos\Social Post` in your user folder (the one X got, with any burned-in subtitles). The copy is deleted when you click Done.
 
 ## Ideas for later
 

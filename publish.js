@@ -4,7 +4,7 @@ import { platforms } from './platforms/index.js';
 import { ApiError } from './platforms/http.js';
 import { problemsFor, effectiveText, resolveTitle, isVideo, burnLanguage, burnTarget, languageName } from './public/rules.js';
 import { log, runWithContext, step, currentStep } from './log.js';
-import { publicBaseUrl, videoTools, getMedia, fitVideo, burnSubtitles } from './media.js';
+import { publicBaseUrl, videoTools, getMedia, fitVideo, burnSubtitles, keepVideo } from './media.js';
 
 // With ffmpeg installed, videos too big for a platform are compressed instead of rejected.
 export const canCompress = Boolean(await videoTools());
@@ -100,13 +100,16 @@ let postCount = 0;
 // subtitles: { videoId: { lang: SRT upload } }. Platforms with subtitleTracks get them as files; the rest get
 // one language burned in. options[id].subtitles is the platform's choice: languages for tracks, else a language or 'none'.
 // from: where the post came from, added to the log line (e.g. "phone post 1a2b3c4d").
-export async function publish(text, ids, media, options, subtitles = {}, onEvent = () => {}, { from } = {}) {
+// keepVideos: save a copy of each video for posting on Substack by hand (the web page's posts), sent as
+// { type: 'substack', files } once every platform has finished. See keptVideos.
+export async function publish(text, ids, media, options, subtitles = {}, onEvent = () => {}, { from, keepVideos = false } = {}) {
   const postId = ++postCount;
   const selected = platforms.filter((p) => ids.includes(p.id));
   const files = [...media, ...Object.values(subtitles).flatMap(Object.values)].map((m) => `${m.name} (${mb(m.size)})`).join(', ');
   log.info(`[post ${postId}] Posting to ${selected.map((p) => p.name).join(', ')}${files ? ` with ${files}` : ''}${from ? ` (${from})` : ''}`);
 
-  return Promise.all(selected.map((p) => runWithContext(
+  const sent = {}; // platform id -> the media it was given, for keptVideos
+  const results = await Promise.all(selected.map((p) => runWithContext(
     { postId, platform: p.name, onStep: (s, progress) => onEvent({ type: 'status', id: p.id, step: s, ...(progress !== undefined && { progress }) }) },
     async () => {
       const started = Date.now();
@@ -122,6 +125,7 @@ export async function publish(text, ids, media, options, subtitles = {}, onEvent
         const postOptions = p.title ? { ...own, title: resolveTitle(text, own.title) } : own;
         if (p.subtitleTracks) postOptions.subtitles = subtitleTracks(media, subtitles, choice);
         const ownMedia = await mediaFor(p, p.subtitleTracks ? media : await withSubtitles(p, media, subtitles, choice));
+        sent[p.id] = ownMedia;
         step('Posting', { quiet: true });
         const value = await p.post(effectiveText(text, own, p.id), ownMedia, postOptions);
         result = { id: p.id, name: p.name, ok: true, url: value?.url ?? null, warnings: value?.warnings ?? [], error: null };
@@ -138,4 +142,30 @@ export async function publish(text, ids, media, options, subtitles = {}, onEvent
       return result;
     },
   )));
+  if (keepVideos && results.some((r) => r.ok) && media.some(isVideo)) {
+    const files = await keptVideos(media, sent, postId);
+    if (files.length) onEvent({ type: 'substack', files });
+  }
+  return results;
+}
+
+// Substack takes video, but only by hand, so each video is saved where the user can pick it in Substack's
+// upload box. It's the copy X got (subtitles burned in, fitted to size), else Instagram's, else another
+// platform's that burns subtitles in, else the video as it was added (YouTube alone gets the original).
+const KEEP_FROM = ['x', 'instagram'];
+
+async function keptVideos(media, sent, postId) {
+  const order = [...KEEP_FROM, ...platforms.filter((p) => !p.subtitleTracks && !KEEP_FROM.includes(p.id)).map((p) => p.id)];
+  const files = [];
+  for (const [i, m] of media.entries()) {
+    if (!isVideo(m)) continue;
+    const copy = order.map((id) => sent[id]?.[i]).find(Boolean) ?? m;
+    try {
+      files.push(await keepVideo(copy));
+    } catch (err) {
+      log.warn(`[post ${postId}] Couldn't save ${copy.name} for Substack: ${err.message}`);
+    }
+  }
+  if (files.length) log.info(`[post ${postId}] Saved for Substack: ${files.join(', ')}`);
+  return files;
 }
