@@ -2,7 +2,7 @@
 
 Write a post once, attach photos or videos, and publish it to several social platforms at the same time, from a single page.
 
-Supported platforms: **X, Bluesky, Mastodon, Threads, Instagram, YouTube (videos and Shorts), LinkedIn, Facebook Pages, Telegram and Discord**. Reddit is planned (see below).
+Supported platforms: **X, Bluesky, Mastodon, Threads, Instagram, YouTube (videos and Shorts), LinkedIn, Facebook Pages, Telegram and Discord**. Reddit isn't supported (see below).
 
 ## About this project
 
@@ -13,15 +13,12 @@ Supported platforms: **X, Bluesky, Mastodon, Threads, Instagram, YouTube (videos
 - **Low volume:** each post is started by a person clicking Post, typically a few posts a day.
 - **Private by design:** the server listens only on `127.0.0.1`, keys never reach the browser, and a phone app talks to it only over signed requests on the home Wi-Fi.
 
-### Reddit (planned)
+### Reddit (not supported)
 
-> **Own profile only.** This app will post only to the user's own Reddit profile, the account that signed in. It will never post to any subreddit. The destination will be fixed in the code, not chosen per post, so there's no way to send a post to a community.
-
-- **Goal:** post text, image and video posts to the author's own profile, alongside the other platforms, from the same page.
-- **Access needed:** OAuth for a single account (the author's), with the `identity` and `submit` scopes. Nothing is read from Reddit beyond what's needed to confirm the post went up.
-- **Volume:** the same few posts a day the author makes by hand, each one started manually.
-- **Never:** posting to subreddits, scheduled or automated posting, voting, commenting, messaging, or reading other users' content.
-- **Until then:** Reddit isn't in the app; the author posts there by hand.
+- **API access declined:** Reddit stopped accepting public API access requests in October 2026, and declined this app's request on 2026-11-17. New apps must run on Reddit's Developer Platform (Devvit) instead.
+- **Why Devvit doesn't fit:** a Devvit app runs inside Reddit and can only post as a user when that user clicks a button on Reddit, so it can't post from this app.
+- **If access ever opens:** posts would go only to the signed-in user's own Reddit profile, never to a subreddit, each one started by a person. No voting, commenting, messaging or reading other users' content.
+- **For now:** post on Reddit by hand.
 
 ## Setup
 
