@@ -87,9 +87,9 @@ function compressible(platform, m) {
 // ---- Threads: long posts split into numbered replies (X) ----
 
 const THREAD_MAX_POSTS = 25;
-// Each post ends with its number on a new line, e.g. "\n(1/2)". A post cut mid-sentence also ends with
+// Each post ends with its number after an empty line, e.g. "\n\n(1/2)". A post cut mid-sentence also ends with
 // "..." so readers know more follows; one that ends on a full stop doesn't need it.
-const NUMBER_ROOM = 8; // "\n(25/25)"
+const NUMBER_ROOM = 9; // "\n\n(25/25)"
 const ELLIPSIS = '...';
 // A sentence end in roughly the last 40% of a post is "close": break there instead of mid-sentence.
 const SENTENCE_BREAK_FROM = 0.6;
@@ -105,7 +105,7 @@ function sliceGraphemes(text, n) {
   return out;
 }
 
-// Splits text into posts that fit `limit` once their ending is added: "\n(i/n)", plus "..." when a post
+// Splits text into posts that fit `limit` once their ending is added: "\n\n(i/n)", plus "..." when a post
 // is cut mid-sentence. Prefers to break at the end of a sentence when one is close to the limit;
 // otherwise fills the post to the limit at a word boundary.
 export function splitThread(platformId, text, limit) {
@@ -157,7 +157,7 @@ export function splitThread(platformId, text, limit) {
     }
   }
 
-  return parts.map((part, k) => `${part.text}${part.cut ? ELLIPSIS : ''}\n(${k + 1}/${parts.length})`);
+  return parts.map((part, k) => `${part.text}${part.cut ? ELLIPSIS : ''}\n\n(${k + 1}/${parts.length})`);
 }
 
 function threadFor(platform, text, options) {

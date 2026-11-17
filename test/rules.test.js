@@ -135,10 +135,10 @@ test('splits long text into a numbered thread that fits X', async () => {
     const last = i === parts.length - 1;
     assert.ok([...part].length <= 280, `part ${i + 1} is ${[...part].length} long`);
     // No sentences here, so every post but the last is cut mid-sentence and ends with "...".
-    assert.ok(part.endsWith(`${last ? '' : '...'}\n(${i + 1}/${parts.length})`), JSON.stringify(part.slice(-14)));
+    assert.ok(part.endsWith(`${last ? '' : '...'}\n\n(${i + 1}/${parts.length})`), JSON.stringify(part.slice(-14)));
   });
   // Nothing is lost: rejoining the parts gives back every word.
-  assert.equal(parts.map((part) => part.replace(/(\.\.\.)?\n\(\d+\/\d+\)$/, '')).join(' '), text);
+  assert.equal(parts.map((part) => part.replace(/(\.\.\.)?\n\n\(\d+\/\d+\)$/, '')).join(' '), text);
 
   const p = { ...describe(x), name: 'X', threads: true };
   assert.deepEqual(problemsFor(p, text, [], { thread: true }), []);
@@ -150,14 +150,14 @@ test('breaks a thread at the end of a sentence when one is close', async () => {
   // The user's own post, from the mockup review.
   const post = 'Main Tera Boyfriend | Lyric video made with Claude + DaVinci Resolve I wanted to see if we can generate a lyric video using scripting in DaVinci Resolve. This video is a product of that. I gave it an MP3 file. It then used Whisper to get the lyrics, and the scripting feature in Resolve generated the Fusion nodes.';
   assert.deepEqual(splitThread('x', post, 280), [
-    'Main Tera Boyfriend | Lyric video made with Claude + DaVinci Resolve I wanted to see if we can generate a lyric video using scripting in DaVinci Resolve. This video is a product of that. I gave it an MP3 file.\n(1/2)',
-    'It then used Whisper to get the lyrics, and the scripting feature in Resolve generated the Fusion nodes.\n(2/2)',
+    'Main Tera Boyfriend | Lyric video made with Claude + DaVinci Resolve I wanted to see if we can generate a lyric video using scripting in DaVinci Resolve. This video is a product of that. I gave it an MP3 file.\n\n(1/2)',
+    'It then used Whisper to get the lyrics, and the scripting feature in Resolve generated the Fusion nodes.\n\n(2/2)',
   ]);
   // A sentence end early in the post isn't "close", so the post fills up and gets "...".
   const early = `Short start. ${Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ')}`;
-  assert.match(splitThread('x', early, 280)[0], /\.\.\.\n\(1\/\d\)$/);
+  assert.match(splitThread('x', early, 280)[0], /\.\.\.\n\n\(1\/\d\)$/);
   // A single word longer than a post is cut.
-  assert.deepEqual(splitThread('x', 'a'.repeat(600), 280).map((p) => [...p].length), [278, 278, 68]);
+  assert.deepEqual(splitThread('x', 'a'.repeat(600), 280).map((p) => [...p].length), [278, 278, 71]);
 });
 
 test('checks per-platform fields', async () => {

@@ -17,8 +17,7 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 2. X
 
-- **Empty line before `(1/3)`** (B · phone test): today `splitThread` in `rules.js` adds one line break, so the number sits right under the text. Wanted: `\n\n`. It's shared, so it changes the web page, the phone and what's posted to X. The extra character counts toward each part's limit.
-- **Test live:** `made_with_ai` and alt text (see "Per-platform fields: what's unverified" in [platforms.md](platforms.md)).
+- Nothing open.
 
 ## 3. Instagram
 
@@ -63,12 +62,12 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **Platform settings reaching a platform:** a YouTube schedule (see section 1). Instagram Stories skipped: the user won't use them.
 - **The laptop refusing a post:** it returns to draft with the reason; a failed try shows "last try failed" on the post.
 - **Video and multi-file hand-over:** a video over the platform's size limit (compressed), several files, and resuming after Wi-Fi drops mid-upload.
-- **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel, X thread.
+- **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel.
 - **Media cleanup** a week after posting.
 
 **Already tested:**
 - **Connection:** pairing, the laptop check with Wi-Fi off and on, the installed APK connecting, the activity log's Connected line.
-- **X:** an offline draft handed over and posted, the thread count on X's card, and (2026-11-17) a 4-part thread with its `Phone post …` terminal lines, the app's hand-over lines and the result link opening it.
+- **X:** an offline draft handed over and posted, the thread count on X's card, and (2026-11-17) a 4-part thread with its `Phone post …` terminal lines, the app's hand-over lines and the result link opening it. The thread preview (2026-11-17, with the empty line before each number).
 - **YouTube (2026-11-17):** a 32 MB video with the title taken from the first line; another with a typed title, tags, Private and a custom thumbnail (two files handed over).
 - **Instagram (2026-11-17):** a photo with alt text; a Reel with an uploaded cover, made with Send again after a failed try.
 - **Substack reminder (2026-11-17):** Copy text, Share for a photo, Done. Later the same day, the dialog after Post: "Posting now" when connected, "Saved…" with Wi-Fi off, a video post with no Share button, and the back button not closing it.
