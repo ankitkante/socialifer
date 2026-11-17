@@ -21,8 +21,6 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 3. Instagram
 
-- **Trial reel error** (B · phone test): Instagram refuses trial reels for small accounts (code 10, subcode 2207081, "does not meet the trial reel follower requirement"). The message reaches the phone fine; add what to do: "Set Trial reel to Off and post again." Maybe hide the field, but the follower threshold isn't known.
-- **Test live:** trial reels (Manual → `MANUAL`, Auto → `SS_PERFORMANCE`).
 - **Text-only posts as a carousel** (idea): turn the text into an image carousel, since Instagram needs an image or video.
 
 ## 4. Subtitles (web page only for now)
