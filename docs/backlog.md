@@ -46,7 +46,7 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 6. Phone ↔ laptop
 
-- **Keep logs on the laptop** (P + S · phone test, 2026-11-17): for history and tracing problems later. Today the server logs only to the terminal (`log.js`, lost when it closes), and the phone's activity log keeps its last 500 lines on the phone and is never sent (`mobile/src/log.js`). **Decision:** keep both the server's and the phone's, and delete lines older than 6 months.
+- **Filter the logs** (idea, 2026-11-17): find log lines by date/time and by a keyword or text. The logs are in `logs/server-YYYY-MM.log` and `logs/phone-YYYY-MM.log`; the phone's Activity log shows the laptop's last 500 phone lines.
 - **Staggered sending** (phone build): to be discussed, then scheduling (see section 8).
 
 ### Not yet tested on the phone

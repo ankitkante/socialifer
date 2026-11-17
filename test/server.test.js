@@ -4,6 +4,11 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const logDir = mkdtempSync(join(tmpdir(), 'sp-logs-'));
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
@@ -44,13 +49,17 @@ before(async () => {
   base = `http://localhost:${port}`;
   // No platform credentials: an empty env keeps a developer's .env out of the test.
   server = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
-    env: { PORT: String(port), PHONE_PORT: 'off', SystemRoot: process.env.SystemRoot },
+    // LOG_DIR keeps the test's log lines out of the real logs/.
+    env: { PORT: String(port), PHONE_PORT: 'off', LOG_DIR: logDir, SystemRoot: process.env.SystemRoot },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve) => server.stdout.on('data', (d) => d.toString().includes('running') && resolve()));
 });
 
-after(() => server.kill());
+after(() => {
+  server.kill();
+  rmSync(logDir, { recursive: true, force: true });
+});
 
 test('serves the page, the shared rules and the platform list', async () => {
   assert.equal((await fetch(`${base}/`)).status, 200);

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { platforms } from './platforms/index.js';
 import { ApiError } from './platforms/http.js';
 import { isVideo, isSubtitleLanguage, SUBTITLE_LANGUAGES_ONLY } from './public/rules.js';
-import { log } from './log.js';
+import { log, startLogFiles, cleanupLogs } from './log.js';
 import {
   saveUpload, getMedia, deleteMedia, cleanupOldMedia, serveMedia, publicBaseUrl, httpError,
   probeDuration, burnSubtitles, deleteKept,
@@ -13,6 +13,7 @@ import { canCompress, describe, publish, failureMessage } from './publish.js';
 import { startPhoneServer } from './phone.js';
 import { laptopStatus } from './status.js';
 
+const logDir = startLogFiles();
 const PORT = Number(process.env.PORT) || 3000;
 const SRT = 'application/x-subrip';
 // Bound to loopback only: this server posts with your credentials and has no login.
@@ -272,7 +273,9 @@ server.on('error', (err) => {
 
 server.listen(PORT, HOST, async () => {
   const ready = platforms.filter((p) => p.isConfigured()).map((p) => p.name);
-  console.log(`Social Post running at http://localhost:${PORT}`);
+  // Marks each start in the log file, so a restart mid-post can be told apart from a hang.
+  log.info(`Social Post running at http://localhost:${PORT}`);
+  console.log(`Logs are kept in ${logDir} for 6 months.`);
   console.log(ready.length ? `Configured: ${ready.join(', ')}` : 'No platforms configured yet. Copy .env.example to .env and fill in the platforms you use.');
   if (publicBaseUrl()) console.log(`Uploaded files are served publicly at ${publicBaseUrl()}/media/`);
   console.log(canCompress
@@ -293,6 +296,7 @@ const cleanup = () => Promise.all([
   cleanupOldMedia().catch((err) => log.warn(`Couldn't clean up old uploads: ${err.message}`)),
   // Saved Whisper transcripts go a day after they were last used.
   cleanupTranscripts().catch((err) => log.warn(`Couldn't clean up old transcripts: ${err.message}`)),
+  cleanupLogs().catch((err) => log.warn(`Couldn't clean up old log files: ${err.message}`)),
 ]);
 cleanup();
 setInterval(cleanup, 60 * 60 * 1000).unref();
