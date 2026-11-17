@@ -17,7 +17,7 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 2. X
 
-- **Test live:** `made_with_ai` and alt text (see "Per-platform fields: what's unverified" in [platforms.md](platforms.md)).
+- Nothing open.
 
 ## 3. Instagram
 
