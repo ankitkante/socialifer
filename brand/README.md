@@ -21,7 +21,8 @@ A glowing ring with sparks streaking out, like a Diwali chakri: the app sends po
 | `logo-on-dark.svg` | On dark backgrounds (light plum) |
 | `logo-white.svg` | On plum or photos |
 | `logo-small.svg` | 32 px and below: fewer, thicker sparks |
-| `favicon.svg` | Browser tab; switches to light plum in dark mode |
+| `favicon.svg` | Browser tab: white mark on a plum rounded tile, so it reads on light and dark tabs alike |
+| `favicon.ico` | Browser tab in old browsers: the 16, 32 and 48 px PNGs of the same tile in one file |
 | `app-icon.svg`, `app-icon-dark.svg` | Square app icons, full bleed (the OS rounds the corners) |
 | `android-adaptive-foreground.svg` | Android adaptive icon foreground, mark inside the safe zone; background `#5b4a8b` |
 | `profile-picture.svg` | Social media profile pictures (platforms crop to a circle) |
