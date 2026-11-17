@@ -1,4 +1,4 @@
-// Social Post's page: the platform picker, per-platform tabs (fields, errors, previews), and wiring.
+// Socialifer's page: the platform picker, per-platform tabs (fields, errors, previews), and wiring.
 import { $, el, logo, truncate, BRAND_COLORS } from './dom.js';
 import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, splitThread } from '/rules.js';
 import { state, hooks, activeTargets, saveSelected, write, KEYS } from './state.js';
@@ -368,7 +368,7 @@ loadSettings();
 try {
   state.platforms = await (await fetch('/api/platforms')).json();
 } catch {
-  setStatus("Couldn't reach the Social Post server. Check that it's running (npm start), then refresh.", true);
+  setStatus("Couldn't reach the Socialifer server. Check that it's running (npm start), then refresh.", true);
 }
 const configured = state.platforms.filter((p) => p.configured);
 renderPicker();

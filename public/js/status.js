@@ -30,7 +30,7 @@ async function refresh(needsTunnel) {
   try {
     status = await (await fetch('/api/status')).json();
   } catch {
-    $('topbar-status').replaceChildren(dot('warn', 'Server not reachable', 'Is the Social Post server still running? Start it with npm start.'));
+    $('topbar-status').replaceChildren(dot('warn', 'Server not reachable', 'Is the Socialifer server still running? Start it with npm start.'));
     return;
   }
   const dots = [];

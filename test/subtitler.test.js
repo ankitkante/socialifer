@@ -99,7 +99,7 @@ test('a run that greets with the expected protocol goes ahead', async () => {
 test('a different protocol number stops the run with a message naming both', async () => {
   const job = await runFake('wrong');
   assert.equal(job.status, 'error');
-  assert.match(job.error, /transcribe and Social Post don't match/);
+  assert.match(job.error, /transcribe and Socialifer don't match/);
   assert.match(job.error, /protocol 2/);
   assert.match(job.error, new RegExp(`needs protocol ${subtitler.PROTOCOL}`));
   assert.match(job.error, /Update both/);

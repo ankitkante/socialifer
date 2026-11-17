@@ -81,7 +81,7 @@ const server = http.createServer(async (req, res) => {
     if (!data.refresh_token) throw new Error('Google did not return a refresh token. Remove this app at myaccount.google.com/permissions and try again.');
     await saveRefreshToken(data.refresh_token);
     console.log('Saved YOUTUBE_REFRESH_TOKEN to .env. Restart the server to start uploading.');
-    finish(200, 'YouTube is connected. You can close this tab and restart the Social Post server.', 0);
+    finish(200, 'YouTube is connected. You can close this tab and restart the Socialifer server.', 0);
   } catch (err) {
     console.error(`Sign-in failed: ${err.message}`);
     finish(500, 'Sign-in failed. Check the terminal for details.', 1);

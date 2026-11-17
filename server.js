@@ -29,6 +29,9 @@ const STATIC_FILES = {
   '/fields.js': { file: 'public/fields.js', type: 'text/javascript; charset=utf-8' },
   '/favicon.ico': { file: 'brand/favicon.ico', type: 'image/x-icon' },
   '/favicon.svg': { file: 'brand/favicon.svg', type: 'image/svg+xml' },
+  '/fonts/inter-latin.woff2': { file: 'public/fonts/inter-latin.woff2', type: 'font/woff2' },
+  '/fonts/inter-latin-ext.woff2': { file: 'public/fonts/inter-latin-ext.woff2', type: 'font/woff2' },
+  '/fonts/noto-sans-devanagari.woff2': { file: 'public/fonts/noto-sans-devanagari.woff2', type: 'font/woff2' },
 };
 // The page's own modules live in public/js/ and are served by name only, never by path.
 const SCRIPT_RE = /^\/js\/([a-z-]+)\.js$/;
@@ -267,7 +270,7 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Is another Social Post server running? Stop it, or set a different PORT in .env.`);
+    console.error(`Port ${PORT} is already in use. Is another Socialifer server running? Stop it, or set a different PORT in .env.`);
     process.exit(1);
   }
   throw err;
@@ -276,7 +279,7 @@ server.on('error', (err) => {
 server.listen(PORT, HOST, async () => {
   const ready = platforms.filter((p) => p.isConfigured()).map((p) => p.name);
   // Marks each start in the log file, so a restart mid-post can be told apart from a hang.
-  log.info(`Social Post running at http://localhost:${PORT}`);
+  log.info(`Socialifer running at http://localhost:${PORT}`);
   console.log(`Logs are kept in ${logDir} for 6 months.`);
   console.log(ready.length ? `Configured: ${ready.join(', ')}` : 'No platforms configured yet. Copy .env.example to .env and fill in the platforms you use.');
   if (publicBaseUrl()) console.log(`Uploaded files are served publicly at ${publicBaseUrl()}/media/`);

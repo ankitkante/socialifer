@@ -315,7 +315,7 @@ async function launch(job) {
         }
         const theirs = event.type === 'hello' && typeof event.protocol === 'number'
           ? `transcribe speaks protocol ${event.protocol}` : "transcribe didn't say which protocol it speaks";
-        mismatch = `transcribe and Social Post don't match: ${theirs}, and this app needs protocol ${PROTOCOL}. Update both projects.`;
+        mismatch = `transcribe and Socialifer don't match: ${theirs}, and this app needs protocol ${PROTOCOL}. Update both projects.`;
         killProcess(child.pid);
         return;
       }
