@@ -56,6 +56,7 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **Video and multi-file hand-over:** a video over the platform's size limit (compressed), several files, and resuming after Wi-Fi drops mid-upload.
 - **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel.
 - **Media cleanup** a week after posting.
+- **LinkedIn from the phone:** LinkedIn showing in "Post to" after the laptop check, a text post, and a non-JPEG/PNG/GIF photo flagged before Post. LinkedIn's text post worked from the web page on 2026-11-17.
 - **Built 2026-11-17, needs the APK rebuilt:** placeholders in light and dark mode (compose box, YouTube's title hint); the date and time dialogs for Schedule and Recording date, and Clear; Delete on a ready post (and its refusal once sending has started); Duplicate post (hidden once media is pruned); logos in the posts list (failed platforms greyed), the "Post to" pills (TalkBack reads the name) and the cards.
 
 **Already tested:**
