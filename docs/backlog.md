@@ -93,15 +93,17 @@ Decided in the branding thread. The designs are on the canvas https://claude.ai/
 - **Voice:** friendly when things go well (a post went out), calm everywhere else (errors, buttons, empty screens).
 
 To do, in suggested order:
-- **Use hello@socialifer.com:** put it where people and reviewers look for a contact, such as the website, the privacy policy, the developer apps' support email, and the social profiles. Decide where with the user.
-- **Website and privacy policy:** a simple page at socialifer.com. Google and Meta ask for a privacy policy link when reviewing apps.
-- **Developer apps:** rename and re-logo the apps on Google Cloud (YouTube), Meta, X and LinkedIn; their names show on sign-in screens. Check first whether renaming sends the Google or Meta app through review again.
+- **Website and privacy policy:** live 2026-11-17 at https://socialifer.com (see [website.md](website.md)): home, privacy policy with data deletion, terms, SEO files. Domain verified in Google Search Console and sitemap submitted. Still to do: connect the Pages project to GitHub so it updates on push (it was uploaded by hand).
+- **Website redesign:** the home page works but looks poor (2026-11-17, user: "terrible right now"). Redesign it, mockup first, once the site is live and the developer apps are done.
+- **Use hello@socialifer.com:** after the website exists. Put it where people and reviewers look for a contact, such as the website, the privacy policy, the developer apps' support email, and the social profiles. Decide where with the user.
+- **Developer apps:** rename and re-logo the apps on Google Cloud (YouTube), Meta, X and LinkedIn; their names show on sign-in screens. The Google Cloud project is renamed (2026-11-17). Google's app is in production, so a new app name or logo goes through brand verification, which needs the live homepage and privacy policy on a verified socialifer.com; Meta's App Review also needs the privacy policy and terms links. Logo for both: `brand/png/app-icon-192.png`.
 - **Social profiles:** the user's own accounts' names and pictures, where the app is mentioned.
 - **Brand in the app** (B): name, logo, colours and fonts on the web page and the phone app. Watch for:
   - **Phone package** `com.socialpost.app`: a new package name is a new app to Android, so it has to be paired again. Easier now than later.
   - **Saved settings** use `social-post:` keys in `localStorage`; carry them over, or the user's saved choices are lost.
   - **Renames:** the repo, README and docs, and the `~/Videos/Social Post` folder.
 - **Before going public:** a trademark search in India, and a check of the Play Store and App Store for the name.
+- **Open source or not:** the GitHub repo is public but has no license, so it's "all rights reserved" (readable, not reusable). Kept as is on 2026-11-17; decide later, for example MIT. The website doesn't call it open source until then.
 - **Nice to have:** a one-page brand guide (logo, colours, fonts, voice, dos and don'ts); a share image for socialifer.com; a small burst animation when a post goes live (design first).
 - **Claim the handles:** @socialifer on X, Instagram, YouTube, Threads, Bluesky, LinkedIn, Reddit and Substack. The user will do this last.
 - **Wordmark lockup:** one image file with the mark plus "socialifer", the text turned into outlines so it doesn't need Inter installed. Only needed for images (share image, profile banners, email signature); the website uses the mark next to live text. Make it when those images are made.
