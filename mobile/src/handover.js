@@ -3,7 +3,7 @@
 // The laptop's queue is keyed by sendId, made fresh each time Post is tapped: a hand-over cut off halfway carries
 // on next time, and a post fixed after the laptop refused it isn't mistaken for the old version.
 import { call, uploadFile } from './laptop';
-import { listPosts, savePost, mediaFile } from './store';
+import { listPosts, readPost, savePost, mediaFile } from './store';
 import { optionsFor } from './options';
 import { log, short } from './log';
 
@@ -18,8 +18,10 @@ export async function handOver(pairing, onChange, skipId) {
   if (busy) return null;
   busy = true;
   try {
-    for (const post of listPosts().filter((p) => (p.state === 'ready' || p.state === 'sending') && p.id !== skipId)) {
-      await send(pairing, post, onChange);
+    for (const { id } of listPosts().filter((p) => (p.state === 'ready' || p.state === 'sending') && p.id !== skipId)) {
+      // Read again just before sending: a ready post may have been deleted while the posts before it went.
+      const post = readPost(id);
+      if (post && (post.state === 'ready' || post.state === 'sending')) await send(pairing, post, onChange);
     }
     return await collect(pairing, onChange);
   } finally {

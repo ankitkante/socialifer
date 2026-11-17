@@ -19,8 +19,9 @@ npm start               # opens on http://localhost:3000
 ## Phone app (in progress)
 
 - **What it is:** an Android app in `mobile/`. Write posts anywhere; tapping Post queues them, and they go to this server automatically the next time the phone is on the same Wi-Fi with the app open.
-- **Platform settings:** tap **Settings ›** on a platform's card for its own text and options (X threads, YouTube title, Instagram cover...). Dates are typed as `2026-11-20 18:00`.
+- **Platform settings:** tap **Settings ›** on a platform's card for its own text and options (X threads, YouTube title, Instagram cover...). Dates open Android's date and time pickers.
 - **Previews:** each platform's card shows a preview under its settings.
+- **Duplicate and Delete:** **Duplicate post** copies any post into a new draft. A post marked ready can be deleted until it starts going to the laptop.
 - **After posting:** links to each post, **Send again** for platforms that failed, and a reminder to post it on Substack by hand (Copy text, Share for photos, Done), which opens right after Post.
 - **Storage:** the app keeps copies of attached photos and videos; they're deleted a week after a post went out everywhere. Finished posts stay in the list until you delete them.
 - **Install it:** `npm run sp-mobile-apk` builds an APK on Expo's servers (needs a free Expo account; takes 10–20 minutes). Open the link it prints on the phone and install it, allowing installs from unknown sources if asked.

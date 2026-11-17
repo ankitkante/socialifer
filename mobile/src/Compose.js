@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { problemsFor, adjustmentsFor, formatDuration } from '../../public/rules.js';
-import { addMedia, copyPost, deletePost, loadSettings, mediaFile, newId, removeMedia, savePost, saveSettings } from './store';
+import { addMedia, copyPost, deletePost, loadSettings, mediaFile, newId, readPost, removeMedia, savePost, saveSettings } from './store';
 import Finished from './Finished';
 import { optionsFor, withDefaults } from './options';
 import PlatformCard from './Fields';
 import { log, short } from './log';
 import { Button, Screen, colors } from './ui';
+import Logo, { brandColor } from './Logo';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
 
@@ -18,6 +19,7 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
   // Posts saved before per-platform settings existed get the default values.
   const [post, setPost] = useState(() => ({ ...initial, options: withDefaults(initial.options, settings.sticky) }));
   const [notice, setNotice] = useState('');
+  const [deleteNote, setDeleteNote] = useState('');
   const editable = post.state === 'draft' || post.state === 'ready';
   const isEmpty = !post.text.trim() && post.media.length === 0;
 
@@ -119,6 +121,29 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
     onPosted(ready);
   };
 
+  // Drafts, finished posts, and ready posts that haven't started going to the laptop. The laptop is never told.
+  // The saved copy is read first: a hand-over that started before this post was opened may be sending it.
+  const canDelete = ['draft', 'ready', 'done'].includes(post.state);
+  const removePost = () => {
+    const saved = readPost(post.id);
+    if (saved && (saved.state === 'sending' || saved.state === 'handed')) {
+      setDeleteNote("It has started going to the laptop, so it can't be deleted now.");
+      return;
+    }
+    deletePost(post.id);
+    log(post.state === 'done' ? `Deleted finished post ${short(post.sendId)}`
+      : post.state === 'ready' ? `Deleted post ${short(post.sendId)} before it went to the laptop`
+      : 'Deleted a draft');
+    onClose();
+  };
+
+  // A new draft with the same text, platforms, settings and media. Not offered once the media copies are gone.
+  const duplicate = () => {
+    const copy = copyPost(post, post.platforms, { fresh: true });
+    log(`${post.sendId ? `Post ${short(post.sendId)}` : 'A draft'}: duplicated into a new draft`);
+    onOpen(copy);
+  };
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -135,6 +160,7 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
           multiline
           editable={editable}
           placeholder="What do you want to post?"
+          placeholderTextColor={colors.placeholder}
           value={post.text}
           onChangeText={(text) => change({ text })}
           textAlignVertical="top"
@@ -160,14 +186,18 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
         <View style={styles.pills}>
           {platforms.map((p) => {
             const on = post.platforms.includes(p.id);
+            // Logos only (decided 2026-11-17); the name is read out by TalkBack. Chosen: brand-coloured, with a light tint of it.
             return (
               <Pressable
                 key={p.id}
                 disabled={!p.configured || !editable}
                 onPress={() => toggle(p.id)}
-                style={[styles.pill, on && styles.pillOn, !p.configured && styles.pillOff]}
+                accessibilityRole="switch"
+                accessibilityLabel={p.name}
+                accessibilityState={{ checked: on, disabled: !p.configured || !editable }}
+                style={[styles.pill, on && { borderColor: brandColor(p.id), backgroundColor: `${brandColor(p.id)}17` }, !p.configured && styles.pillOff]}
               >
-                <Text style={[styles.pillText, on && styles.pillTextOn]}>{p.name}</Text>
+                <Logo id={p.id} size={22} color={on ? undefined : colors.placeholder} />
               </Pressable>
             );
           })}
@@ -205,9 +235,9 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
             {reason ? <Text style={styles.reason}>{reason}</Text> : null}
           </View>
         ) : null}
-        {post.state === 'done' || post.state === 'draft' ? (
-          <Button kind="danger" label="Delete post" onPress={() => { deletePost(post.id); log(`Deleted ${post.state === 'done' ? `finished post ${short(post.sendId)}` : 'a draft'}`); onClose(); }} />
-        ) : null}
+        {!post.mediaRemoved && !isEmpty ? <Button kind="secondary" label="Duplicate post" onPress={duplicate} /> : null}
+        {canDelete ? <Button kind="danger" label="Delete post" onPress={removePost} /> : null}
+        {deleteNote ? <Text style={styles.error}>{deleteNote}</Text> : null}
       </ScrollView>
     </Screen>
   );
@@ -235,11 +265,8 @@ const styles = StyleSheet.create({
   addText: { color: colors.accent, textAlign: 'center' },
   label: { fontSize: 14, fontWeight: '600', color: colors.text },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { borderWidth: 1, borderColor: colors.line, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12 },
-  pillOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  pill: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 22, width: 52, height: 44, alignItems: 'center', justifyContent: 'center' },
   pillOff: { opacity: 0.35 },
-  pillText: { color: colors.text },
-  pillTextOn: { color: '#fff' },
   check: { backgroundColor: colors.soft, borderRadius: 8, padding: 10, gap: 3 },
   checkName: { fontWeight: '600', color: colors.text },
   count: { fontWeight: '400', color: colors.muted },

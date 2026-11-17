@@ -42,6 +42,8 @@ export function listPosts() {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export const readPost = (id) => readJson(new File(postDir(id), 'post.json'), null);
+
 export function savePost(post) {
   const dir = postDir(post.id);
   if (!dir.exists) dir.create({ intermediates: true });
@@ -93,11 +95,13 @@ export function pruneOldMedia() {
   }
 }
 
-// A new draft from a finished post, for sending again to the platforms that failed. Its files are copied, so the
-// finished post keeps its own as history. substackDone carries over, so a post already on Substack isn't reminded about again.
-export function copyPost(post, platforms) {
+// A new draft from any post, with its files copied, so the original keeps its own. Send again copies a finished post
+// for the platforms that failed, and keeps substackDone so a post already on Substack isn't reminded about again.
+// Duplicate (fresh: true) makes a new post, which gets its own reminder.
+export function copyPost(post, platforms, { fresh = false } = {}) {
   const copy = { ...post, id: newId(), platforms, state: 'draft', createdAt: Date.now() };
   for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'mediaRemoved']) delete copy[key];
+  if (fresh) delete copy.substackDone;
   const dir = postDir(copy.id);
   dir.create({ intermediates: true });
   for (const item of [...post.media, ...fieldImages(post)]) mediaFile(post, item).copySync(new File(dir, item.file));

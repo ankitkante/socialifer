@@ -3,7 +3,7 @@ import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 export const colors = {
   text: '#1a1a1a', muted: '#666', line: '#ddd', bg: '#fff', soft: '#f3f4f6',
-  accent: '#1a73e8', danger: '#b00020', ok: '#137333', warn: '#9a6700',
+  accent: '#1a73e8', placeholder: '#8a8a8a', danger: '#b00020', ok: '#137333', warn: '#9a6700',
 };
 
 export function Screen({ children }) {
