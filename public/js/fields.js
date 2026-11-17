@@ -1,7 +1,7 @@
 // Per-platform fields: their saved values and the controls in each platform's tab. The lists are in /fields.js.
 import { el } from './dom.js';
 import { effectiveText } from '/rules.js';
-import { FIELDS, fieldsOf, initialOf } from '/fields.js';
+import { FIELDS, fieldsOf, initialOf, savedOr } from '/fields.js';
 import { state, hooks, read, write, KEYS } from './state.js';
 import { CONVERT_TO_JPEG, toJpeg, mediaMeta } from './uploads.js';
 
@@ -12,7 +12,7 @@ export function loadSettings() {
   for (const id of Object.keys(FIELDS)) {
     state.settings[id] = {};
     for (const f of fieldsOf(id)) {
-      state.settings[id][f.key] = f.sticky && saved[id]?.[f.key] !== undefined ? saved[id][f.key] : initialOf(f);
+      state.settings[id][f.key] = f.sticky ? savedOr(f, saved[id]?.[f.key]) : initialOf(f);
     }
   }
 }

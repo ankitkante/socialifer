@@ -128,7 +128,7 @@ export async function publish(text, ids, media, options, subtitles = {}, onEvent
         sent[p.id] = ownMedia;
         step('Posting', { quiet: true });
         const value = await p.post(effectiveText(text, own, p.id), ownMedia, postOptions);
-        result = { id: p.id, name: p.name, ok: true, url: value?.url ?? null, warnings: value?.warnings ?? [], error: null };
+        result = { id: p.id, name: p.name, ok: true, url: value?.url ?? null, warnings: value?.warnings ?? [], todo: value?.todo ?? null, error: null };
         log.info(`Posted in ${seconds(Date.now() - started)}${result.url ? `: ${result.url}` : ''}`);
         for (const w of result.warnings) log.warn(w);
       } catch (err) {

@@ -195,6 +195,12 @@ export default {
         warnings.push(subtitlesWarning(err, track.lang));
       }
     }
-    return { url: `https://www.youtube.com/watch?v=${data.id}`, warnings };
+    // A private video (chosen, or forced by YouTube for an unaudited project) is made public by hand in Studio.
+    // A scheduled one goes public by itself.
+    const todo = !scheduled && (data.status?.privacyStatus ?? status.privacyStatus) === 'private'
+      ? { text: 'The YouTube video is private. Make it public when you\'re ready.', label: 'Open in YouTube Studio',
+        url: `https://studio.youtube.com/video/${data.id}/edit` }
+      : null;
+    return { url: `https://www.youtube.com/watch?v=${data.id}`, warnings, todo };
   },
 };

@@ -7,7 +7,7 @@ import { handOver } from './src/handover';
 import { listPosts, loadPlatforms, loadSettings, newId, pruneOldMedia, savePlatforms, savePost } from './src/store';
 import Compose from './src/Compose';
 import Posts from './src/Posts';
-import { SubstackDialog } from './src/Substack';
+import { FinishByHandDialog, todosOf } from './src/Substack';
 import { Button, Screen, colors } from './src/ui';
 import { log, logErrors, readLog, unsentLog } from './src/log';
 import { statusLines, tunnelProblem } from './src/status';
@@ -29,7 +29,7 @@ export default function App() {
   const [live, setLive] = useState({});
   const openId = useRef(null);
   const checkNow = useRef(null);
-  // The post just marked ready, whose Substack reminder opens once it's dealt with (see reminderFor).
+  // The post just marked ready, whose "Finish by hand" dialog opens once it's dealt with (see reminderFor).
   const [remind, setRemind] = useState(null);
 
   const refresh = useCallback(() => setPosts(listPosts()), []);
@@ -146,9 +146,10 @@ export default function App() {
         onPair={() => setScreen({ name: 'laptop' })}
       />
       {reminding ? (
-        <SubstackDialog
+        <FinishByHandDialog
           post={reminding}
-          onDone={() => { savePost({ ...reminding, substackDone: true }); setRemind(null); refresh(); }}
+          // Results usually come later; if they're already here, their items were shown too.
+          onDone={() => { savePost({ ...reminding, substackDone: true, ...(todosOf(reminding).length && { todoDone: true }) }); setRemind(null); refresh(); }}
         />
       ) : null}
       <StatusBar style="dark" />
@@ -156,7 +157,7 @@ export default function App() {
   );
 }
 
-// The Substack reminder opens once the post has been dealt with: handed to the laptop when it's connected,
+// The "Finish by hand" dialog opens once the post has been dealt with: handed to the laptop when it's connected,
 // or saved here when it isn't. It doesn't wait for the platforms. Returns the post to remind about, false to
 // keep waiting, or null when there's nothing to remind about (refused, deleted, or already done).
 function reminderFor(post, connection) {

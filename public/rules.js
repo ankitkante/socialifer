@@ -188,8 +188,11 @@ const FIELD_CHECKS = {
     }
     if (o.thumbnail) {
       if (!['image/jpeg', 'image/png'].includes(o.thumbnail.type)) problems.push('The thumbnail must be a JPEG or PNG');
-      if (o.thumbnail.size > 2 * MB) problems.push('The thumbnail must be 2 MB or smaller');
+      if (o.thumbnail.size > 2 * MB) {
+        problems.push(`The thumbnail is ${(o.thumbnail.size / MB).toFixed(1)} MB; YouTube takes 2 MB at most. Save a smaller copy (1280×720 JPEG is plenty) and choose that.`);
+      }
     }
+    if (o.audioLanguage && !isSubtitleLanguage(o.audioLanguage)) problems.push('Choose Hindi, English or Not set as the Audio language');
     return problems;
   },
 

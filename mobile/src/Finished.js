@@ -1,7 +1,7 @@
 // What a finished post shows: each platform's result (links open the post), Send again for the ones that failed,
-// and the reminder to post it on Substack by hand, since Substack has no API (see AGENTS.md).
+// and "Finish by hand": posting it on Substack by hand (no API, see AGENTS.md) and platforms' own items.
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SubstackReminder } from './Substack';
+import { FinishByHand, needsFinishing } from './Substack';
 import { Button, colors } from './ui';
 
 export default function Finished({ post, onUpdate, onSendAgain }) {
@@ -37,9 +37,9 @@ export default function Finished({ post, onUpdate, onSendAgain }) {
         </View>
       ) : null}
 
-      {anyPosted ? (post.substackDone ? <Text style={styles.note}>✓ Substack: done</Text> : (
+      {anyPosted ? (!needsFinishing(post) ? <Text style={styles.note}>✓ Finish by hand: done</Text> : (
         <View style={styles.reminder}>
-          <SubstackReminder post={post} onDone={() => onUpdate({ substackDone: true })} />
+          <FinishByHand post={post} onDone={() => onUpdate({ substackDone: true, todoDone: true })} />
         </View>
       )) : null}
     </View>

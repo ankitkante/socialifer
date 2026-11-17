@@ -325,8 +325,16 @@ async function launch(job) {
     }
   });
   child.stderr.setEncoding('utf8');
-  // Readable progress messages; kept only for the terminal when something fails.
-  child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-4000); });
+  // Readable progress messages: shown as they arrive, so a long run isn't silent, and the tail is kept
+  // for the error when something fails.
+  let pending = '';
+  child.stderr.on('data', (chunk) => {
+    stderr = (stderr + chunk).slice(-4000);
+    const lines = (pending + chunk).split(/\r?\n|\r/);
+    pending = lines.pop();
+    for (const line of lines) if (line.trim()) log.info(`[subtitles] ${line.trim()}`);
+  });
+  child.stderr.on('end', () => { if (pending.trim()) log.info(`[subtitles] ${pending.trim()}`); });
 
   let ended = false;
   const end = async (code, spawnError) => {
@@ -352,7 +360,8 @@ async function launch(job) {
       log.info(`Made subtitles for ${job.video.name} in ${took}`);
       return finish(job, { status: 'done' });
     }
-    log.error(`lyrics-video exited with code ${code}`, stderr.trim());
+    // Its messages are already in the terminal, as [subtitles] lines.
+    log.error(`lyrics-video exited with code ${code}`);
     // Exit code 2 is a refused request (argparse), which prints no JSON.
     const error = reported || (code === 2 ? `lyrics-video didn't accept the request: ${lastLine(stderr)}` : 'Making the subtitles failed. The details are in the terminal.');
     return finish(job, { status: 'error', error });

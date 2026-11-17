@@ -100,7 +100,7 @@ export function pruneOldMedia() {
 // Duplicate (fresh: true) makes a new post, which gets its own reminder.
 export function copyPost(post, platforms, { fresh = false } = {}) {
   const copy = { ...post, id: newId(), platforms, state: 'draft', createdAt: Date.now() };
-  for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'mediaRemoved']) delete copy[key];
+  for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'mediaRemoved', 'todoDone']) delete copy[key];
   if (fresh) delete copy.substackDone;
   const dir = postDir(copy.id);
   dir.create({ intermediates: true });
