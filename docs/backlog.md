@@ -5,14 +5,7 @@ Everything still to do: features and fixes not built, and things built but not y
 **Where:** W = web page, P = phone app, B = both, S = server only.
 **From:** where the item came from, kept for history: *live test* (first live web test, 2026-11-12), *phone test* (phone testing, 2026-11-17), *phone build* (building the phone app, 2026-11-16 to 17), *idea* (ideas for later).
 
-## 1. Substack
-
-- **Reminder as a dialog right after Post** (B · phone test): on the phone it only shows inside a finished post (`Finished.js`), which the user will rarely open, so it isn't a reminder. Wanted: a prominent dialog right after tapping Post, once the post has been dealt with: handed to the laptop if it's connected, otherwise saved on the phone. It doesn't wait for the platforms' results. On the web page, show it right after Post for every post, video included.
-- **Reminder for video posts too** (W · live test): Substack takes video, but today's reminder (`showSubstackReminder` in `public/js/panel.js`) only shows after posts with no video. Wanted: save a local copy of the video that went to X and Instagram (the burned-in copy) on disk; when posting has finished on every platform, show a dialog with that file's path, telling the user to post it on Substack. The dialog closes only with Done: no ×, Escape or click outside. Still open: the folder and file name (outside `uploads/`, so the 24-hour cleanup doesn't delete it), and what to save when X and Instagram got different copies (another language or size).
-- **Remove Share for videos** (P · phone test): the share sheet opens, but Substack's app isn't in it, so the video can't be handed over. Copy text works. Sharing a photo works (Substack shows in the sheet and the image posts). **Decision: remove Share for videos only;** the user picks the video from the phone's own gallery inside Substack. Copy text, Share for photos and Done stay.
-- **Hand Notes over to Substack's app** (P · idea): open Substack's composer with the text and images filled in, so you only tap Post. Not yet checked whether Substack's app accepts shared text and images.
-
-## 2. YouTube
+## 1. YouTube
 
 - **Find out why an upload came out Public** (B · phone test): a phone post with Visibility Public (2026-11-17) went live as public, though uploads are expected to be forced private until the API audit. Cause unknown (the user doesn't know of an audit). Check before building the reminder below; it may not be needed.
 - **Reminder to make the video public** (B · live test): Visibility already defaults to Public, but YouTube forces uploads from an unaudited API project to private. After a YouTube upload, show a reminder with a link to that video in YouTube Studio, like the Substack reminder. Only when Public was chosen and nothing is scheduled.
@@ -22,18 +15,18 @@ Everything still to do: features and fixes not built, and things built but not y
 - **Test a schedule from the phone** (P · phone build): to be tested with the app's own scheduling later.
 - **Posts tab** (idea): formerly Community (text, images, polls). The YouTube Data API reference lists no way to create these, so for now they're posted by hand. To be double-checked in the API docs.
 
-## 3. X
+## 2. X
 
 - **Empty line before `(1/3)`** (B · phone test): today `splitThread` in `rules.js` adds one line break, so the number sits right under the text. Wanted: `\n\n`. It's shared, so it changes the web page, the phone and what's posted to X. The extra character counts toward each part's limit.
 - **Test live:** `made_with_ai` and alt text (see "Per-platform fields: what's unverified" in [platforms.md](platforms.md)).
 
-## 4. Instagram
+## 3. Instagram
 
 - **Trial reel error** (B · phone test): Instagram refuses trial reels for small accounts (code 10, subcode 2207081, "does not meet the trial reel follower requirement"). The message reaches the phone fine; add what to do: "Set Trial reel to Off and post again." Maybe hide the field, but the follower threshold isn't known.
 - **Test live:** trial reels (Manual → `MANUAL`, Auto → `SS_PERFORMANCE`).
 - **Text-only posts as a carousel** (idea): turn the text into an image carousel, since Instagram needs an image or video.
 
-## 5. Subtitles (web page only for now)
+## 4. Subtitles (web page only for now)
 
 - **Live lyrics-video logs** (S · live test): show `subtitles.py`'s own messages in this server's terminal as they arrive (e.g. with a `[subtitles]` prefix). Today `subtitler.js` keeps the child's stderr only to print it when a job fails, so a running job looks silent.
 - **Review: edit timing as well as text** (W · live test): like YouTube's subtitle editor, each line should show its start and end time and let both be changed. Example: the English line "And it is very important for" was on screen for 0.6 s and flashed by. Still open: whether adding, deleting, merging and splitting lines are also wanted.
@@ -42,19 +35,23 @@ Everything still to do: features and fixes not built, and things built but not y
 - **English cues can be too short** (live test): the cause and fix are recorded in lyrics-video's AGENTS.md.
 - **Test:** several videos in one post, Stop during a run, a leftover run after a server restart, a burn-in that also has to fit a size limit, and the platforms besides YouTube, X and Instagram.
 
-## 6. Composing and layout
+## 5. Composing and layout
 
 - **"Post to" pills look like the tabs** (W · live test, design first): the pills choose platforms; the tabs right below (All / YouTube / X / Instagram) open each platform's settings. The user keeps clicking a pill when they mean the tab, which also unselects the platform.
 - **Placeholders don't show** (P · phone test): neither "What do you want to post?" in the compose box nor YouTube's "Defaults to: …" title hint. No `TextInput` in `mobile/src` sets `placeholderTextColor`; the likely cause is Android's default hint colour (maybe dark mode) on the white boxes. Fix: set it everywhere, then check in light and dark mode.
 - **Date and time pickers** (P · phone test): Schedule and Recording date are typed today (`YYYY-MM-DD HH:MM`). Needs a new package (`@react-native-community/datetimepicker`, approval needed) and an APK rebuild.
 - **Thumbnail title tool** (B · live test, design first): add a title to an existing thumbnail inside the app. The user does this today in a separate Claude conversation ("Add caption to thumbnails"); ask what it does and what goes wrong. The previews already know the safe areas: an Instagram cover keeps 7.5–92.5% of the width and 21.875–78.125% of the height (`.safe-box` in `styles.css`); the Shorts player covers the bottom 25%. Hindi needs Nirmala UI on Windows.
 - **Duplicate a post** (P · phone test): copy any post into a new draft with the same text, platforms, settings and media, then change what's needed. `copyPost` in `store.js` (used by Send again) already does this for chosen platforms. **Decision:** Duplicate is hidden once the post's media copies are pruned (`mediaRemoved`).
+- **Rethink image handling on the phone** (P · phone test, 2026-11-17, design first): photos taken on a phone are often too big for the platforms (Instagram 8 MB, X 5 MB, YouTube thumbnails 2 MB), so in practice photos and thumbnails can't be posted from the phone. Today the app takes photos as they are (`quality: 1` in `Compose.js`) and only reports the size. This revisits the thumbnail decision in section 1 ("never shrink it for the user"); discuss the options with the user first.
+- **Delete posts waiting to go** (P · phone test, 2026-11-17): while the laptop isn't connected, a post marked ready (or half sent) can't be deleted; Delete only shows for drafts and finished posts (`Compose.js`). Wanted: Delete for posts marked ready that haven't started going to the laptop, on the phone only; the laptop is never told. Once sending starts, there's no Delete.
+- **Platform logos on the phone** (P · phone test, 2026-11-17, design first): the app is all text today. Wanted: logos (`public/icons/*.svg`, as on the web page) in the posts list, for the platforms each post is for or went to, and in the new post screen ("Post to" pills, platform cards). **Decision: logos, not names.** Drawing SVGs needs `react-native-svg` (runs in Expo Go); **approved by the user on 2026-11-17.**
 - **Drafts and post history** (W · idea): deferred for the web page. The phone app keeps its own drafts, and its finished posts act as a simple history.
 
-## 7. Phone ↔ laptop
+## 6. Phone ↔ laptop
 
 - **Laptop status on the phone** (P + S · phone test): while connected, show what the web page's status dots show: tunnel connected, ffmpeg ready, subtitles ready. The server already works these out for `/api/status`; the phone's laptop check would need them from an `/app/*` endpoint. Most useful for Instagram, which fails without the tunnel.
-- **Staggered sending** (phone build): to be discussed, then scheduling (see section 9).
+- **Keep logs on the laptop** (P + S · phone test, 2026-11-17): for history and tracing problems later. Today the server logs only to the terminal (`log.js`, lost when it closes), and the phone's activity log keeps its last 500 lines on the phone and is never sent (`mobile/src/log.js`). **Decision:** keep both the server's and the phone's, and delete lines older than 6 months.
+- **Staggered sending** (phone build): to be discussed, then scheduling (see section 8).
 
 ### Not yet tested on the phone
 
@@ -63,7 +60,7 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 **How to test:** run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log.
 
 **Still to test:**
-- **Platform settings reaching a platform:** a YouTube schedule (see section 2). Instagram Stories skipped: the user won't use them.
+- **Platform settings reaching a platform:** a YouTube schedule (see section 1). Instagram Stories skipped: the user won't use them.
 - **The laptop refusing a post:** it returns to draft with the reason; a failed try shows "last try failed" on the post.
 - **Video and multi-file hand-over:** a video over the platform's size limit (compressed), several files, and resuming after Wi-Fi drops mid-upload.
 - **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel, X thread.
@@ -74,14 +71,14 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **X:** an offline draft handed over and posted, the thread count on X's card, and (2026-11-17) a 4-part thread with its `Phone post …` terminal lines, the app's hand-over lines and the result link opening it.
 - **YouTube (2026-11-17):** a 32 MB video with the title taken from the first line; another with a typed title, tags, Private and a custom thumbnail (two files handed over).
 - **Instagram (2026-11-17):** a photo with alt text; a Reel with an uploaded cover, made with Send again after a failed try.
-- **Substack reminder (2026-11-17):** Copy text, Share for a photo, Done.
+- **Substack reminder (2026-11-17):** Copy text, Share for a photo, Done. Later the same day, the dialog after Post: "Posting now" when connected, "Saved…" with Wi-Fi off, a video post with no Share button, and the back button not closing it.
 
-## 8. Housekeeping
+## 7. Housekeeping
 
 - **Uploads left behind by a page reload** (W · live test): reloading or closing the page with files attached leaves them in `uploads/` until the 24-hour cleanup (about 430 MB after a day of testing). The page also forgets a running subtitle job. Both are the deferred "post survives a reload" idea.
 - **Microphone permission** (P · phone build): the APK asks for microphone access (RECORD_AUDIO), which expo-camera adds by default; the app never records. Removing it means `"recordAudioAndroid": false` in expo-camera's plugin options in `mobile/app.json` (check expo-camera's docs first), then a rebuild.
 
-## 9. New platforms and big ideas
+## 8. New platforms and big ideas
 
 - **Test live:** Bluesky, Mastodon, Threads, LinkedIn, Facebook and Telegram have never been posted to; Discord only against a mock. Details and risks are in "Verification status" in [platforms.md](platforms.md); update it there when one is confirmed.
 - **Scheduling: a queue and a calendar** (idea, after the phone app's first version): write a post when the idea comes and add it to a queue; the laptop server publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the laptop was off are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
