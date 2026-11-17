@@ -2,15 +2,13 @@
 
 Everything still to do: features and fixes not built, and things built but not yet tested live. Grouped by feature. Discuss each item with the user before building it; items marked "design first" need options shown first. Remove an item once it's built, tested or dropped.
 
-**Where:** W = web page, P = phone app, B = both, S = server only.
+**Where:** W = web app, P = app (the phone app), B = both, S = server only.
 **From:** where the item came from, kept for history: *live test* (first live web test, 2026-11-12), *phone test* (phone testing, 2026-11-17), *phone build* (building the phone app, 2026-11-16 to 17), *idea* (ideas for later).
 
 ## 1. YouTube
 
-- **Thumbnail decision:** never shrink a thumbnail for the user. They make the smaller copy themselves and so see how it looks; an automatic shrink could spoil it and the app would get the blame.
 - **Tags as chips** (B · phone test, design first, good to have): the Tags field is one comma-separated text box today. Wanted: type a tag, it becomes a chip, tap to remove.
 - **Test a schedule from the phone** (P · phone build): to be tested with the app's own scheduling later.
-- **Posts tab** (idea): formerly Community (text, images, polls). Checked 2026-11-17: the YouTube Data API reference has no resource or method for them (`commentThreads` only makes comments), and Google hasn't announced one. They stay posted by hand.
 
 ## 2. X
 
@@ -33,7 +31,7 @@ The whole feature will be re-reviewed separately; these items wait for that.
 
 - **"Post to" pills look like the tabs** (W · live test, design first): the pills choose platforms; the tabs right below (All / YouTube / X / Instagram) open each platform's settings. The user keeps clicking a pill when they mean the tab, which also unselects the platform.
 - **Thumbnail title tool** (B · live test, design first): add a title to an existing thumbnail inside the app. The user does this today in a separate Claude conversation ("Add caption to thumbnails"); ask what it does and what goes wrong. The previews already know the safe areas: an Instagram cover keeps 7.5–92.5% of the width and 21.875–78.125% of the height (`.safe-box` in `styles.css`); the Shorts player covers the bottom 25%. Hindi needs Nirmala UI on Windows.
-- **Rethink image handling on the phone** (P · phone test, 2026-11-17, design first): photos taken on a phone are often too big for the platforms (Instagram 8 MB, X 5 MB, YouTube thumbnails 2 MB), so in practice photos and thumbnails can't be posted from the phone. Today the app takes photos as they are (`quality: 1` in `Compose.js`) and only reports the size. This revisits the thumbnail decision in section 1 ("never shrink it for the user"); discuss the options with the user first.
+- **Rethink image handling on the phone** (P · phone test, 2026-11-17, design first): photos taken on a phone are often too big for the platforms (Instagram 8 MB, X 5 MB, YouTube thumbnails 2 MB), so in practice photos and thumbnails can't be posted from the phone. Today the app takes photos as they are (`quality: 1` in `Compose.js`) and only reports the size. This revisits the thumbnail decision in AGENTS.md ("never shrink it for the user"); discuss the options with the user first.
 - **Posts screen redesign** (P · idea, 2026-11-17, design first): the app's landing screen feels crude, just the working screen. Suggested: New post as a round plum ＋ button at the bottom right; the "Connected to laptop" line as a small green/amber chip by the Laptop link; rows with a photo thumbnail, the start of the text and platform logos, grouped under Ready, On the laptop and Finished; an empty screen with the Ring of fire mark and a line on how posting works; a splash screen like traditional apps; a small Ring of fire burst when a post goes live (on the web app too).
 - **Drafts and post history** (W · idea): deferred for the web page. The phone app keeps its own drafts, and its finished posts act as a simple history.
 
@@ -42,13 +40,14 @@ The whole feature will be re-reviewed separately; these items wait for that.
 - **Filter the logs** (idea, 2026-11-17, lowest priority): find log lines by date/time and by a keyword or text. The logs are in `logs/server-YYYY-MM.log` and `logs/phone-YYYY-MM.log`; the phone's Activity log shows the laptop's last 500 phone lines.
 - **Staggered sending** (phone build): to be discussed, then scheduling (see section 8).
 
-### Not yet tested (phone and web page)
+### Not yet tested (app and web app)
 
-Built but not tried live. Move an item to "Already tested" once it's confirmed.
+Built but not tried live. Once one is confirmed, move it to "Tested live" in [mobile.md](mobile.md).
 
-**How to test:** run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log. For the web page, reload it after restarting the server.
+**How to test:** run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log. For the web app, reload it after restarting the server.
 
 **Still to test:**
+- **The rebranded APK** (built 2026-11-17): the Ring of fire icon and the name Socialifer, pairing the new app (package `com.socialifer.app`), Inter on every screen, and a post. Then uninstall the old Social Post app.
 - **Platform settings reaching a platform:** a YouTube schedule (see section 1). Instagram Stories skipped: the user won't use them.
 - **The laptop refusing a post:** it returns to draft with the reason; a failed try shows "last try failed" on the post.
 - **Video and multi-file hand-over:** a video over the platform's size limit (compressed), several files, and resuming after Wi-Fi drops mid-upload.
@@ -64,13 +63,6 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
   - **Subtitles:** transcribe's messages appear live in the terminal as `[subtitles]` lines.
   - **Microphone:** the app no longer asks for it (Android's App info → Permissions).
 
-**Already tested:**
-- **Connection:** pairing, the laptop check with Wi-Fi off and on, the installed APK connecting, the activity log's Connected line.
-- **X:** an offline draft handed over and posted, the thread count on X's card, and (2026-11-17) a 4-part thread with its `Phone post …` terminal lines, the app's hand-over lines and the result link opening it. The thread preview (2026-11-17, with the empty line before each number).
-- **YouTube (2026-11-17):** a 32 MB video with the title taken from the first line; another with a typed title, tags, Private and a custom thumbnail (two files handed over).
-- **Instagram (2026-11-17):** a photo with alt text; a Reel with an uploaded cover, made with Send again after a failed try.
-- **Substack reminder (2026-11-17):** Copy text, Share for a photo, Done. Later the same day, the dialog after Post: "Posting now" when connected, "Saved…" with Wi-Fi off, a video post with no Share button, and the back button not closing it.
-
 ## 7. Housekeeping
 
 - **Uploads left behind by a page reload** (W · live test): reloading or closing the page with files attached leaves them in `uploads/` until the 24-hour cleanup (about 430 MB after a day of testing). The page also forgets a running subtitle job. Both are the deferred "post survives a reload" idea.
@@ -83,33 +75,16 @@ Built but not tried live. Move an item to "Already tested" once it's confirmed.
 - **Posting to Reddit** (idea): a new platform.
 - **Hosted server** (idea, not for now): run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and the phone app can post from anywhere. Put off on 2026-11-16 to save costs. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg.
 
-## 9. Branding: Socialifer (decided 2026-11-17)
+## 9. Branding: Socialifer
 
-Decided in the branding thread. The designs are on the canvas https://claude.ai/artifact/QCqti7p3vUfmGdzSjmGL6L (private to the user), page "Final four". The web app, the app and the docs use it since 2026-11-17.
+The brand itself (name, logo, colours, fonts, voice) is in [brand/README.md](../brand/README.md) and the one-page guide `brand/guide.html`. It's in the web app, the app and the docs since 2026-11-17.
 
-- **Name:** Socialifer (so·sha·LIE·fer): "social" + Latin "-fer", carrier. socialifer.com and socialifer.in are registered; socialifer.app was skipped (too expensive).
-- **Logo:** Ring of fire, a glowing ring with sparks streaking out, like a Diwali chakri. The app sends posts out everywhere; the logo sends light out everywhere. Small sizes (tab icon) use a simpler version with fewer, thicker sparks. It can read as a sun; accepted.
-- **Colour:** Dusk Plum `#5b4a8b`, `#b3a4e6` in the dark theme. Replaces today's blue.
-- **Fonts:** Inter for English, Noto Sans Devanagari for Hindi.
-- **Voice:** friendly when things go well (a post went out), calm everywhere else (errors, buttons, empty screens).
-
-To do, in suggested order:
-- **Website and privacy policy:** live 2026-11-17 at https://socialifer.com (see [website.md](website.md)): home, privacy policy with data deletion, terms, SEO files. Domain verified in Google Search Console and sitemap submitted. Still to do: connect the Pages project to GitHub so it updates on push (it was uploaded by hand).
-- **Website redesign:** the home page works but looks poor (2026-11-17, user: "terrible right now"). Redesign it, mockup first, once the site is live and the developer apps are done. Include a share image (the picture shown when socialifer.com is shared on WhatsApp, X or LinkedIn).
-- **Use hello@socialifer.com:** done on the website (home, privacy, terms) and the Meta app. Left: the social profiles (with the item below).
-- **Developer apps:** rename and re-logo the apps on Google Cloud (YouTube), Meta, X and LinkedIn; their names show on sign-in screens. Logo: `brand/png/app-icon-192.png` (512 where bigger is accepted). Done except Google, which is parked.
-  - **Meta (done 2026-11-17):** display name Socialifer, icon, contact hello@socialifer.com, privacy and terms links, and the data deletion instructions URL `https://socialifer.com/privacy#delete-data`. The app stays unpublished (development mode): App Review is only needed when other people use Socialifer, like Google's verification.
-  - **X (done 2026-11-17):** app named Socialifer with the icon and description; website, organization, terms and privacy links set; the unused callback URI changed from the user's personal site to https://socialifer.com. Permissions untouched, so the `.env` tokens still work.
-  - **LinkedIn (done 2026-11-17):** app named Socialifer with the logo and privacy link. Its required Company Page, "Social Post", was renamed to Socialifer with the profile-picture logo, a description and the website. The tagline "Write once. Post everywhere." (also the homepage headline) isn't final.
-  - **Google (parked 2026-11-17):** project renamed; Branding page saved with the name Socialifer, the logo, the socialifer.com home, privacy and terms links, and `socialifer.com` as an authorized domain. The automatic brand check rejected the logo ("does not uniquely identify your brand"), even after the website header was changed to the same plum-square icon. The appeal's questionnaire asks whether the app is for personal use only, and Google doesn't review personal-use apps in production. That's the truth today, so it was parked: the branding only shows to other people signing in, and YouTube posting works without it. **Verify the Google branding when Socialifer opens to other users** (appeal with "the finding is incorrect": it's Socialifer's own original mark, imitating no other brand, and the same logo appears next to the name on every page of the verified socialifer.com and as its favicon).
-- **Social profiles:** the user's own accounts' names and pictures, where the app is mentioned.
-- **Brand in the app** (B): name, logo, colours and fonts done on the web app and the app (2026-11-17), checked in Expo Go. Left:
-  - **Rebuild the APK** for the icon, name and package `com.socialifer.app` (a new app to Android: pair it again, then uninstall the old Social Post app).
-  - **Renames (done 2026-11-17):** the GitHub repo (`ankitkante/socialifer`), README, docs, package name, the kept-videos folder (`~/Videos/Socialifer`), and a new Expo project `socialifer` (a slug can't be renamed; the old `social-post` project was deleted).
-  - **Saved settings** keep their `social-post:` keys on purpose, so nothing is lost.
+- **Website on push** (from 2026-11-17): connect the Cloudflare Pages project to GitHub so the site updates on push; it's uploaded by hand today (see [website.md](website.md)).
+- **Website redesign** (design first): the home page works but looks poor (user: "terrible right now"). Include a share image (the picture shown when socialifer.com is shared on WhatsApp, X or LinkedIn) and the brand fonts: the site's strict CSP loads nothing from other domains, so it shows Inter only where it's installed. Bundle the same woff2 files as `public/fonts`.
+- **Social profiles:** the user's own accounts' names and pictures where the app is mentioned, with hello@socialifer.com as the contact.
+- **Google branding check (parked):** appeal it when Socialifer opens to other users. Details in [brand/README.md](../brand/README.md), "Developer apps".
 - **Before going public:** a trademark search in India, and a check of the Play Store and App Store for the name.
-- **Open source or not:** the GitHub repo is public but has no license, so it's "all rights reserved" (readable, not reusable). Kept as is on 2026-11-17; decide later, for example MIT. The website doesn't call it open source until then.
-- **Brand guide (done 2026-11-17):** `brand/guide.html`, published at https://claude.ai/artifact/983ztzcSQY5nsdyQBvReRJ (private). The share image and the burst animation moved to the website and posts screen redesigns (2026-11-17: cosmetic, so they wait for those).
+- **Open source or not:** the GitHub repo is public but has no license, so it's "all rights reserved" (readable, not reusable). Kept as is on 2026-11-17; decide later, for example MIT, together with how others would use it (run it themselves with their own developer apps, or a hosted version). The website doesn't call it open source until then.
 - **Claim the handles:** @socialifer on X, Instagram, YouTube, Threads, Bluesky, LinkedIn, Reddit and Substack. The user will do this last.
-- **Wordmark lockup:** one image file with the mark plus "socialifer", the text turned into outlines so it doesn't need Inter installed. Only needed for images (share image, profile banners, email signature); the website uses the mark next to live text. Make it when those images are made.
-- **Sending email as @socialifer.com:** from Gmail, through an outgoing mail service (for example Brevo's free plan). Low priority: receiving is what matters, and it works (Cloudflare Email Routing to the user's Gmail since 2026-11-17; see [brand/](../brand/README.md)).
+- **Wordmark lockup:** one image file with the mark plus "socialifer", the text turned into outlines so it doesn't need Inter. Only needed for images (share image, profile banners, email signature); make it when those are made.
+- **Sending email as @socialifer.com** (low priority): from Gmail through an outgoing mail service (for example Brevo's free plan). Receiving already works.

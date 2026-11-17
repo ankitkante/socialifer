@@ -10,8 +10,17 @@ Decided 2026-11-17 (see section 9 of [docs/backlog.md](../docs/backlog.md)). The
 - **Written:** "Socialifer" in sentences; lowercase "socialifer" in the wordmark.
 - **Domains:** socialifer.com and socialifer.in, both registered at GoDaddy.
 - **socialifer.in:** forwards to socialifer.com (GoDaddy, permanent 301); http, https and www all checked 2026-11-17.
-- **socialifer.com DNS:** on Cloudflare (free plan); GoDaddy points its nameservers there. No website yet.
+- **socialifer.com DNS:** on Cloudflare (free plan); GoDaddy points its nameservers there. The website is on Cloudflare Pages (see [docs/website.md](../docs/website.md)).
 - **Email:** Cloudflare Email Routing forwards hello@socialifer.com to the owner's Gmail (receive only). A Gmail filter keeps it out of Spam. Sending as @socialifer.com isn't set up; it needs an outgoing mail service.
+
+## Developer apps
+
+Renamed and re-logoed on 2026-11-17, because their names show on sign-in screens. Logo: `png/app-icon-192.png` (512 where bigger is accepted).
+
+- **Meta:** display name Socialifer, icon, contact hello@socialifer.com, privacy and terms links, and the data deletion URL `https://socialifer.com/privacy#delete-data`. It stays in development mode: App Review is only needed once other people use Socialifer.
+- **X:** named Socialifer with the icon and description; website, organization, terms and privacy links set; the unused callback URI is https://socialifer.com. Permissions untouched, so the `.env` tokens still work.
+- **LinkedIn:** named Socialifer with the logo and privacy link. Its required Company Page (formerly "Social Post") is Socialifer, with the profile-picture logo, a description and the website. The tagline "Write once. Post everywhere." (also the website's headline) isn't final.
+- **Google (parked):** project renamed; Branding page saved with the name, logo, socialifer.com home, privacy and terms links, and `socialifer.com` as an authorized domain. The automatic brand check rejected the logo ("does not uniquely identify your brand"). Its appeal asks whether the app is for personal use only, and Google doesn't review personal-use apps, so it was parked: the branding only shows to other people signing in, and YouTube posting works without it. When Socialifer opens to others, appeal with "the finding is incorrect": it's Socialifer's own original mark, imitating no other brand, shown next to the name on every page of the verified socialifer.com and as its favicon.
 
 ## Logo: Ring of fire
 

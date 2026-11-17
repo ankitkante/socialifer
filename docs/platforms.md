@@ -123,4 +123,5 @@ These are wired to the documented API parameters but haven't been used on a live
 
 ## Not supported
 
+- **YouTube Posts (Community):** the Data API has no way to make them (checked 2026-11-17).
 - **Substack:** there's no official API, and Cloudflare blocks posting Notes from outside the browser. See "Decisions on record" in [AGENTS.md](../AGENTS.md).

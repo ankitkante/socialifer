@@ -1,0 +1,23 @@
+# Subtitles
+
+Built and first posted live on 2026-11-12. The rules every change must keep (invariants, conventions) are in [AGENTS.md](../AGENTS.md).
+
+Built from the "Subtitles redesign" artifact, https://claude.ai/artifact/7tF53VA3eUUpMxd9XDwN2K (private to the user). Its **Screens** page is the source of truth.
+
+- **Per video, per language:** each video item holds `subs: { [lang]: entry }` (`subtitles.js`). `POST /api/post` sends `subtitles: { videoId: { lang: srtId } }`; the server checks every video is in the post and every id is an SRT upload.
+- **Strip under the videos:** "Video is in" and "Make subtitles in" (remembered in `social-post:subtitles`), Generate (only when `/api/status` says `subtitles: true`) or Upload SRT. With several videos, one row per video and Generate for all.
+- **Languages:** Hindi and English only (`SUBTITLE_LANGUAGES` in `rules.js`), for Video is in, uploaded SRTs and YouTube's Audio language. The server refuses other codes before starting a job. The codes are the same in Whisper and YouTube; adding a language means checking both accept it.
+- **Contract:** how to call transcribe (arguments, events, exit codes) is defined only in its AGENTS.md, "Calling it from another program". Don't restate it here.
+- **Protocol:** Socialifer expects protocol **1** (`PROTOCOL` in `subtitler.js`). Any other first event kills the run with "transcribe and Socialifer don't match … Update both projects". Raise it only together with transcribe's.
+- **Generating:** `POST /api/subtitles { video, language, subtitles }` queues a job in `subtitler.js` and streams `{ type: 'job', job }` snapshots until it ends. Each SRT transcribe writes becomes an upload and is then deleted from its folder. `POST /api/subtitles/<id>/stop` stops it (the whole process tree on Windows); finished languages are kept. The language code must look like `hi` because it becomes a command-line argument.
+- **One heavy job at a time:** Whisper runs and subtitle burn-ins share one line in `work.js`, Whisper first. Post-time compression (`fitVideo`) stays outside it: it only runs after Post, which is disabled while Whisper runs, and queuing it behind preview burn-ins would hold the post up.
+- **Saved transcripts:** transcribe's `--out-dir` is `uploads/transcripts/<sha256 of the video>/`, so the same video added again skips Whisper. A folder goes 24 hours after its last use (`cleanupTranscripts`, run with the hourly cleanup).
+- **Leftover runs:** the running job's PID is kept in `uploads/transcripts/running.json`. At startup a run left by a dead server is stopped, but only if that PID is still the recorded python running `subtitles.py --json` and started within a minute of the record; otherwise it's left alone.
+- **Other platforms (decision):** the 7 platforms besides YouTube, X and Instagram keep today's behaviour: English burned in, or the only language there is. Testing and designing subtitles for them is deferred until those platforms are needed.
+- **Post gating:** Post is disabled while any job is queued or running. While a burned-in copy is still being made, Post works and those platforms wait for it.
+- **YouTube:** one `captions.insert` track per ticked language, labelled with its real code and name. "Video is in" (and Generate) sets the Audio language field.
+- **X and Instagram:** a Subtitles select per tab, "Burned in · <language>" or "None", remembered per platform. Other platforms get the default from `burnLanguage` in `rules.js`: English, else the first language.
+- **Burning in:** starts as soon as a platform needs a copy (`POST /api/subtitled`). A video over the platform's size limit is burned and fitted in one ffmpeg run (CRF 20 with the bitrate capped to fit; `burnTarget` in `rules.js`). Copies are cached per video, SRT and size target, so platforms with the same language share one. A video under the limit is burned without a cap; in the rare case the copy comes out over the limit, it's compressed again at post time.
+- **Review lines:** a dialog per video (`review.js`) with a tab per language, Burned in / YouTube track preview, and the zone Reels and Shorts cover shaded. Only text is editable; Done saves edited languages as new SRT uploads. Download SRT saves the edited copy. Closing with unsaved edits (× or Escape) asks "Discard N edited lines?", with Keep editing as the default.
+
+Checked in this test: Generate for Hindi and English (25 and 26 lines), Post disabled while generating, saved transcripts reused (a language remade instantly), an uploaded SRT with a language, two caption tracks on YouTube with their real languages, and the burned-in copy posted to X and Instagram.
