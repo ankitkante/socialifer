@@ -1,10 +1,10 @@
 // Previews in each platform's card, following public/js/previews.js: simple generic cards (not copies of each
 // platform's interface) built from the same rules the laptop uses, so a preview matches what's sent.
 // Videos have no frame thumbnail on the phone, so a video shows as a dark box unless a cover or thumbnail is set.
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { countFor, effectiveText, resolveTitle, splitThread, formatDuration } from '../../public/rules.js';
 import { mediaFile } from './store';
-import { colors } from './ui';
+import { colors, Text } from './ui';
 
 const SHORTS_MAX_SECONDS = 180;
 const YOUTUBE_TITLE_SHOWN = 70; // search results cut titles off around here

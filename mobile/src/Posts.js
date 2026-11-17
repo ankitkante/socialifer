@@ -1,8 +1,8 @@
 // The list of posts on the phone, newest first, with where each one is: draft, ready, on the laptop, finished.
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Button, Screen, colors } from './ui';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Button, Screen, colors, Text } from './ui';
 import { tunnelProblem } from './status';
-import Logo from './Logo';
+import Logo, { BrandMark } from './Logo';
 import { needsFinishing } from './Substack';
 
 function statusLine(post, live) {
@@ -30,7 +30,10 @@ export default function Posts({ posts, live, platforms, connection, onOpen, onNe
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Social Post</Text>
+        <View style={styles.brand}>
+          <BrandMark size={28} />
+          <Text style={styles.title}>socialifer</Text>
+        </View>
         <Pressable onPress={onPair} hitSlop={8}><Text style={styles.link}>Laptop</Text></Pressable>
       </View>
       <Text style={[styles.connection, connection.state === 'connected' ? (tunnel ? styles.warn : styles.on) : styles.off]}>
@@ -64,7 +67,8 @@ export default function Posts({ posts, live, platforms, connection, onOpen, onNe
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: '600', color: colors.text },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.4, color: colors.text },
   link: { fontSize: 15, color: colors.accent },
   connection: { marginTop: 6, fontSize: 13 },
   on: { color: colors.ok },

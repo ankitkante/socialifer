@@ -1,7 +1,7 @@
 // Writing a post: text, platforms, photos and videos, with the same checks as the web page (public/rules.js).
 // Every change is saved on the phone as a draft; Post marks it ready to go to the laptop.
 import { useEffect, useMemo, useState } from 'react';
-import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { problemsFor, adjustmentsFor, formatDuration } from '../../public/rules.js';
 import { addMedia, copyPost, deletePost, loadSettings, mediaFile, newId, readPost, removeMedia, savePost, saveSettings } from './store';
@@ -9,7 +9,7 @@ import Finished from './Finished';
 import { optionsFor, withDefaults } from './options';
 import PlatformCard from './Fields';
 import { log, short } from './log';
-import { Button, Screen, colors } from './ui';
+import { Button, Screen, colors, Text, TextInput } from './ui';
 import Logo, { brandColor } from './Logo';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));

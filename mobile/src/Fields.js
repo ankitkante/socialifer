@@ -1,13 +1,13 @@
 // One card per chosen platform: its count, problems and notes, and (opened) its own text and FIELDS settings.
 // Cards instead of the web page's tabs, so they can't be mistaken for the "Post to" pills.
 import { useState } from 'react';
-import { FlatList, Image, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { FlatList, Image, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { FIELDS } from '../../public/fields.js';
 import { countFor, effectiveText, resolveTitle, splitThread } from '../../public/rules.js';
 import { mediaFile } from './store';
 import Preview from './Preview';
-import { colors } from './ui';
+import { colors, Text, TextInput } from './ui';
 import Logo from './Logo';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));

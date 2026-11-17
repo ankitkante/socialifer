@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Social Post",
+    "name": "Socialifer",
     "slug": "social-post",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "socialpost",
+    "scheme": "socialifer",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
@@ -12,12 +12,11 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#5b4a8b",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.socialpost.app",
+      "package": "com.socialifer.app",
       "permissions": [
         "android.permission.CAMERA"
       ]
@@ -43,7 +42,8 @@
       "expo-secure-store",
       "expo-sharing",
       "./plugins/allow-http.js",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ],
     "extra": {
       "eas": {

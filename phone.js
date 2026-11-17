@@ -151,7 +151,7 @@ export function createPhoneServer(key, queue) {
 
       const { pathname, searchParams } = new URL(req.url, 'http://phone');
       if (req.method === 'GET' && pathname === '/app/hello') {
-        return sendJson(res, 200, { name: 'Social Post', ffmpeg: canCompress, platforms: platforms.map(describe), status: await laptopStatus({ wait: false }) });
+        return sendJson(res, 200, { name: 'Socialifer', ffmpeg: canCompress, platforms: platforms.map(describe), status: await laptopStatus({ wait: false }) });
       }
       if (req.method === 'GET' && pathname === '/app/log') {
         return sendJson(res, 200, { lines: await readPhoneLog(MAX_LOG_LINES) });
@@ -227,7 +227,7 @@ export async function startPhoneServer() {
   const { port: actual } = server.address();
   // Capitals, digits and ':' only, so the QR code uses its compact alphanumeric mode (17 lines, not 25).
   const code = `SP:${host}:${actual}:${key.toUpperCase()}`;
-  console.log(`Phone app: listening on ${host}:${actual}. To pair, scan this in the Social Post app (not the camera app, which may send the code to a search engine):`);
+  console.log(`Phone app: listening on ${host}:${actual}. To pair, scan this in the Socialifer app (not the camera app, which may send the code to a search engine):`);
   console.log(await QRCode.toString(code, { type: 'terminal', small: true, errorCorrectionLevel: 'L' }));
   return server;
 }

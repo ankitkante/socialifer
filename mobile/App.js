@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { BackHandler, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useFonts } from 'expo-font';
 import { call, forgetPairing, loadPairing, parsePairing, savePairing } from './src/laptop';
 import { handOver } from './src/handover';
 import { listPosts, loadPlatforms, loadSettings, newId, pruneOldMedia, savePlatforms, savePost } from './src/store';
 import Compose from './src/Compose';
 import Posts from './src/Posts';
 import { FinishByHandDialog, todosOf } from './src/Substack';
-import { Button, Screen, colors } from './src/ui';
+import { Button, FONTS, Screen, colors, Text } from './src/ui';
 import { log, logErrors, readLog, unsentLog } from './src/log';
 import { statusLines, tunnelProblem } from './src/status';
 
@@ -18,6 +19,8 @@ logErrors();
 const CHECK_MS = 5000;
 
 export default function App() {
+  // Bundled with the app, so this takes a moment; an error leaves the system font rather than a blank screen.
+  const [fontsLoaded, fontError] = useFonts(FONTS);
   const [pairing, setPairing] = useState(undefined); // undefined while loading, null when not paired
   const [screen, setScreen] = useState({ name: 'posts' });
   const [connection, setConnection] = useState({ state: 'checking' });
@@ -105,7 +108,7 @@ export default function App() {
     if (remind && reminding === null) setRemind(null);
   }, [remind, reminding]);
 
-  if (pairing === undefined) return <View style={styles.blank} />;
+  if (pairing === undefined || (!fontsLoaded && !fontError)) return <View style={styles.blank} />;
   if (!pairing || screen.name === 'pair') {
     return (
       <Scanner
@@ -252,7 +255,7 @@ function Scanner({ onPaired, onCancel }) {
     if (handled.current) return;
     const next = parsePairing(data);
     if (!next) {
-      setProblem("That isn't a Social Post pairing code. Scan the one printed when the server starts.");
+      setProblem("That isn't a Socialifer pairing code. Scan the one printed when the server starts.");
       return;
     }
     handled.current = true;

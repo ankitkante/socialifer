@@ -56,7 +56,7 @@ test('a signed hello returns the platforms', async () => {
   const res = await signed('/app/hello');
   assert.equal(res.status, 200);
   const hello = await res.json();
-  assert.equal(hello.name, 'Social Post');
+  assert.equal(hello.name, 'Socialifer');
   assert.ok(hello.platforms.length >= 9);
   assert.ok(hello.platforms.every((p) => Array.isArray(p.envVars) && p.media));
   assert.equal(typeof hello.status.ffmpeg, 'boolean');

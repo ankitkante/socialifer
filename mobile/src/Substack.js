@@ -2,12 +2,12 @@
 // and platforms' own items from their results (YouTube: make a private video public in YouTube Studio).
 // The dialog opens right after Post (once the post is on the laptop, or saved here when the laptop isn't
 // around), before any results, so it covers Substack only. The finished post shows everything until Done.
-import { Linking, Modal, StyleSheet, Text, View } from 'react-native';
+import { Linking, Modal, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import { mediaFile } from './store';
 import { log, short } from './log';
-import { Button, colors } from './ui';
+import { Button, colors, Text } from './ui';
 
 const isVideo = (item) => item.type.startsWith('video/');
 
