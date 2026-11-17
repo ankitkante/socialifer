@@ -17,7 +17,6 @@ Everything still to do: features and fixes not built, and things built but not y
 
 ## 2. X
 
-- **Empty line before `(1/3)`** (B · phone test): today `splitThread` in `rules.js` adds one line break, so the number sits right under the text. Wanted: `\n\n`. It's shared, so it changes the web page, the phone and what's posted to X. The extra character counts toward each part's limit.
 - **Test live:** `made_with_ai` and alt text (see "Per-platform fields: what's unverified" in [platforms.md](platforms.md)).
 
 ## 3. Instagram
