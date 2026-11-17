@@ -134,7 +134,7 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 
 ## Ideas for later
 
-Feedback and ideas not built yet are kept in one list: the "Backlog" section of [AGENTS.md](AGENTS.md).
+Feedback and ideas not built yet are kept in one list: [docs/backlog.md](docs/backlog.md).
 
 ## Further reading
 
