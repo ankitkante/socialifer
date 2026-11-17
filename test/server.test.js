@@ -44,7 +44,7 @@ before(async () => {
   base = `http://localhost:${port}`;
   // No platform credentials: an empty env keeps a developer's .env out of the test.
   server = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
-    env: { PORT: String(port), SystemRoot: process.env.SystemRoot },
+    env: { PORT: String(port), PHONE_PORT: 'off', SystemRoot: process.env.SystemRoot },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve) => server.stdout.on('data', (d) => d.toString().includes('running') && resolve()));
@@ -55,6 +55,7 @@ after(() => server.kill());
 test('serves the page, the shared rules and the platform list', async () => {
   assert.equal((await fetch(`${base}/`)).status, 200);
   assert.equal((await fetch(`${base}/rules.js`)).status, 200);
+  assert.equal((await fetch(`${base}/fields.js`)).status, 200);
   const platforms = await (await fetch(`${base}/api/platforms`)).json();
   assert.ok(platforms.length >= 9);
   assert.ok(platforms.every((p) => p.configured === false && Array.isArray(p.envVars) && p.media));

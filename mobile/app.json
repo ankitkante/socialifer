@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Social Post",
+    "slug": "social-post",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "socialpost",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.socialpost.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "The camera scans the pairing QR code shown by the laptop."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Photos and videos you pick are attached to your posts."
+        }
+      ],
+      "expo-secure-store",
+      "expo-sharing",
+      "./plugins/allow-http.js"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6da9c076-c48f-487f-8dae-f4f8313a6124"
+      }
+    }
+  }
+}

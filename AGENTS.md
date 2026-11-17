@@ -13,6 +13,9 @@ npm start     # node --env-file-if-exists=.env server.js  -> http://localhost:30
 npm run dev   # same, restarting on file changes
 npm test      # node --test; offline, no credentials needed
 npm run youtube-auth   # one-time Google sign-in; writes YOUTUBE_REFRESH_TOKEN into .env
+npm run tunnel         # cloudflared quick tunnel; writes its new address to TUNNEL_URL in .env (restart the server after)
+npm run sp-mobile-app  # Expo's dev server for the phone app in mobile/ (open it in Expo Go)
+npm run sp-mobile-apk  # builds an installable APK of the phone app on Expo's servers (EAS; needs an Expo login)
 ```
 
 Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`FormData`/`Blob`).
@@ -22,23 +25,29 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | Path | Role |
 |---|---|
 | `server.js` | HTTP server: routing, host/forwarding guard, `/api/*` endpoints, fan-out to platforms |
+| `publish.js` | `publish()`: posting to the selected platforms (checks, compression, burn-ins, results), used by `/api/post` and the phone queue; also `describe`, `canCompress`, `failureMessage` |
+| `phone.js` | The phone app's server on `PHONE_PORT` (Wi-Fi): signature check, pairing key in `phone/pairing.json`, the pairing QR code, `/app/*` endpoints |
+| `queue.js` | Phone posts on the laptop: `queue/<id>/` (`post.json` and files by index), checked on arrival, posted one at a time through `publish()`, kept until the phone collects the results (7 days at most) |
+| `mobile/` | The phone app (Expo, Android). `App.js` (screens, the 5-second laptop check); `src/Posts.js` (the list), `src/Compose.js` (writing, checks from `rules.js`), `src/Fields.js` (a card per platform: count, problems, own text, `FIELDS` controls), `src/Preview.js` (YouTube/Instagram/X previews, following `public/js/previews.js`), `src/Finished.js` (results, Send again, Substack reminder), `src/options.js` (defaults, sticky values, what's checked and sent), `src/store.js` (posts in the app's document folder, media copies, cached platforms), `src/handover.js` (sending ready posts, collecting results), `src/laptop.js` (pairing, signed calls and uploads), `src/log.js` (the activity log), `src/sign.js` (must match `signature()` in `phone.js`). `metro.config.js` lets it import `public/rules.js`. `eas.json` and `plugins/allow-http.js` are for the APK build. Follow `mobile/AGENTS.md` (Expo's own guidance) there |
 | `media.js` | Upload storage in `uploads/`, public `/media/*` serving (with Range), 24h cleanup, and ffmpeg copies: compressed (`fitVideo`) and with burned-in subtitles (`burnSubtitles`) |
 | `public/index.html` | The page's markup only (no build step) |
 | `public/styles.css` | All styles; light and dark tokens on `:root`, `data-theme` on `<html>` overrides the system theme |
 | `subtitler.js` | Generating subtitles: runs lyrics-video's `subtitles.py` (`LYRICS_VIDEO_DIR`), turns each SRT it writes into an upload, keeps transcripts by video content, and stops a run left by a dead server |
 | `work.js` | One heavy job at a time (Whisper, then subtitle burn-ins) |
-| `public/js/` | The page's ES modules: `main.js` (picker, tabs, per-platform sections, field errors, wiring), `fields.js` (`FIELDS`, saved settings, controls), `uploads.js` (attachments, JPEG conversion, thumbnails), `subtitles.js` (the Subtitles strip, generating, SRT uploads, burned-in copies, each platform's subtitles choice), `review.js` (the Review lines dialog), `previews.js` (YouTube/Instagram/X preview cards), `panel.js` (Post panel, posting and its NDJSON stream), `status.js` (theme toggle, status dots), `state.js` (shared state and `hooks`), `dom.js` (helpers, NDJSON reader). Served by name from `/js/<name>.js` only |
+| `public/js/` | The page's ES modules: `main.js` (picker, tabs, per-platform sections, field errors, wiring), `fields.js` (saved settings and controls; the lists are in `public/fields.js`), `uploads.js` (attachments, JPEG conversion, thumbnails), `subtitles.js` (the Subtitles strip, generating, SRT uploads, burned-in copies, each platform's subtitles choice), `review.js` (the Review lines dialog), `previews.js` (YouTube/Instagram/X preview cards), `panel.js` (Post panel, posting and its NDJSON stream), `status.js` (theme toggle, status dots), `state.js` (shared state and `hooks`), `dom.js` (helpers, NDJSON reader). Served by name from `/js/<name>.js` only |
 | `public/icons/` | Platform logos from Simple Icons (CC0), one `<id>.svg` per platform. LinkedIn comes from v10.0.0, because later versions removed it at LinkedIn's request |
-| `public/rules.js` | **Shared by browser and server**: character counting and per-platform validation |
+| `public/rules.js` | **Shared by browser, server and phone app**: character counting and per-platform validation |
+| `public/fields.js` | **Shared by browser and phone app**: `FIELDS` (each platform's extra fields), `fieldsOf`, `initialOf`. Plain data, no page code; served at `/fields.js` |
 | `platforms/*.js` | One module per platform; `index.js` lists them in display order |
 | `platforms/http.js` | `request()` (fetch + error extraction + timeout), `poll()`, `env()` helpers |
 | `scripts/youtube-auth.js` | Standalone OAuth loopback + PKCE flow for YouTube |
+| `scripts/tunnel.js` | Runs `cloudflared tunnel --url`, finds the `trycloudflare.com` address in its log and saves it as `TUNNEL_URL` |
 | `test/` | `node:test` suites |
 | `.env.example` | Every supported setting, with where to get each credential |
 
 ## Conventions
 
-- **No dependencies.** Use Node built-ins only. Don't add npm packages without asking the user.
+- **No dependencies.** Use Node built-ins only. Don't add npm packages without asking the user. The one exception is `qrcode` (the pairing code). The phone app in `mobile/` has its own packages; ask before adding any.
 - ES modules, 2-space indent, single quotes, semicolons. Comments explain *why* (API quirks, limits), not what.
 - Platform API quirks live in the platform module, next to the code they affect, with a short comment.
 - Error messages are shown to the user verbatim, so write them as plain sentences that say what to do.
@@ -82,7 +91,7 @@ export default {
 
 `options` holds per-platform extras that the UI sends as `options[platformId]` in `POST /api/post`, and it's passed both to `problemsFor` and to `post()`:
 - `options[id].text`: the platform's own text, present only if the user edited that platform's box in its tab (an empty string means no text). Unedited boxes just mirror the main post and send nothing. The server resolves it with `effectiveText()` and passes the result to `post()` as `text`, so platform modules never need to look at it. `problemsFor` takes the *main* text plus `options` and resolves it the same way.
-- **Platform fields** (YouTube's title, tags, schedule and thumbnail; Instagram's Story, cover, collaborators and first comment; X's thread, poll and reply settings) are declared in `FIELDS` in `public/js/fields.js`. Each entry has a `key`, `type` (text, textarea, select, check, number, date, datetime-local, image, poll), a `label`, and optionally `sticky` (remembered between posts), `when` (hidden and *not sent* when it doesn't apply), `initial` and `hint`. Values reach the server as `options[platformId][key]` and are checked by `FIELD_CHECKS` in `public/rules.js`. To add a field: add it to `FIELDS`, add any check to `FIELD_CHECKS`, and read it in the platform's `post()`.
+- **Platform fields** (YouTube's title, tags, schedule and thumbnail; Instagram's Story, cover, collaborators and first comment; X's thread, poll and reply settings) are declared in `FIELDS` in `public/fields.js` (the web page and the phone app both draw them). Each entry has a `key`, `type` (text, textarea, select, check, number, date, datetime-local, image, poll), a `label`, and optionally `sticky` (remembered between posts), `when` (hidden and *not sent* when it doesn't apply), `initial` and `hint`. Values reach the server as `options[platformId][key]` and are checked by `FIELD_CHECKS` in `public/rules.js`. To add a field: add it to `FIELDS`, add any check to `FIELD_CHECKS`, and read it in the platform's `post()`.
 
 `media` items passed to `post()` are `{ id, name, type, size, duration, path, url, blob(), buffer() }`. `url` is the public URL (only set when `TUNNEL_URL` is configured). `duration` is in seconds, from ffprobe if installed, else from the browser, else `null`. A video over the platform's `videoMB` has already been swapped for a compressed copy (see `fitVideo` in `media.js`) when ffmpeg is available, so modules don't handle compression. Upload media in order and sequentially. To add a platform, create the module, register it in `platforms/index.js`, add its settings to `.env.example`, and add a row to `docs/platforms.md` and the README table.
 
@@ -93,6 +102,7 @@ export default {
 3. **Media ids are 128-bit random hex** and validated with `/^[a-f0-9]{32}$/` before touching the filesystem.
 4. **Server re-validates everything** the UI checks (`problemsFor`); the UI is a convenience, not the gate.
 5. **Secrets never reach the browser.** `/api/platforms` returns only names of env vars, never values.
+6. **The phone port only takes signed requests.** Every `/app/*` request carries `X-SP-Time`, `X-SP-Nonce` and `X-SP-Signature` (HMAC-SHA256 with the pairing key of method, path, time, nonce and the body's SHA-256, or `<type>:<size>` for a file). Wrong signatures, times over a minute off and reused nonces get 401; addresses outside home networks get 403. The key is never sent.
 
 ## Testing
 
@@ -102,10 +112,10 @@ export default {
 
 ## Decisions on record
 
-- **Substack: not supported.** It has no official posting API. An unofficial route exists (session cookie + internal `/api/v1/comment/feed` for Notes), but it may break without notice and may violate their terms. On 2026-11-09 it was built for Notes on the `feature/substack-notes` branch and tested live: the cookie and image upload worked, but Cloudflare blocks publishing (`/comment/feed` returns a 403 page) unless the request carries the browser's `cf_clearance` bot-check cookie. Reusing that cookie or imitating a browser would be circumventing the bot check, so it won't be done. The branch is kept in case Substack opens an official API. The alternative is the mobile app handing Notes to Substack's own composer (see "Backlog" below).
+- **Substack: not supported.** It has no official posting API. An unofficial route exists (session cookie + internal `/api/v1/comment/feed` for Notes), but it may break without notice and may violate their terms. On 2026-11-09 it was built for Notes on the `feature/substack-notes` branch and tested live: the cookie and image upload worked, but Cloudflare blocks publishing (`/comment/feed` returns a 403 page) unless the request carries the browser's `cf_clearance` bot-check cookie. Reusing that cookie or imitating a browser would be circumventing the bot check, so it won't be done. The branch is kept in case Substack opens an official API. The alternative is the mobile app handing Notes to Substack's own composer (see [docs/backlog.md](docs/backlog.md)).
 - **Instagram and Threads media need `TUNNEL_URL`**, because Meta fetches media from a URL. Instagram's resumable upload (direct video upload) is only available to Facebook Login for Business apps, and images still need a URL, so the tunnel approach was chosen for both.
 - **Alt text on X and Instagram only.** Bluesky, Mastodon and LinkedIn also support it; adding it there is a possible follow-up.
-- **Ideas for later** are in the "Backlog" section below, with the open feedback. Discuss them with the user before building any of them.
+- **Ideas for later** are in [docs/backlog.md](docs/backlog.md), with the open feedback. Discuss them with the user before building any of them.
 - **ffmpeg is optional**, not a dependency. It is found on PATH, in `FFMPEG_DIR`, or in winget's Links folder (`%LOCALAPPDATA%\Microsoft\WinGet\Links`), because VS Code terminals opened before an install don't see the new PATH. Without it, oversized videos are rejected per platform as before.
 - **Videos are compressed, never trimmed.** A video that is too long for a platform is a problem the user must fix; only size is adjusted automatically. Compression targets the platform's `videoMB` with H.264/AAC, scaling so the shorter side is at most 1080 px (`SCALE` in `media.js`), and refusing to go below 400 kbps video (`compressionBitrate` in `public/rules.js`).
 - **YouTube uploads start private** until the user's Google Cloud project passes YouTube's API audit. This can't be worked around in code; the UI and README say so. Shorts are not a separate upload type.
@@ -134,35 +144,27 @@ Built from the "Subtitles redesign" artifact, https://claude.ai/artifact/7tF53VA
 
 Checked in this test: Generate for Hindi and English (25 and 26 lines), Post disabled while generating, saved transcripts reused (a language remade instantly), an uploaded SRT with a language, two caption tracks on YouTube with their real languages, and the burned-in copy posted to X and Instagram.
 
-## Backlog (not built)
+## Mobile app (decided 2026-11-16, first version built)
 
-Everything wanted but not built: feedback from live use first, then ideas in priority order. Discuss each with the user before building; items marked "design first" need options shown first. Remove an item once it's built or dropped.
+- **Laptop server as the backend:** to save costs, no hosted server for now (it stays in [docs/backlog.md](docs/backlog.md)).
+- **Code:** Expo (React Native), Android only, in `mobile/` in this repo, so it can share `public/rules.js` with the server.
+- **Offline first:** posts are saved on the phone. Tapping Post marks a post ready; drafts stay on the phone and are never sent.
+- **Hand-over:** when the phone reaches the laptop over Wi-Fi, every ready post goes to the server automatically. The server keeps the queue on disk (it must survive restarts), so the phone can leave afterwards.
+- **Queue endpoints (built):** `PUT /app/posts/<id>` (the phone makes the 32-hex id, so a resend never posts twice; image fields are `{ file: n }`), `PUT /app/posts/<id>/files/<n>`, `POST /app/posts/<id>/ready`, `GET /app/posts?ids=…` (state, missing files, live steps, results) and `DELETE /app/posts/<id>`. States: receiving → waiting → posting → done; a restart mid-posting makes it `unknown`, never retried. Files are copied into `uploads/` only while their post is being posted (`importFile`), then deleted.
+- **Processing:** the server checks (`problemsFor`) and compresses (`fitVideo`) phone posts exactly as it does web posts. Rejected posts and failed platforms are shown on the phone, and the post stays there to fix.
+- **Pairing (built):** at startup the server prints a QR code holding `SP:<ip>:<port>:<key>` (capitals and a 128-bit key keep it small enough to fit the terminal). Scan it in the app, not the camera app. Scan again if the address changes; `PHONE_HOST` overrides the guessed address.
+- **Phone port (built):** a separate plain-HTTP port (`PHONE_PORT`, default 3001) with only `/app/*` endpoints and signed requests (invariant 6). HTTPS was dropped: it needed a certificate package and a custom Android build instead of Expo Go. Post content can be read on the Wi-Fi; the key and posting can't be abused. The web page's port stays local-only (invariant 1).
+- **Character counting on the phone:** Hermes has no `Intl.Segmenter`, so `rules.js` falls back to a close count (code points minus combining marks, emoji modifiers and Devanagari virama joins). It matched the exact count on Hindi and emoji samples; the server still counts exactly.
+- **`qrcode` npm package:** approved by the user as an exception to "No dependencies".
+- **Posts on the phone (built):** each post is a folder in the app's storage with copies of its photos and videos. States: draft → ready (Post tapped; gets a fresh `sendId`, the laptop queue's id) → sending → handed → done. Any edit to a ready post makes it a draft again; the post open on screen is never handed over. A post the laptop refuses (400) returns to draft with the reason. Hand-over only runs while the app is open.
+- **Finished posts are the history:** they stay in the list (text, links, results) until deleted by hand. A week after a post went out on every platform, its media copies are deleted to free space (`pruneOldMedia`, run when the app opens); posts with a failure keep theirs.
+- **Platform settings on the phone (built):** a card per chosen platform instead of tabs, so they can't be confused with the "Post to" pills. Image fields are sent as extra files referenced by `{ file: n }`. Dates are typed (`YYYY-MM-DD HH:MM`); a date picker would need `@react-native-community/datetimepicker`.
+- **Logging for phone posts:** the terminal logs refused phone requests with their reason (bad signatures and unknown devices at most once a minute per address) and each post's journey as `Phone post 1a2b3c4d: …`, linked to its `[post N]` lines. The app keeps an activity log (`mobile/src/log.js`, last 500 lines, Laptop → Activity log, with Share) using the same 8-character names (the start of `sendId`). A failed hand-over try shows on its post, not in the connection line.
+- **Finished posts on the phone (built):** result links open the post. **Send again** copies the post into a new draft for only the failed platforms (`copyPost`), so the original stays as history. A post that went out anywhere shows a **Substack reminder** (Copy text, Share each file to another app, Done); its media copies are kept until Done, and then pruned a week after posting.
+- **Previews on the phone (built):** the web page's YouTube (regular and Short views), Instagram (Story, Reel views with the covered bands and safe box, feed, grid) and X (thread) previews, inside each platform card. Videos have no frame thumbnail on the phone (that would need `expo-video-thumbnails`), so they show as a dark box unless a cover or thumbnail is set. Grid and Reels-tab crops are centred, not the web page's measured crops.
+- **First version:** the web page's features (per-platform settings, previews) for text, images and videos posted as they are. No subtitles: videos are edited and subtitled on the laptop.
+- **Installed app (built):** an APK built with EAS (`npm run sp-mobile-apk`, profile `apk` in `mobile/eas.json`), package `com.socialpost.app`. `plugins/allow-http.js` sets `usesCleartextTraffic`, because release builds block plain HTTP and the phone port has no HTTPS. It has its own storage, so it's paired separately from Expo Go. Rebuild after changing app code or `app.json`.
 
-### Feedback from the first live test (2026-11-12)
+## Backlog
 
-The user's feedback while posting a 54-second Hindi talk to YouTube, X and Instagram.
-
-- **Live lyrics-video logs:** show `subtitles.py`'s own messages in this server's terminal as they arrive (e.g. with a `[subtitles]` prefix). Today `subtitler.js` keeps the child's stderr only to print it when a job fails, so a running job looks silent.
-- **Review: edit timing as well as text,** like YouTube's subtitle editor. Each line should show its start and end time and let both be changed. Example: the English line "And it is very important for" was on screen for 0.6 s and flashed by. Still open: whether adding, deleting, merging and splitting lines are also wanted.
-- **Review: two-line subtitles.** A 35-character English line reached the edges of a vertical video when burned in. The editor's single-line text box can't add a line break. Also check the burn-in's side margins on vertical videos.
-- **"Replace with SRT" removes every language** without warning (`pickSrt(item, true)` in `public/js/subtitles.js`). The user replaced English and lost Hindi. Decide with the user: replace one language only, or ask first.
-- **"Post to" pills and the tab bar look alike (design first).** The pills choose platforms; the tabs right below (All / YouTube / X / Instagram) open each platform's settings. The user keeps clicking a pill when they mean the tab, which also unselects the platform.
-- **Reminder to make the YouTube video public.** Visibility already defaults to Public, but YouTube forces uploads from an unaudited API project to private. After a YouTube upload, show a reminder with a link to that video in YouTube Studio, like the Substack reminder. Only when Public was chosen and nothing is scheduled.
-- **Thumbnail title tool (new feature, design first).** Add a title to an existing thumbnail inside the app. The user does this today in a separate Claude conversation ("Add caption to thumbnails"); ask what it does and what goes wrong. The previews already know the safe areas: an Instagram cover keeps 7.5–92.5% of the width and 21.875–78.125% of the height (`.safe-box` in `styles.css`); the Shorts player covers the bottom 25%. Hindi needs Nirmala UI on Windows.
-- **Substack reminder for video posts too.** Substack takes video, but today's reminder (`showSubstackReminder` in `public/js/panel.js`) only shows after posts with no video. Wanted: save a local copy of the video that went to X and Instagram (the burned-in copy) on disk; when posting has finished on every platform, show a dialog with that file's path, telling the user to post it on Substack. The dialog closes only with Done: no ×, Escape or click outside. Still open: the folder and file name (outside `uploads/`, so the 24-hour cleanup doesn't delete it), and what to save when X and Instagram got different copies (another language or size).
-
-Smaller things found in the same test:
-- **Uploads left behind by a page reload:** reloading or closing the page with files attached leaves them in `uploads/` until the 24-hour cleanup (about 430 MB after a day of testing). The page also forgets a running subtitle job. Both are the deferred "post survives a reload" idea.
-- **Old Audio language:** a YouTube Audio language saved before the Hindi/English list (e.g. French) isn't reset and is still sent.
-- **English cues from lyrics-video can be too short;** the cause and fix are recorded in lyrics-video's AGENTS.md.
-
-### Ideas for later (priority order)
-
-- **Hosted server:** run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and a phone app has something to talk to. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg. Fallback if hosting doesn't work out: the phone app keeps the queue and hands it to the laptop server when they're on the same Wi-Fi.
-- **Scheduling: a queue and a calendar.** Write a post when the idea comes and add it to a queue; the app publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the hosted server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the server was down are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
-- **Mobile app (React Native):** a separate app, with the hosted server as its backend, using the same endpoints as the web page (`/api/platforms`, `/api/media`, `/api/post`). It could also **hand Notes over to Substack's app**: open Substack's composer with the text and images filled in, so you only tap Post. Not yet checked whether Substack's app accepts shared text and images.
-- **Posting to Reddit:** a new platform.
-- **Text-only posts on Instagram:** turn the text into an image carousel, since Instagram needs an image or video.
-- **A logo:** the header shows just the name "Social Post" for now. A paper plane was ruled out because so many sites use one.
-- **Drafts and post history:** deferred.
-- **YouTube Posts tab** (formerly Community: text, images, polls): the YouTube Data API reference lists no way to create these, so for now they're posted by hand. To be double-checked in the API docs.
+Everything still to do (features and fixes not built, and things built but not yet tested live) is in [docs/backlog.md](docs/backlog.md), grouped by feature, with where each item came from. Discuss each item with the user before building it, and remove it there once it's built, tested or dropped.

@@ -6,14 +6,27 @@ Supported platforms: **X, Bluesky, Mastodon, Threads, Instagram, YouTube (videos
 
 ## Setup
 
-Requires Node.js 22.9 or newer. There are no packages to install.
+Requires Node.js 22.9 or newer.
 
 ```sh
+npm install             # one package: qrcode, for pairing the phone app
 cp .env.example .env    # then fill in the platforms you use
 npm start               # opens on http://localhost:3000
 ```
 
 `.env.example` explains where to get each credential. Platforms without credentials show up greyed out on the page. Restart the server after you edit `.env`.
+
+## Phone app (in progress)
+
+- **What it is:** an Android app in `mobile/`. Write posts anywhere; tapping Post queues them, and they go to this server automatically the next time the phone is on the same Wi-Fi with the app open.
+- **Platform settings:** tap **Settings ›** on a platform's card for its own text and options (X threads, YouTube title, Instagram cover...). Dates are typed as `2026-11-20 18:00`.
+- **Previews:** each platform's card shows a preview under its settings.
+- **After posting:** links to each post, **Send again** for platforms that failed, and a reminder to post it on Substack by hand (Copy text, Share, Done).
+- **Storage:** the app keeps copies of attached photos and videos; they're deleted a week after a post went out everywhere. Finished posts stay in the list until you delete them.
+- **Install it:** `npm run sp-mobile-apk` builds an APK on Expo's servers (needs a free Expo account; takes 10–20 minutes). Open the link it prints on the phone and install it, allowing installs from unknown sources if asked.
+- **Develop it:** `cd mobile && npm install` once, then `npm run sp-mobile-app` from here and open it in **Expo Go**.
+- **Pair:** `npm start` prints a pairing QR code. Scan it in the app (not the camera app). The phone and laptop must be on the same Wi-Fi; allow Node.js on private networks if Windows asks.
+- **Unpair every phone:** delete `phone/pairing.json` and restart the server.
 
 ## Using it
 
@@ -89,10 +102,10 @@ To install ffmpeg on Windows, run `winget install --id Gyan.FFmpeg` (on a Mac, `
 
 Meta doesn't accept file uploads for Threads or Instagram. Instead, it downloads each file from a public web address. To make that work:
 
-1. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) and run `cloudflared tunnel --url http://localhost:3000`.
-2. Copy the `https://….trycloudflare.com` address it prints into `TUNNEL_URL` in `.env`, then restart the server.
+1. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) and run `npm run tunnel` in its own terminal. It starts the tunnel and saves the `https://….trycloudflare.com` address to `TUNNEL_URL` in `.env`.
+2. Restart the server so it uses the address. Keep the tunnel's terminal open; Ctrl+C stops it.
 
-Only uploaded files are reachable through the tunnel. The page and the posting API reject any request that arrives through it. A quick tunnel's address changes each time you start it, so update `.env` when that happens. Text-only Threads posts work without a tunnel.
+Only uploaded files are reachable through the tunnel. The page and the posting API reject any request that arrives through it. A quick tunnel's address changes each time you start it; `npm run tunnel` updates `.env` each time, so only the restart is left to you. Text-only Threads posts work without a tunnel.
 
 ## YouTube
 
@@ -121,7 +134,7 @@ When YouTube is selected, its tab also has the title, visibility (public, unlist
 
 ## Ideas for later
 
-Feedback and ideas not built yet are kept in one list: the "Backlog" section of [AGENTS.md](AGENTS.md).
+Feedback and ideas not built yet are kept in one list: [docs/backlog.md](docs/backlog.md).
 
 ## Further reading
 

@@ -1,5 +1,18 @@
 // Shared by the browser and the server so both agree on what each platform accepts.
-const segmenter = new Intl.Segmenter();
+// React Native's engine (Hermes) has no Intl.Segmenter, so the phone app gets a close count instead:
+// code points, not counting combining marks (Hindi vowel signs) or emoji joiners. The server counts exactly.
+const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null;
+export const exactCounting = Boolean(segmenter);
+// Built from a string, so an engine without these Unicode properties falls back to plain code points
+// instead of failing to load the file.
+const JOINED = (() => {
+  try {
+    // Devanagari consonants joined by a virama (स्ते) are one character since Unicode 15.1.
+    return new RegExp('\\u094D\\u200D?[\\u0915-\\u0939\\u0958-\\u095F\\u0978-\\u097F]|\\p{M}|\\p{Emoji_Modifier}|\\u200D\\p{Extended_Pictographic}|\\uFE0F', 'gu');
+  } catch {
+    return null;
+  }
+})();
 const URL_RE = /https?:\/\/\S+/g;
 const MB = 1_000_000;
 
@@ -11,6 +24,7 @@ const AUDIO_KBPS = 128;
 const MIN_VIDEO_KBPS = 400;
 
 function graphemes(text) {
+  if (!segmenter) return [...(JOINED ? text.replace(JOINED, '') : text)].length;
   let n = 0;
   for (const _ of segmenter.segment(text)) n++;
   return n;
