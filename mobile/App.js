@@ -5,9 +5,10 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFonts } from 'expo-font';
 import { call, forgetPairing, loadPairing, parsePairing, savePairing } from './src/laptop';
 import { handOver } from './src/handover';
-import { listPosts, loadPlatforms, loadSettings, newId, pruneOldMedia, savePlatforms, savePost } from './src/store';
+import { listPosts, loadPlatforms, loadSchedule, loadSettings, newId, pruneOldMedia, savePlatforms, savePost, saveSchedule } from './src/store';
 import Compose from './src/Compose';
 import Posts from './src/Posts';
+import Calendar from './src/Calendar';
 import { FinishByHandDialog, todosOf } from './src/Substack';
 import { Button, FONTS, Screen, colors, Text } from './src/ui';
 import { log, logErrors, readLog, unsentLog } from './src/log';
@@ -30,6 +31,8 @@ export default function App() {
   });
   const [platforms, setPlatforms] = useState(() => loadPlatforms());
   const [live, setLive] = useState({});
+  // The laptop's posts (page and phone), for Calendar, Posts and When; kept on the phone for when it's away.
+  const [schedule, setSchedule] = useState(() => loadSchedule());
   const openId = useRef(null);
   const checkNow = useRef(null);
   // The post just marked ready, whose "Finish by hand" dialog opens once it's dealt with (see reminderFor).
@@ -74,6 +77,13 @@ export default function App() {
         const now = await handOver(pairing, refresh, openId.current);
         if (!stopped && now) setLive(now);
       } catch {}
+      try {
+        const { posts: laptopPosts } = await call(pairing, 'GET', '/app/schedule');
+        if (!stopped && Array.isArray(laptopPosts)) {
+          saveSchedule(laptopPosts);
+          setSchedule(loadSchedule());
+        }
+      } catch {}
       // After the hand-over, so its lines go too. A failure (or a laptop too old to take it) waits for the next check.
       const unsent = unsentLog();
       if (unsent.lines.length) {
@@ -94,6 +104,25 @@ export default function App() {
     setScreen({ name: 'posts' });
     refresh();
   }, [refresh]);
+
+  // Move, Post now, Edit or Cancel a waiting post on the laptop, then load its schedule again.
+  const act = useCallback(async (post, action, body) => {
+    const path = `/app/posts/${post.id}${action === 'edit' ? '' : `/${action}`}`;
+    const data = await call(pairing, action === 'edit' ? 'PATCH' : 'POST', path, { json: body ?? {} });
+    log(`Post ${post.id.slice(0, 8)}: ${action === 'now' ? 'posting now' : action === 'edit' ? 'text changed' : action === 'move' ? `moved to ${new Date(body.at).toLocaleString()}` : 'cancelled'} from the app`);
+    try {
+      const { posts: laptopPosts } = await call(pairing, 'GET', '/app/schedule');
+      saveSchedule(laptopPosts);
+      setSchedule(loadSchedule());
+    } catch {}
+    checkNow.current?.();
+    return data;
+  }, [pairing]);
+
+  const newPost = () => setScreen({
+    name: 'compose',
+    post: { id: newId(), text: '', platforms: loadSettings().selected, media: [], options: {}, state: 'draft', createdAt: Date.now() },
+  });
 
   // Post tapped: hand it over now rather than on the next 5-second check, so the reminder isn't kept waiting.
   const posted = useCallback((post) => {
@@ -131,23 +160,48 @@ export default function App() {
     );
   }
   if (screen.name === 'log') return <ActivityLog pairing={pairing} connected={connection.state === 'connected'} onBack={() => setScreen({ name: 'laptop' })} />;
+  // Write · Calendar · Posts, under the writing screens and the lists.
+  const tab = screen.name === 'compose' ? 'write' : screen.name === 'calendar' ? 'calendar' : 'posts';
+  const tabs = (
+    <Tabs
+      current={tab}
+      onWrite={() => { if (screen.name !== 'compose') newPost(); }}
+      onCalendar={() => { refresh(); setScreen({ name: 'calendar' }); }}
+      onPosts={close}
+    />
+  );
+  const connected = connection.state === 'connected';
   if (screen.name === 'compose') {
-    return <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} onClose={close} onPosted={posted} onOpen={(post) => setScreen({ name: 'compose', post })} />;
+    return (
+      <View style={styles.fill}>
+        <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} schedule={schedule.posts}
+          onClose={close} onPosted={posted} onOpen={(post) => setScreen({ name: 'compose', post })} />
+        {tabs}
+      </View>
+    );
+  }
+  if (screen.name === 'calendar') {
+    return (
+      <View style={styles.fill}>
+        <Calendar schedule={schedule} platforms={platforms} connected={connected} act={act} />
+        {tabs}
+      </View>
+    );
   }
   return (
-    <>
+    <View style={styles.fill}>
       <Posts
         posts={posts}
         live={live}
         platforms={platforms}
         connection={connection}
+        schedule={schedule}
+        act={act}
         onOpen={(post) => setScreen({ name: 'compose', post })}
-        onNew={() => setScreen({
-          name: 'compose',
-          post: { id: newId(), text: '', platforms: loadSettings().selected, media: [], options: {}, state: 'draft', createdAt: Date.now() },
-        })}
+        onNew={newPost}
         onPair={() => setScreen({ name: 'laptop' })}
       />
+      {tabs}
       {reminding ? (
         <FinishByHandDialog
           post={reminding}
@@ -156,7 +210,22 @@ export default function App() {
         />
       ) : null}
       <StatusBar style="dark" />
-    </>
+    </View>
+  );
+}
+
+function Tabs({ current, onWrite, onCalendar, onPosts }) {
+  const tab = (id, label, onPress) => (
+    <Pressable key={id} onPress={onPress} style={styles.tab} accessibilityRole="tab" accessibilityState={{ selected: current === id }}>
+      <Text style={[styles.tabText, current === id && styles.tabOn]}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={styles.tabs}>
+      {tab('write', 'Write', onWrite)}
+      {tab('calendar', 'Calendar', onCalendar)}
+      {tab('posts', 'Posts', onPosts)}
+    </View>
   );
 }
 
@@ -288,4 +357,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12, marginTop: 12 },
   logHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   logLine: { fontSize: 12, fontFamily: 'monospace', color: colors.text, paddingVertical: 2 },
+  fill: { flex: 1, backgroundColor: colors.bg },
+  tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg, paddingBottom: 12 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  tabText: { fontSize: 14, color: colors.muted },
+  tabOn: { color: colors.accent, fontWeight: '700' },
 });

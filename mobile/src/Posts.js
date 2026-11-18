@@ -1,9 +1,13 @@
 // The list of posts on the phone, newest first, with where each one is: draft, ready, on the laptop, finished.
+// Above them, posts from the web page that are waiting on the laptop (from its last schedule).
+import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Button, Screen, colors, Text } from './ui';
 import { tunnelProblem } from './status';
 import Logo, { BrandMark } from './Logo';
 import { needsFinishing } from './Substack';
+import { PostCard, PostSheet } from './Calendar';
+import { whenLabel } from './When';
 
 function statusLine(post, live) {
   if (post.state === 'draft') return post.error ? `Draft · the laptop refused it: ${post.error}` : 'Draft';
@@ -18,15 +22,18 @@ function statusLine(post, live) {
       const steps = Object.values(info.steps ?? {}).map((s) => s.step).filter(Boolean);
       return `Posting${steps.length ? ` · ${steps[0]}` : '…'}`;
     }
-    return 'On the laptop · waiting its turn';
+    return post.at > Date.now() ? `On the laptop · goes out ${whenLabel(post.at)}` : 'On the laptop · going out now';
   }
   const ok = (post.results ?? []).filter((r) => r.ok).length;
   const failed = (post.results ?? []).length - ok;
   return `Finished · ${ok} posted${failed ? `, ${failed} failed` : ''}${needsFinishing(post) ? ' · Finish by hand' : ''}`;
 }
 
-export default function Posts({ posts, live, platforms, connection, onOpen, onNew, onPair }) {
+export default function Posts({ posts, live, platforms, connection, schedule, act, onOpen, onNew, onPair }) {
   const tunnel = connection.state === 'connected' ? tunnelProblem(connection.status) : null;
+  const [openId, setOpenId] = useState(null);
+  const fromWeb = (schedule?.posts ?? []).filter((p) => p.source === 'web' && (p.state === 'waiting' || p.state === 'posting')).sort((a, b) => a.at - b.at);
+  const open = (schedule?.posts ?? []).find((p) => p.id === openId);
   return (
     <Screen>
       <View style={styles.header}>
@@ -44,6 +51,13 @@ export default function Posts({ posts, live, platforms, connection, onOpen, onNe
         data={posts}
         keyExtractor={(p) => p.id}
         ListEmptyComponent={<Text style={styles.empty}>No posts yet.</Text>}
+        ListHeaderComponent={fromWeb.length ? (
+          <View style={styles.fromWeb}>
+            <Text style={styles.section}>Waiting on the laptop, from the web page</Text>
+            {fromWeb.map((p) => <PostCard key={p.id} p={p} withDay onPress={() => setOpenId(p.id)} />)}
+            <Text style={styles.section}>On this phone</Text>
+          </View>
+        ) : null}
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => onOpen(item)}>
             <View style={styles.logos}>
@@ -61,6 +75,7 @@ export default function Posts({ posts, live, platforms, connection, onOpen, onNe
           </Pressable>
         )}
       />
+      {open ? <PostSheet p={open} posts={schedule.posts} platforms={platforms} connected={connection.state === 'connected'} act={act} onClose={() => setOpenId(null)} /> : null}
     </Screen>
   );
 }
@@ -79,4 +94,6 @@ const styles = StyleSheet.create({
   logos: { flexDirection: 'row', gap: 8 },
   text: { fontSize: 15, color: colors.text },
   status: { fontSize: 13, color: colors.muted },
+  fromWeb: { gap: 8, paddingBottom: 8 },
+  section: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 4 },
 });

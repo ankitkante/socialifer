@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { problemsFor, adjustmentsFor, formatDuration } from '../../public/rules.js';
+import { problemsFor, adjustmentsFor, formatDuration, postKind } from '../../public/rules.js';
 import { addMedia, copyPost, deletePost, loadSettings, mediaFile, newId, readPost, removeMedia, savePost, saveSettings } from './store';
 import Finished from './Finished';
 import { optionsFor, withDefaults } from './options';
@@ -11,11 +11,15 @@ import PlatformCard from './Fields';
 import { log, short } from './log';
 import { Button, Screen, colors, Text, TextInput } from './ui';
 import Logo, { brandColor } from './Logo';
+import When, { takenSlots, whenChoice, whenLabel } from './When';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
 
 // onPosted: Post was tapped (closes the post, then the Substack reminder opens); onOpen: shows another post, e.g. the copy made by Send again.
-export default function Compose({ initial, platforms, settings, onClose, onPosted, onOpen }) {
+// schedule: the laptop's posts as last seen, for When's next free time and warnings.
+// Two steps, as on the web page: Write (text, files, where to post), then Review (each platform, previews, When).
+export default function Compose({ initial, platforms, settings, schedule, onClose, onPosted, onOpen }) {
+  const [step, setStep] = useState('write');
   // Posts saved before per-platform settings existed get the default values.
   const [post, setPost] = useState(() => ({ ...initial, options: withDefaults(initial.options, settings.sticky) }));
   const [notice, setNotice] = useState('');
@@ -50,10 +54,18 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
     };
   }), [post, platforms]);
   const issues = checks.reduce((n, c) => n + c.problems.length, 0);
-  const reason = targets.length === 0 ? 'Select at least one platform'
+  const kind = postKind(media);
+  const taken = takenSlots(schedule);
+  const choice = whenChoice(kind, taken, post.when, post.platforms);
+  // The Write step only needs a post and somewhere to send it; issues are fixed on Review, where the settings are.
+  const writeReason = targets.length === 0 ? 'Select at least one platform'
     : isEmpty ? 'Write something, or add a photo or video'
-    : issues ? `Fix ${issues} issue${issues > 1 ? 's' : ''} first`
     : '';
+  const reason = writeReason
+    || (issues ? `Fix ${issues} issue${issues > 1 ? 's' : ''} first` : '')
+    || (choice.blocked ?? '');
+  const review = step === 'review' || !editable;
+  const postNow = targets.length > 1 ? `Post to ${targets.length} platforms` : targets.length ? `Post to ${targets[0].name}` : 'Post';
 
   const toggle = (id) => {
     const next = post.platforms.includes(id) ? post.platforms.filter((x) => x !== id) : [...post.platforms, id];
@@ -115,9 +127,10 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
 
   const submit = () => {
     saveSettings({ ...loadSettings(), selected: post.platforms });
-    const ready = { ...post, state: 'ready', sendId: newId(), error: null };
+    const when = choice.mode === 'picked' ? { mode: 'picked', at: choice.at } : { mode: 'auto', at: null };
+    const ready = { ...post, when, state: 'ready', sendId: newId(), error: null };
     savePost(ready);
-    log(`Post ${short(ready.sendId)}: ready for ${ready.platforms.join(', ')}${ready.media.length ? ` with ${ready.media.length} file${ready.media.length > 1 ? 's' : ''}` : ''}`);
+    log(`Post ${short(ready.sendId)}: ready for ${ready.platforms.join(', ')}${ready.media.length ? ` with ${ready.media.length} file${ready.media.length > 1 ? 's' : ''}` : ''}${when.mode === 'picked' ? `, for ${whenLabel(when.at)}` : ''}`);
     onPosted(ready);
   };
 
@@ -147,14 +160,25 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable onPress={onClose} hitSlop={12}><Text style={styles.back}>‹ Posts</Text></Pressable>
-        <Text style={styles.state}>{STATE_LABEL[post.state] ?? ''}</Text>
+        {editable && step === 'review'
+          ? <Pressable onPress={() => setStep('write')} hitSlop={12}><Text style={styles.back}>‹ Write</Text></Pressable>
+          : <Pressable onPress={onClose} hitSlop={12}><Text style={styles.back}>‹ Posts</Text></Pressable>}
+        <Text style={styles.state}>{editable ? `Step ${step === 'review' ? 2 : 1} of 2 · ${step === 'review' ? 'Review' : 'Write'}` : STATE_LABEL[post.state] ?? ''}</Text>
       </View>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32, gap: 14 }}>
         {post.error ? <Text style={styles.error}>The laptop refused this post: {post.error}</Text> : null}
         {post.state === 'sending' && post.retryError ? <Text style={styles.error}>Last try to send it failed: {post.retryError} It will be tried again.</Text> : null}
         {post.state === 'ready' ? <Text style={styles.note}>Ready. It goes to the laptop the next time they're on the same Wi-Fi. Editing makes it a draft again.</Text> : null}
+        {post.state === 'handed' && post.at > Date.now() ? <Text style={styles.note}>On the laptop, going out {whenLabel(post.at)}. Change it in Calendar.</Text> : null}
+        {post.moved ? <Text style={styles.note}>Moved: its time, {whenLabel(post.moved.from)}, passed while the laptop was off.</Text> : null}
 
+        {editable && review ? (
+          <Pressable onPress={() => setStep('write')} style={styles.summary}>
+            <Text style={styles.summaryText} numberOfLines={3}>{post.text.trim() || `${post.media.length} file${post.media.length === 1 ? '' : 's'}`}</Text>
+            <Text style={styles.link}>Edit post ›</Text>
+          </Pressable>
+        ) : null}
+        {!editable || step === 'write' ? (<>
         <TextInput
           style={styles.text}
           multiline
@@ -203,7 +227,9 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
           })}
         </View>
 
-        {checks.map((check) => (
+        </>) : null}
+
+        {review ? checks.map((check) => (
           <PlatformCard
             key={check.p.id}
             p={check.p}
@@ -215,7 +241,13 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
             onPickImage={pickImage}
             onRemoveImage={removeImage}
           />
-        ))}
+        )) : null}
+
+        {editable && review ? (
+          <When kind={kind} taken={taken} when={post.when} platforms={post.platforms} editable={editable}
+            youtubeVideo={kind === 'video' && post.platforms.includes('youtube')}
+            onChange={(when) => change({ when })} />
+        ) : null}
 
         {post.state === 'done' ? (
           <Finished
@@ -229,10 +261,17 @@ export default function Compose({ initial, platforms, settings, onClose, onPoste
           />
         ) : null}
 
-        {editable ? (
+        {editable && step === 'write' ? (
           <View style={{ gap: 6 }}>
-            <Button label={targets.length > 1 ? `Post to ${targets.length} platforms` : targets.length ? `Post to ${targets[0].name}` : 'Post'} onPress={submit} disabled={Boolean(reason)} />
+            <Button label="Next: review and post ›" onPress={() => setStep('review')} disabled={Boolean(writeReason)} />
+            {writeReason ? <Text style={styles.reason}>{writeReason}</Text> : null}
+          </View>
+        ) : null}
+        {editable && step === 'review' ? (
+          <View style={{ gap: 6 }}>
+            <Button label={choice.now || !choice.label ? postNow : choice.label} onPress={submit} disabled={Boolean(reason)} />
             {reason ? <Text style={styles.reason}>{reason}</Text> : null}
+            <Text style={styles.reason}>It goes to the laptop the next time they're on the same Wi-Fi, and goes out from there.</Text>
           </View>
         ) : null}
         {!post.mediaRemoved && !isEmpty ? <Button kind="secondary" label="Duplicate post" onPress={duplicate} /> : null}
@@ -275,4 +314,7 @@ const styles = StyleSheet.create({
   ok: { color: colors.ok },
   error: { color: colors.danger },
   reason: { color: colors.muted, textAlign: 'center' },
+  summary: { backgroundColor: colors.soft, borderRadius: 8, padding: 12, gap: 6 },
+  summaryText: { fontSize: 15, color: colors.text },
+  link: { color: colors.accent, fontWeight: '600' },
 });

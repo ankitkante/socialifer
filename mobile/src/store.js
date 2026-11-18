@@ -100,7 +100,7 @@ export function pruneOldMedia() {
 // Duplicate (fresh: true) makes a new post, which gets its own reminder.
 export function copyPost(post, platforms, { fresh = false } = {}) {
   const copy = { ...post, id: newId(), platforms, state: 'draft', createdAt: Date.now() };
-  for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'mediaRemoved', 'todoDone']) delete copy[key];
+  for (const key of ['sendId', 'results', 'error', 'retryError', 'sent', 'files', 'handedAt', 'finishedAt', 'loggedPosting', 'mediaRemoved', 'todoDone', 'when', 'at', 'moved']) delete copy[key];
   if (fresh) delete copy.substackDone;
   const dir = postDir(copy.id);
   dir.create({ intermediates: true });
@@ -117,6 +117,11 @@ export function removeMedia(post, item) {
 const platformsFile = () => new File(Paths.document, 'platforms.json');
 export const loadPlatforms = () => readJson(platformsFile(), []);
 export const savePlatforms = (platforms) => writeJson(platformsFile(), platforms);
+
+// The laptop's posts (from the page and the phone) as last seen, so Calendar and Posts show them while away.
+const scheduleFile = () => new File(Paths.document, 'schedule.json');
+export const loadSchedule = () => readJson(scheduleFile(), { posts: [], at: null });
+export const saveSchedule = (posts) => writeJson(scheduleFile(), { posts, at: Date.now() });
 
 const settingsFile = () => new File(Paths.document, 'settings.json');
 export const loadSettings = () => readJson(settingsFile(), { selected: [] });

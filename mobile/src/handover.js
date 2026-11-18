@@ -8,7 +8,7 @@ import { optionsFor } from './options';
 import { log, short } from './log';
 
 // The laptop's own record goes once the results are saved here; posts it no longer has get this instead.
-const LOST = "The laptop no longer has this post, so it's unknown whether it went out. Check the platforms before posting it again.";
+const LOST = "The laptop no longer has this post: it was cancelled there, or lost. Check the platforms before posting it again.";
 
 let busy = false;
 
@@ -53,6 +53,9 @@ async function send(pairing, post, onChange) {
         options,
         files: files.map(({ name, type, size, duration }) => ({ name, type, size, duration: duration ?? null })),
         media: post.media.map((_, n) => n),
+        // The laptop works out the next free time when the post is ready there; a picked time is kept.
+        when: post.when?.mode === 'picked' ? 'picked' : 'auto',
+        ...(post.when?.mode === 'picked' && { at: post.when.at }),
       },
     });
     if (summary.missing?.length) log(`${name}: sending ${summary.missing.length} of ${files.length} files`);
@@ -62,9 +65,9 @@ async function send(pairing, post, onChange) {
       log(`${name}: sent ${item.name} (${(item.size / 1_000_000).toFixed(1)} MB)`);
       update({ sent: files.length - summary.missing.length + summary.missing.indexOf(n) + 1, files: files.length });
     }
-    if (summary.state === 'receiving') await call(pairing, 'POST', `/app/posts/${post.sendId}/ready`);
-    update({ state: 'handed', handedAt: Date.now(), retryError: null });
-    log(`${name}: on the laptop, waiting its turn`);
+    const queued = summary.state === 'receiving' ? await call(pairing, 'POST', `/app/posts/${post.sendId}/ready`) : summary;
+    update({ state: 'handed', handedAt: Date.now(), retryError: null, at: queued.at ?? null, moved: queued.moved ?? null });
+    log(`${name}: on the laptop${queued.at > Date.now() ? `, going out ${new Date(queued.at).toLocaleString()}` : ', going out now'}`);
   } catch (err) {
     // A post the laptop refuses (400, 413) goes back to draft to be fixed; anything else (no Wi-Fi, pairing,
     // a server error) leaves it to be sent again on the next check, with the error shown on the post.
@@ -103,6 +106,10 @@ async function collect(pairing, onChange) {
       if (s.state === 'posting' && post.loggedPosting !== true) {
         log(`Post ${short(post.sendId)}: the laptop is posting it`);
         savePost({ ...post, loggedPosting: true });
+      } else if (s.state === 'waiting' && (s.at !== post.at || (s.text ?? '') !== post.text.trim())) {
+        // Moved or edited on the laptop (or from Calendar), or moved because the laptop was off.
+        savePost({ ...post, at: s.at ?? null, moved: s.moved ?? null, text: s.text ?? post.text, when: s.when === 'picked' ? { mode: 'picked', at: s.at } : post.when });
+        onChange();
       }
       live[post.id] = { state: s.state, steps: s.steps };
     }

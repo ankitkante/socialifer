@@ -8,6 +8,7 @@ import * as Sharing from 'expo-sharing';
 import { mediaFile } from './store';
 import { log, short } from './log';
 import { Button, colors, Text } from './ui';
+import { whenLabel } from './When';
 
 const isVideo = (item) => item.type.startsWith('video/');
 
@@ -72,7 +73,8 @@ export function FinishByHand({ post, note, onDone }) {
 // A private YouTube video is only uploaded later, so its Studio link can't be in the dialog yet.
 function youtubeNote(post) {
   const yt = post.options?.youtube;
-  if (post.results || !post.platforms.includes('youtube') || !post.media.some(isVideo) || yt?.publishAt) return null;
+  // A video for a time you picked goes public by itself then.
+  if (post.results || !post.platforms.includes('youtube') || !post.media.some(isVideo) || yt?.publishAt || post.when?.mode === 'picked') return null;
   return (yt?.privacy ?? 'private') === 'private'
     ? 'YouTube: the video goes up private. Once it\'s posted, this post shows a link to make it public.'
     : null;
@@ -85,7 +87,9 @@ export function FinishByHandDialog({ post, onDone }) {
       <View style={styles.backdrop}>
         <View style={styles.dialog}>
           <Text style={styles.status}>
-            {post.state === 'handed' || post.state === 'done' ? '✓ Posting now.' : '✓ Saved. It will post when your laptop is on the same Wi-Fi.'}
+            {post.state === 'done' ? '✓ Posted.'
+              : post.state === 'handed' ? (post.at > Date.now() ? `✓ On the laptop. It goes out ${whenLabel(post.at)}.` : '✓ Posting now.')
+              : '✓ Saved. It goes to your laptop when they\'re on the same Wi-Fi.'}
           </Text>
           <FinishByHand post={post} note={youtubeNote(post)} onDone={onDone} />
         </View>
