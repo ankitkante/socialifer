@@ -13,6 +13,7 @@
     "test": "node --test",
     "youtube-auth": "node --env-file-if-exists=.env scripts/youtube-auth.js",
     "tunnel": "node --env-file-if-exists=.env scripts/tunnel.js",
+    "website": "node scripts/website.js",
     "sp-mobile-app": "npm --prefix mobile start",
     "sp-mobile-apk": "npm --prefix mobile run build:apk"
   },

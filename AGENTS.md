@@ -14,6 +14,7 @@ npm run dev   # same, restarting on file changes
 npm test      # node --test; offline, no credentials needed
 npm run youtube-auth   # one-time Google sign-in; writes YOUTUBE_REFRESH_TOKEN into .env
 npm run tunnel         # cloudflared quick tunnel; writes its new address to TUNNEL_URL in .env (restart the server after)
+npm run website        # previews socialifer.com (website/) at http://localhost:4000, as Cloudflare Pages serves it
 npm run sp-mobile-app  # Expo's dev server for the phone app in mobile/ (open it in Expo Go)
 npm run sp-mobile-apk  # builds an installable APK of the phone app on Expo's servers (EAS; needs an Expo login)
 ```
@@ -44,6 +45,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | `platforms/http.js` | `request()` (fetch + error extraction + timeout), `poll()`, `env()` helpers |
 | `scripts/youtube-auth.js` | Standalone OAuth loopback + PKCE flow for YouTube |
 | `scripts/tunnel.js` | Runs `cloudflared tunnel --url`, finds the `trycloudflare.com` address in its log and saves it as `TUNNEL_URL` |
+| `scripts/website.js` | `npm run website`: serves `website/` locally with clean URLs, `404.html` and the `_headers` headers |
 | `brand/` | The Socialifer brand: logo SVGs, app icons, favicons, PNG exports in `png/`, and colours, fonts and voice in its README. The web page serves its favicons from here (`/favicon.ico`, `/favicon.svg`); its header mark is inline in `index.html`, the app's is `BrandMark` in `mobile/src/Logo.js`, and the app's icons in `mobile/assets` are copies of `png/` files |
 | `website/` | socialifer.com: home, privacy policy, terms, 404, SEO files. Plain HTML for Cloudflare Pages; see [docs/website.md](docs/website.md). The privacy policy must match what the app does |
 | `test/` | `node:test` suites |
