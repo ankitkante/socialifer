@@ -1,6 +1,6 @@
 # Scheduling
 
-Built 2026-11-18 on `feature/scheduling`, from the "Scheduling mockup" artifact (flow C: Write, then Review and post). Not yet tested live: see section 6 of [backlog.md](backlog.md).
+Built 2026-11-18 on `feature/scheduling`, from the "Scheduling mockup" artifact (flow C: Write, then Review and post). Not yet tested live: see [testing.md](testing.md).
 
 ## Rules
 

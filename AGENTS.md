@@ -65,7 +65,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 
 `npm test` covers the shared rules, X's OAuth signature, Bluesky facets, LinkedIn escaping, and the server's endpoints and guards (it starts the server on a random port). `test/compress.test.js` uses the real ffmpeg and is skipped without it. Platform `post()` flows can be traced offline by stubbing `globalThis.fetch`.
 
-**Not every platform has been tested live.** Check "Verification status" in [docs/platforms.md](docs/platforms.md) before assuming one works, and update it when someone confirms one.
+**Not everything has been tested live.** Check [docs/testing.md](docs/testing.md) before assuming a platform or feature works, and update it when the user tries one.
 
 ## Key decisions
 
@@ -83,7 +83,8 @@ Read the one that matches the task; they hold the detail this file leaves out.
 - [docs/platforms.md](docs/platforms.md): each platform's API, limits, quirks, verification status, and adding a platform.
 - [docs/decisions.md](docs/decisions.md): decisions on record, with reasons.
 - [docs/subtitles.md](docs/subtitles.md): generating, reviewing and burning in subtitles, and how transcribe is called.
-- [docs/mobile.md](docs/mobile.md): the app (phone): its files, pairing, hand-over, the queue, storage, builds, and what's been tested live.
+- [docs/mobile.md](docs/mobile.md): the app (phone): its files, pairing, hand-over, the queue, storage and builds.
+- [docs/testing.md](docs/testing.md): what has been tested live, and what's still to test.
 - [docs/website.md](docs/website.md): socialifer.com and its hosting.
 - [brand/README.md](brand/README.md): the Socialifer brand, its files and the developer apps.
 - [docs/backlog.md](docs/backlog.md): everything still to do. Discuss each item with the user before building it, and remove it once it's built, tested or dropped.

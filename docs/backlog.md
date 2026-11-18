@@ -1,6 +1,6 @@
 # Backlog
 
-Everything still to do: features and fixes not built, and things built but not yet tested live. Grouped by feature. Discuss each item with the user before building it; items marked "design first" need options shown first. Remove an item once it's built, tested or dropped.
+Everything still to do: features and fixes not built. What's built but not yet tried live is in [testing.md](testing.md). Grouped by feature. Discuss each item with the user before building it; items marked "design first" need options shown first. Remove an item once it's built, tested or dropped.
 
 **Where:** W = web app, P = app (the phone app), B = both, S = server only.
 **From:** where the item came from, kept for history: *live test* (first live web test, 2026-11-12), *phone test* (phone testing, 2026-11-17), *phone build* (building the phone app, 2026-11-16 to 17), *idea* (ideas for later).
@@ -8,7 +8,6 @@ Everything still to do: features and fixes not built, and things built but not y
 ## 1. YouTube
 
 - **Tags as chips** (B · phone test, design first, good to have): the Tags field is one comma-separated text box today. Wanted: type a tag, it becomes a chip, tap to remove.
-- **Test a schedule from the phone** (P · phone build): Pick a time on a YouTube video from the app (see "Scheduling" in section 6).
 
 ## 2. X
 
@@ -25,7 +24,6 @@ The whole feature will be re-reviewed separately; these items wait for that.
 - **Review: edit timing as well as text** (W · live test): like YouTube's subtitle editor, each line should show its start and end time and let both be changed. Example: the English line "And it is very important for" was on screen for 0.6 s and flashed by. Still open: whether adding, deleting, merging and splitting lines are also wanted.
 - **Review: two-line subtitles** (W · live test): a 35-character English line reached the edges of a vertical video when burned in. The editor's single-line text box can't add a line break. Also check the burn-in's side margins on vertical videos.
 - **"Replace with SRT" removes every language** (W · live test): without warning (`pickSrt(item, true)` in `public/js/subtitles.js`). The user replaced English and lost Hindi. Decide with the user: replace one language only, or ask first.
-- **Test:** several videos in one post, Stop during a run, a leftover run after a server restart, a burn-in that also has to fit a size limit, and the platforms besides YouTube, X and Instagram.
 
 ## 5. Composing and layout
 
@@ -39,38 +37,12 @@ The whole feature will be re-reviewed separately; these items wait for that.
 
 - **Filter the logs** (idea, 2026-11-17, lowest priority): find log lines by date/time and by a keyword or text. The logs are in `logs/server-YYYY-MM.log` and `logs/phone-YYYY-MM.log`; the phone's Activity log shows the laptop's last 500 phone lines.
 
-### Not yet tested (app and web app)
-
-Built but not tried live. Once one is confirmed, move it to "Tested live" in [mobile.md](mobile.md).
-
-**How to test:** run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log. For the web app, reload it after restarting the server.
-
-**Still to test:**
-- **Scheduling (built 2026-11-18, [scheduling.md](scheduling.md)):** web page: Write, then Review; Next free time and Pick a time (day strip, warnings, clicking the strip); Schedule; Calendar and Posts; Move, Post now, Edit, Cancel; a missed post moving after the server was off; the old `queue/` posts moving to `POSTS_DIR`. YouTube at a picked time: uploaded at once and public at the time (and update the private-upload note in [platforms.md](platforms.md)). App: the two steps, When, the tabs, Calendar's actions while connected, a handed post showing its time.
-- **The rebranded APK** (built 2026-11-17): the Ring of fire icon and the name Socialifer, pairing the new app (package `com.socialifer.app`), Inter on every screen, and a post. Then uninstall the old Social Post app.
-- **Platform settings reaching a platform:** a YouTube schedule (see section 1). Instagram Stories skipped: the user won't use them.
-- **The laptop refusing a post:** it returns to draft with the reason; a failed try shows "last try failed" on the post.
-- **Video and multi-file hand-over:** a video over the platform's size limit (compressed), several files, and resuming after Wi-Fi drops mid-upload.
-- **Previews:** YouTube regular and Short, Instagram Story, Reel, feed and carousel.
-- **Media cleanup** a week after posting.
-- **LinkedIn from the phone:** LinkedIn showing in "Post to" after the laptop check, a text post, and a non-JPEG/PNG/GIF photo flagged before Post. LinkedIn's text post worked from the web page on 2026-11-17.
-- **Built 2026-11-17, needs the APK rebuilt:** placeholders in light and dark mode (compose box, YouTube's title hint); the date and time dialogs for Schedule and Recording date, and Clear; Delete on a ready post (and its refusal once sending has started); Duplicate post (hidden once media is pruned); logos in the posts list (failed platforms greyed), the "Post to" pills (TalkBack reads the name) and the cards.
-- **Built 2026-11-17 on `feature/quick-fixes`** (APK rebuild for the phone parts):
-  - **Finish by hand:** the web page's dialog (YouTube Studio link with the Substack part) worked live on 2026-11-18. Still to test: on the phone, the dialog mentions the link and the finished post shows it until Done ("Finish by hand" in the posts list until then). Also a retry on the web page (YouTube item only) and a scheduled video (no item).
-  - **Private default:** Visibility starts at Private on every post, even after choosing Public on the last one.
-  - **Old Audio language:** a saved language outside Hindi/English (e.g. French) shows as Not set; the server refuses one sent anyway.
-  - **Thumbnail over 2 MB:** the message gives its size and what to do.
-  - **Subtitles:** transcribe's messages appear live in the terminal as `[subtitles]` lines.
-  - **Microphone:** the app no longer asks for it (Android's App info → Permissions).
-
 ## 7. Housekeeping
 
 - **Uploads left behind by a page reload** (W · live test): reloading or closing the page with files attached leaves them in `uploads/` until the 24-hour cleanup (about 430 MB after a day of testing). The page also forgets a running subtitle job. Both are the deferred "post survives a reload" idea.
 
 ## 8. New platforms and big ideas
 
-- **LinkedIn photo and video posts** (live test): a text post worked on 2026-11-17; one photo, several photos (`multiImage`) and a video are still untested.
-- **Test live:** Bluesky, Mastodon, Threads, Facebook and Telegram have never been posted to; Discord only against a mock. Details and risks are in "Verification status" in [platforms.md](platforms.md); update it there when one is confirmed.
 - **Calendar from Pick a time** (B · idea, 2026-11-18): open the Calendar while picking a time, to see the whole week; for now the day strip shows the picked day.
 - **Edit a scheduled post's settings in the app** (P · scheduling build): the app edits the text only; settings are edited on the web page.
 - **Retry a failed scheduled post** (B · scheduling build): its files are deleted after posting, so a failed platform can't be retried from Calendar. The phone's own copy still has Send again.

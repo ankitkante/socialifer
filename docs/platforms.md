@@ -18,22 +18,22 @@ Length checks only use limits we are reasonably confident in. Where a platform's
 
 ## Verification status
 
-As of 2026-11-04, every flow has been checked offline: request order and payload shapes against stubbed `fetch`, and the end-to-end server path against a local mock API. YouTube has also been confirmed on a live channel; the rest haven't been run against a live account yet. Update this table as platforms are confirmed.
+Every flow has been checked offline (request order and payload shapes against stubbed `fetch`, and the end-to-end server path against a local mock API). What has been posted live, with dates, and what's still to try is in [testing.md](testing.md); this table keeps a short summary and each platform's main risk.
 
 | Platform | Live-tested | Main risk |
 |---|---|---|
-| X | **Text post: yes** (2026-11-04). **Video: yes** (2026-11-04: 447 MB in 107 parts; X dropped the connection once, ECONNRESET, and the part retry recovered). **Made with AI label and alt text: yes** (2026-11-17, image post; `made_with_ai` is sent as a boolean on the first post of a thread only; alt text uses `POST /2/media/metadata` and only produces a warning if it fails) | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
+| X | **Yes:** text, video, image with alt text and the AI label. (`made_with_ai` is sent as a boolean on the first post of a thread only; alt text uses `POST /2/media/metadata` and only produces a warning if it fails.) | Pay-per-use, so posts fail with a $0 balance. Whether OAuth 1.0a user keys are accepted by the **v2** media upload endpoints (the docs only show OAuth 2.0 Bearer user tokens; the API spec lists OAuth 1.0a `UserToken` too). If uploads return 401/403, switch media upload to OAuth 2.0 with the `media.write` scope. |
 | Bluesky | No | Video is uploaded with plain `uploadBlob`, which Bluesky's tutorial calls the easiest option. The alternative is the video service (`video.bsky.app`, `app.bsky.video.uploadVideo`). The account must have a verified email to post video. |
 | Mastodon | No | Low. The API is stable. Limits vary per server. |
 | Threads | No | Media URLs must be reachable by Meta through `TUNNEL_URL`. |
-| Instagram | **Yes** (2026-11-04: Reel from a 447 MB video, compressed to fit 300 MB and fetched through the cloudflared tunnel) | Media URLs must be reachable by Meta through `TUNNEL_URL`. `me` as the user id: set `INSTAGRAM_USER_ID` (required with Unified login tokens on graph.facebook.com). |
-| YouTube | **Yes** (2026-11-04, private test upload) | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
-| LinkedIn | **Partly** (2026-11-17, text post with a hashtag and brackets; photos and video not yet) | The `LinkedIn-Version` header expires after about a year (default `202611`, active until 16 Nov 2027). Tokens from LinkedIn's token tool last 60 days and can't be refreshed. |
+| Instagram | **Yes:** a compressed Reel through the tunnel | Media URLs must be reachable by Meta through `TUNNEL_URL`. `me` as the user id: set `INSTAGRAM_USER_ID` (required with Unified login tokens on graph.facebook.com). |
+| YouTube | **Yes:** uploads | Uploads from an API project YouTube hasn't audited are forced to private. Refresh tokens expire after 7 days while the OAuth consent screen is in Testing mode. |
+| LinkedIn | **Partly:** text only | The `LinkedIn-Version` header expires after about a year (default `202611`, active until 16 Nov 2027). Tokens from LinkedIn's token tool last 60 days and can't be refreshed. |
 | Facebook | No | Low. Uses the standard Graph endpoints. |
 | Telegram | No | Low. |
 | Discord | Partly | The webhook multipart format matched a mock. |
 
-**Subtitles** (posted live on 2026-11-12, one 54-second vertical Hindi talk): generating Hindi and English with lyrics-video, an uploaded SRT with its language, Review lines, two YouTube caption tracks with their real languages (`captions.insert`), and the burned-in English copy on X and Instagram. Not yet tried: several videos in one post, Stop during a run, a leftover run after a server restart, a burn-in that also has to fit a size limit, and the platforms besides YouTube, X and Instagram.
+**Subtitles:** posted live to YouTube, X and Instagram on 2026-11-12; details in [testing.md](testing.md).
 
 ## X
 
