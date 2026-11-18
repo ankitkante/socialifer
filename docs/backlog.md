@@ -79,6 +79,8 @@ Built but not tried live. Once one is confirmed, move it to "Tested live" in [mo
 
 The brand itself (name, logo, colours, fonts, voice) is in [brand/README.md](../brand/README.md) and the one-page guide `brand/guide.html`. It's in the web app, the app and the docs since 2026-11-17.
 
+- **README for an open source project** (from 2026-11-18): the website now points visitors to GitHub, but the README still reads as a private tool ("built by and for its author", "no other users"). Rewrite its opening for visitors, and write step-by-step setup instructions a newcomer can follow: Node, `.env`, and creating each platform's developer app and credentials (today that's only in `.env.example` comments and docs/platforms.md). Tied to the open source / license decision below.
+- **Share image crop** (from 2026-11-18): WhatsApp desktop shows a small square cut from the middle of `website/share.png`, which catches the gap between the name (left) and the ring (right). Make the middle square carry the brand: ring centred, or the logo-and-name line centred without the ring. Show the user both, full size and as the square crop.
 - **Website copy** (from 2026-11-18): go through the home page's text with the user line by line; it isn't final. Also decide whether the ring of platform logos stays on the home page (user unsure).
 - **Social profiles:** the user's own accounts' names and pictures where the app is mentioned, with hello@socialifer.com as the contact.
 - **Google branding check (parked):** appeal it when Socialifer opens to other users. Details in [brand/README.md](../brand/README.md), "Developer apps".
