@@ -80,7 +80,7 @@ Built but not tried live. Once one is confirmed, move it to "Tested live" in [mo
 The brand itself (name, logo, colours, fonts, voice) is in [brand/README.md](../brand/README.md) and the one-page guide `brand/guide.html`. It's in the web app, the app and the docs since 2026-11-17.
 
 - **Website on push** (from 2026-11-17): connect the Cloudflare Pages project to GitHub so the site updates on push; it's uploaded by hand today (see [website.md](website.md)).
-- **Website redesign** (design first): the home page works but looks poor (user: "terrible right now"). Include a share image (the picture shown when socialifer.com is shared on WhatsApp, X or LinkedIn) and the brand fonts: the site's strict CSP loads nothing from other domains, so it shows Inter only where it's installed. Bundle the same woff2 files as `public/fonts`.
+- **Website copy** (from 2026-11-18): go through the home page's text with the user line by line; it isn't final. Also decide whether the ring of platform logos stays on the home page (user unsure).
 - **Social profiles:** the user's own accounts' names and pictures where the app is mentioned, with hello@socialifer.com as the contact.
 - **Google branding check (parked):** appeal it when Socialifer opens to other users. Details in [brand/README.md](../brand/README.md), "Developer apps".
 - **Before going public:** a trademark search in India, and a check of the Play Store and App Store for the name.

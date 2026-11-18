@@ -8,7 +8,12 @@ The public website: plain HTML and CSS, no build step, no scripts.
 - **Domains:** socialifer.com and www.socialifer.com are the project's custom domains. A Cloudflare redirect rule ("Redirect from WWW to root", 301, query string kept) sends www to socialifer.com. socialifer.in forwards to socialifer.com at GoDaddy.
 - **Google Search Console:** socialifer.com is verified as a Domain property (TXT record in Cloudflare DNS), with `https://socialifer.com/sitemap.xml` submitted.
 - **`_headers`:** response headers for Cloudflare Pages (strict CSP: the site loads nothing from other domains). Not served as a file.
+- **No inline styles:** the CSP's `style-src 'self'` blocks `style="…"` attributes, so all styling is classes in `styles.css`.
+- **Design (2026-11-18):** "Ring of fire" layout: big headline, the logo with the 10 platform logos around it (Simple Icons, as in `public/icons`), numbered features, a privacy statement. Chosen from four mockups on the "Socialifer website redesign" canvas, https://claude.ai/artifact/1HmAfSYVCkSDxbYDhp1Hm6 (private to the owner).
+- **Theme:** follows the visitor's system setting (`prefers-color-scheme`), no toggle. Colour tokens are on `:root` in `styles.css`.
+- **Fonts:** `fonts/` holds copies of `public/fonts` (Inter, Noto Sans Devanagari), because the CSP blocks Google Fonts.
+- **Share image:** `share.png` (1200×630, dark): the picture shown when a page is shared on WhatsApp, X or LinkedIn (`og:image`, `summary_large_image`). Logo and name on one line, socialifer.com, and the home page's ring of platforms (no copy, until the site's copy is final); remake it if the platforms change.
 - **SEO:** `robots.txt`, `sitemap.xml`, a canonical URL, description and Open Graph tags per page, and JSON-LD on the home page.
 - **Icons:** copies of `brand/favicon.*`, `brand/png/apple-touch-icon-180.png` and `brand/png/app-icon-512.png` (Cloudflare only publishes this folder). Copy them again if the brand files change.
 - **Keep it true:** the privacy policy describes what the app really does (scopes, how long files and logs are kept). Update it, its date and `sitemap.xml`'s `lastmod` when that changes.
-- **Preview locally:** `npx serve website` gives the clean URLs; opening the files directly works too, but `/privacy` links won't.
+- **Preview locally:** `npm run website` serves it at http://localhost:4000 (`WEBSITE_PORT` to change) like Cloudflare does: clean URLs, `404.html`, and the `_headers` CSP, so a blocked style shows up locally too (`scripts/website.js`).
