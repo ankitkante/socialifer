@@ -3,9 +3,10 @@
 The public website: plain HTML and CSS, no build step, no scripts.
 
 - **Pages:** `index.html` (home), `privacy.html` (privacy policy; `#delete-data` is the data-deletion link for Meta), `terms.html` (terms of service), `404.html`.
-- **Hosting:** Cloudflare Pages project `socialifer` (https://socialifer.pages.dev), output folder `website/`, no build command. It serves `privacy.html` at `/privacy` and uses `404.html` for missing pages.
-- **Updating:** for now, upload the `website` folder again under the project's Deployments → Create deployment. It isn't connected to GitHub yet.
-- **Domains:** socialifer.com and www.socialifer.com are the project's custom domains. A Cloudflare redirect rule ("Redirect from WWW to root", 301, query string kept) sends www to socialifer.com. socialifer.in forwards to socialifer.com at GoDaddy.
+- **Hosting:** Cloudflare Pages project `socialifer-site` (https://socialifer-site.pages.dev), connected to the GitHub repo; output folder `website`, no build command, no root directory. It serves `privacy.html` at `/privacy` and uses `404.html` for missing pages.
+- **Updating (since 2026-11-18):** pushing to `main` deploys the site; other branches get preview deployments. Build watch paths include only `website/*`, so pushes that don't touch the site don't deploy. (In that field, press Enter after the path or Save stays disabled.)
+- **Why a new project:** the first project (`socialifer`) was Direct Upload, which Cloudflare can't switch to Git; it was deleted and its `pages.dev` name stayed reserved, hence `socialifer-site`.
+- **Domains:** socialifer.com is the project's custom domain (a proxied CNAME to `socialifer-site.pages.dev`). www.socialifer.com isn't on the project: a proxied placeholder A record (`www` → `192.0.2.1`) lets the redirect rule "Redirect from WWW to root" (301, query string kept) send it to socialifer.com. Without that record the rule never runs. socialifer.in forwards to socialifer.com at GoDaddy.
 - **Google Search Console:** socialifer.com is verified as a Domain property (TXT record in Cloudflare DNS), with `https://socialifer.com/sitemap.xml` submitted.
 - **`_headers`:** response headers for Cloudflare Pages (strict CSP: the site loads nothing from other domains). Not served as a file.
 - **No inline styles:** the CSP's `style-src 'self'` blocks `style="…"` attributes, so all styling is classes in `styles.css`.
