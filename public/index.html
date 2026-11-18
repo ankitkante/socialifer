@@ -23,6 +23,12 @@
     <svg width="32" height="32" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="10" fill="#5b4a8b"/><g transform="translate(5.25 5.25) scale(0.78125)" fill="none" stroke="#ffffff" stroke-linecap="round"><circle cx="24" cy="24" r="6.5" stroke-width="4"/><path stroke-width="1.9" d="M33.5 23.3L36.8 23.6M32.8 26.1L37.9 28.2M33.2 27.7L41 32.5M32.1 30.5L39.7 38.8M30.2 31L36.2 40.1M28.4 32.1L30.9 39.1M25.7 33.7L25.9 42.1M23.6 33.6L21.9 41.9M22 33L20.5 36.9M20.6 32.5L16.2 40M17.9 30.7L11.4 35.9M16.7 30.6L6.4 37.3M14.8 28.4L8.1 30.3M14.4 26.3L4.6 27.1M13.5 23.8L7.3 22.7M14.8 21.6L7.2 18.4M14.9 20L12.1 18.2M17 17.6L12.3 11.5M18 17L12 7.3M20 15.3L16.8 3.6M22.2 13.9L22 4.8M23.8 14.5L25.1 4.6M25.7 13.9L26.9 10.3M28.7 14.9L33.6 8.3M29.6 16.6L31.9 14.5M31.4 18.4L39.7 14M32.2 20.1L41.9 17.2M34.1 22.3L40.8 22.2"/></g></svg>
     socialifer
   </div>
+  <!-- Write, Calendar and Posts: the page's three views (main.js, schedule.js). -->
+  <nav class="views" id="views" aria-label="Views">
+    <button type="button" data-view="write">Write</button>
+    <button type="button" data-view="calendar">Calendar</button>
+    <button type="button" data-view="posts">Posts</button>
+  </nav>
   <div class="topbar-right">
     <div class="topbar-status" id="topbar-status"></div>
     <div class="theme-toggle" id="theme-toggle" role="group" aria-label="Theme">
@@ -44,6 +50,12 @@
 
 <div class="layout" id="layout">
   <main class="compose">
+    <!-- Write is two steps: the post itself, then each platform's settings and previews with When. -->
+    <div class="steps" id="steps">
+      <button type="button" class="link back" id="back-to-write">‹ Back to writing</button>
+      <span class="step one"><span class="dot">1</span>Write</span>
+      <span class="step two"><span class="dot">2</span>Review and post</span>
+    </div>
     <div class="card composer" id="composer">
       <label class="label" for="text">Your post</label>
       <textarea id="text" placeholder="What do you want to share?" autofocus></textarea>
@@ -90,12 +102,63 @@
     <h2 class="panel-title" id="panel-title">Ready to post</h2>
     <ul class="checklist" id="checklist"></ul>
     <ul class="results" id="results" hidden></ul>
+    <!-- When it goes: the next free time, or a time you pick (when.js). Review step only. -->
+    <div class="when" id="when" hidden></div>
     <button class="primary" id="post" disabled><span id="post-label">Post</span> <kbd>Ctrl ↵</kbd></button>
     <p class="reason" id="post-reason" hidden></p>
     <p class="status" id="status"></p>
     <button class="secondary" id="new-post" type="button" hidden>New post</button>
   </aside>
 </div>
+
+<!-- Calendar: a week at a time, waiting and finished posts (schedule.js). -->
+<main class="view-page" id="calendar-view" hidden>
+  <div class="view-head">
+    <h1 id="calendar-title">This week</h1>
+    <div class="view-actions">
+      <button type="button" class="secondary small" id="calendar-prev" aria-label="Previous week">‹</button>
+      <button type="button" class="secondary small" id="calendar-today">Today</button>
+      <button type="button" class="secondary small" id="calendar-next" aria-label="Next week">›</button>
+    </div>
+  </div>
+  <p class="hint" id="calendar-note"></p>
+  <div class="calendar-body">
+    <div class="week" id="week"></div>
+    <aside class="card post-detail" id="calendar-detail" hidden></aside>
+  </div>
+</main>
+
+<!-- Posts: waiting posts first, then finished ones, from the page and the phone (schedule.js). -->
+<main class="view-page" id="posts-view" hidden>
+  <div class="view-head"><h1>Posts</h1></div>
+  <p class="hint" id="posts-note"></p>
+  <div class="posts-body">
+    <div class="post-lists" id="post-lists"></div>
+    <aside class="card post-detail" id="posts-detail" hidden></aside>
+  </div>
+</main>
+
+<!-- Move: a new day and time for a waiting post, with the day strip. -->
+<dialog class="sheet" id="move-dialog" aria-labelledby="move-title">
+  <strong id="move-title">Move post</strong>
+  <div id="move-body"></div>
+  <p class="status" id="move-status"></p>
+  <div class="sheet-actions">
+    <button type="button" class="secondary small" id="move-cancel">Cancel</button>
+    <button type="button" class="primary small" id="move-save">Move</button>
+  </div>
+</dialog>
+
+<!-- Edit: a waiting post's text and settings. Its files can't be changed. -->
+<dialog class="sheet wide" id="edit-dialog" aria-labelledby="edit-title">
+  <strong id="edit-title">Edit post</strong>
+  <div class="edit-body" id="edit-body"></div>
+  <p class="status" id="edit-status"></p>
+  <div class="sheet-actions">
+    <button type="button" class="secondary small" id="edit-cancel">Cancel</button>
+    <button type="button" class="primary small" id="edit-save">Save changes</button>
+  </div>
+</dialog>
 
 <!-- Phones: the Post button stays reachable at the bottom; tapping the summary jumps to the panel. -->
 <div class="bottom-bar" id="bottom-bar">

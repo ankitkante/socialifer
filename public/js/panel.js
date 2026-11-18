@@ -4,6 +4,7 @@ import { state, hooks, saveSelected } from './state.js';
 import { platformOptions, resetSettings } from './fields.js';
 import { clearMedia, isVideoFile } from './uploads.js';
 import { subtitlesForPost, subtitleOption } from './subtitles.js';
+import { loadSchedule, whenLabel } from './when.js';
 
 export function setStatus(message, isError = false) {
   const status = $('status');
@@ -179,6 +180,62 @@ function showFinishByHand(text, { substack = true, files = null, todos = [] } = 
   if (!dialog.open) dialog.showModal();
 }
 
+// What /api/post and /api/schedule receive: the post, its files as upload ids, and each platform's settings.
+function postBody(targets, text) {
+  // Each platform's subtitles choice travels with its other options.
+  const options = platformOptions({ forSend: true });
+  for (const p of targets) Object.assign(options[p.id] ??= {}, subtitleOption(p));
+  const subtitles = subtitlesForPost();
+  return {
+    text,
+    platforms: targets.map((p) => p.id),
+    media: state.items.map((i) => ({ id: i.id, duration: i.meta?.duration })),
+    options,
+    ...(subtitles && { subtitles }),
+  };
+}
+
+// Clears the composer for the next post: no text, files or one-off settings (remembered ones stay).
+function startNextPost() {
+  $('text').value = '';
+  $('text').dispatchEvent(new Event('autosize'));
+  state.overrides = {};
+  state.tracksOff.clear();
+  resetSettings();
+  state.sectionsKey = '';
+  state.when = { mode: 'auto', day: '', time: '' };
+  clearMedia();
+  hooks.setStep('write');
+}
+
+// A post for later (choice: from whenChoice). The server copies its files, so the uploads here can go.
+// Substack's reminder shows straight away, as for a post that goes now.
+export async function schedulePost(targets, text, choice) {
+  if ($('post').disabled) return;
+  state.posting = true;
+  hooks.update();
+  setStatus('Scheduling…');
+  try {
+    const res = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...postBody(targets, text), when: choice.mode, ...(choice.mode === 'picked' && { at: choice.at }) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `The server returned an error (HTTP ${res.status}). Check the terminal.`);
+    state.posting = false;
+    showFinishByHand(text);
+    startNextPost();
+    setPhase('ready');
+    setStatus(`Scheduled for ${whenLabel(data.at)}. It's in Calendar and Posts.`);
+    loadSchedule();
+  } catch (err) {
+    state.posting = false;
+    setStatus(err.message, true);
+    hooks.update();
+  }
+}
+
 // targets: the platforms to post to; text: the main post exactly as typed.
 export async function post(targets, text) {
   if ($('post').disabled) return;
@@ -197,21 +254,11 @@ export async function post(targets, text) {
   let saved = [];
 
   let done = false;
-  // Each platform's subtitles choice travels with its other options.
-  const options = platformOptions({ forSend: true });
-  for (const p of targets) Object.assign(options[p.id] ??= {}, subtitleOption(p));
-  const subtitles = subtitlesForPost();
   try {
     const res = await fetch('/api/post', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        platforms: targets.map((p) => p.id),
-        media: state.items.map((i) => ({ id: i.id, duration: i.meta?.duration })),
-        options,
-        ...(subtitles && { subtitles }),
-      }),
+      body: JSON.stringify(postBody(targets, text)),
     });
     // Problems found before posting starts (an expired file, a bad request) come back as plain JSON.
     if (!res.headers.get('content-type')?.includes('ndjson')) {
@@ -253,15 +300,10 @@ export async function post(targets, text) {
   const failed = rows.filter((r) => r.state === 'fail');
   const warnings = rows.reduce((n, r) => n + (r.warnings?.length ?? 0), 0);
   const warned = warnings ? `, with ${warnings} warning${warnings > 1 ? 's' : ''}` : '';
+  // The post is in the history now, and later posts are spaced from it.
+  loadSchedule();
   if (failed.length === 0) {
-    // Start the next post clean: no text, files or one-off settings (remembered ones stay).
-    $('text').value = '';
-    $('text').dispatchEvent(new Event('autosize'));
-    state.overrides = {};
-    state.tracksOff.clear();
-    resetSettings();
-    state.sectionsKey = '';
-    clearMedia();
+    startNextPost();
     setPhase('done');
     setStatus(`Done${warned}. Start typing, or click New post, to write the next one.`);
   } else {

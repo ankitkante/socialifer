@@ -40,6 +40,9 @@ export const state = {
   phase: 'ready', // the Post panel: 'ready' (checklist), 'posting' (live rows), 'done' (results)
   lastRows: [], // the last post's per-platform rows
   sectionsKey: '', // which platforms the tabs were built for; '' forces a rebuild
+  view: 'write', // the header's tabs: 'write', 'calendar' or 'posts'
+  step: 'write', // Write: 'write' (the post itself), then 'review' (each platform, previews and When)
+  when: { mode: 'auto', day: '', time: '' }, // the Review step's When: 'auto' (next free time) or 'picked'
 };
 
 // Set by main.js; lets the other modules trigger a re-render without importing it.
@@ -50,6 +53,7 @@ export const hooks = {
   selectTab() {},
   addSubtitles() {}, // (file, item?) an SRT dropped or picked; item is the video's row it was dropped on
   forgetSubtitles() {}, // (item) a video is being removed: stop its job and delete its SRT uploads
+  scheduleChanged() {}, // the laptop's posts were loaded again (when.js)
 };
 
 export const activeTargets = () => state.platforms.filter((p) => p.configured && state.selected.has(p.id));

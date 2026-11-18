@@ -1,6 +1,6 @@
 // Socialifer's page: the platform picker, per-platform tabs (fields, errors, previews), and wiring.
 import { $, el, logo, truncate, BRAND_COLORS } from './dom.js';
-import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, splitThread } from '/rules.js';
+import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, splitThread, postKind } from '/rules.js';
 import { state, hooks, activeTargets, saveSelected, write, KEYS } from './state.js';
 import { FIELDS, fieldsOf, loadSettings, platformOptions, mirrored, fieldUploading, renderField } from './fields.js';
 import { addFiles, mediaMeta, uploadsBusy, uploadsFailed, isVideoFile } from './uploads.js';
@@ -8,8 +8,10 @@ import { renderPreview, hasPreview } from './previews.js';
 import {
   addSubtitles, forgetSubtitles, initSubtitles, renderStrip, renderChoice, subtitleStatus, generating,
 } from './subtitles.js';
-import { setStatus, setPhase, edited, renderPanel, post } from './panel.js';
+import { setStatus, setPhase, edited, renderPanel, post, schedulePost } from './panel.js';
 import { initTheme, startStatus } from './status.js';
+import { loadSchedule, renderWhen, whenChoice } from './when.js';
+import { renderCalendar, renderPosts } from './schedule.js';
 
 const textEl = $('text');
 
@@ -65,6 +67,8 @@ function renderTabs(targets) {
 }
 
 function selectTab(id, { scroll = false } = {}) {
+  // The platforms' tabs are on the Review step.
+  if (state.step !== 'review') setStep('review');
   state.tab = id;
   write(KEYS.tab, id);
   applyTab();
@@ -292,18 +296,29 @@ function update() {
   const anyText = text || targets.some((p) => options[p.id]?.text?.trim());
   const issues = readiness.filter((r) => r.problems.length);
   const issueCount = issues.reduce((n, r) => n + r.problems.length, 0);
-  // Why Post is disabled, in plain words; red only when there's something to fix.
+  // Why Post is disabled, in plain words; red only when there's something to fix. The Write step only needs a
+  // post and somewhere to send it; platform issues are fixed on the Review step, where their settings are.
   const making = generating();
   const severalVideos = state.items.filter((i) => isVideoFile(i.file)).length > 1;
+  const review = state.step === 'review';
+  const kind = postKind(media);
+  const ids = targets.map((p) => p.id);
+  const choice = whenChoice(kind, ids);
   const reason = uploadsFailed() ? 'Remove the files that failed to upload'
+    : targets.length === 0 ? 'Select at least one platform'
+    : !anyText && state.items.length === 0 ? 'Write something, or add a photo or video'
+    : !review ? ''
     : uploadsBusy() || fieldUploading() ? 'Uploading your files…'
     : making ? (severalVideos ? "Posting opens once every video's subtitles are done or skipped."
       : 'Posting opens once the subtitles are done, or cancel them to post without.')
-    : targets.length === 0 ? 'Select at least one platform'
-    : !anyText && state.items.length === 0 ? 'Write something, or add a photo or video'
     : issueCount ? `Fix ${issueCount} issue${issueCount > 1 ? 's' : ''} on ${issues.map((r) => r.p.name).join(' and ')}, or untick ${issues.length > 1 ? 'them' : 'it'}`
+    : state.phase === 'ready' ? choice.blocked ?? ''
     : '';
-  $('post-label').textContent = targets.length > 1 ? `Post to ${targets.length} platforms` : targets.length === 1 ? `Post to ${targets[0].name}` : 'Post';
+  if (review && state.phase === 'ready') renderWhen(kind, { youtubeVideo: kind === 'video' && ids.includes('youtube'), platforms: ids });
+  $('when').hidden = !review || state.phase !== 'ready';
+  const postNow = targets.length > 1 ? `Post to ${targets.length} platforms` : targets.length === 1 ? `Post to ${targets[0].name}` : 'Post';
+  $('post-label').textContent = !review ? 'Next: review and post'
+    : state.phase === 'ready' && !choice.now && choice.label ? choice.label : postNow;
   // Posting while subtitles are still being burned in is fine: those platforms wait for their copy.
   const burning = readiness.filter((r) => r.subtitles?.busy).map((r) => r.p.name);
   const note = burning.length ? `${burning.length > 1 ? `${burning.slice(0, -1).join(', ')} and ${burning.at(-1)}` : burning[0]} finish adding subtitles before ${burning.length > 1 ? 'they post' : 'it posts'}.` : '';
@@ -319,8 +334,55 @@ hooks.setStatus = setStatus;
 hooks.selectTab = selectTab;
 hooks.addSubtitles = addSubtitles;
 hooks.forgetSubtitles = forgetSubtitles;
+hooks.setStep = setStep;
+hooks.scheduleChanged = () => {
+  if (state.view === 'calendar') renderCalendar();
+  if (state.view === 'posts') renderPosts();
+  if (state.view === 'write' && state.step === 'review') update();
+};
 
-const doPost = () => post(activeTargets(), textEl.value);
+// Write is two steps: the post itself, then each platform's settings and previews with When.
+function setStep(step) {
+  state.step = step;
+  document.body.dataset.step = step;
+  if (step === 'review') loadSchedule();
+  update();
+  window.scrollTo({ top: 0 });
+}
+
+const VIEWS = ['write', 'calendar', 'posts'];
+
+// The header's tabs; the address keeps the view (#calendar, #posts), so a reload stays there.
+function setView(view) {
+  state.view = VIEWS.includes(view) ? view : 'write';
+  document.body.dataset.view = state.view;
+  for (const tab of $('views').children) tab.setAttribute('aria-current', String(tab.dataset.view === state.view));
+  const nothingSetUp = state.platforms.length > 0 && !state.platforms.some((p) => p.configured);
+  $('layout').hidden = state.view !== 'write' || nothingSetUp;
+  $('first-run').hidden = state.view !== 'write' || !nothingSetUp;
+  $('calendar-view').hidden = state.view !== 'calendar';
+  $('posts-view').hidden = state.view !== 'posts';
+  if (state.view !== 'write') loadSchedule();
+  hooks.scheduleChanged();
+  const hash = state.view === 'write' ? '' : `#${state.view}`;
+  if (location.hash !== hash) history.replaceState(null, '', hash || location.pathname);
+}
+
+// While the schedule shows, keep it current (a post going out, the phone adding one).
+setInterval(() => {
+  if (document.visibilityState === 'visible' && (state.view !== 'write' || state.step === 'review') && !state.posting) loadSchedule();
+}, 60_000);
+
+function doPost() {
+  if (state.step !== 'review') {
+    if (!$('post').disabled) setStep('review');
+    return;
+  }
+  const choice = whenChoice(postKind(mediaMeta()), activeTargets().map((p) => p.id));
+  // A retry of failed platforms always goes now.
+  if (state.phase === 'done' || choice.now) return post(activeTargets(), textEl.value);
+  return schedulePost(activeTargets(), textEl.value, choice);
+}
 
 // The main box grows with its text, up to 60% of the window.
 function autosize() {
@@ -341,7 +403,10 @@ document.addEventListener('keydown', (e) => {
 $('post').addEventListener('click', doPost);
 $('bar-post').addEventListener('click', doPost);
 $('bar-summary').addEventListener('click', () => $('post-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }));
-$('new-post').addEventListener('click', () => { setPhase('ready'); textEl.focus(); });
+$('new-post').addEventListener('click', () => { setPhase('ready'); setStep('write'); textEl.focus(); });
+$('back-to-write').addEventListener('click', () => setStep('write'));
+for (const tab of $('views').children) tab.addEventListener('click', () => setView(tab.dataset.view));
+window.addEventListener('hashchange', () => setView(location.hash.slice(1)));
 $('attach').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
 initSubtitles();
@@ -380,4 +445,6 @@ if (state.platforms.length && !configured.length) {
 }
 startStatus(configured.some((p) => p.media.needsPublicUrl));
 autosize();
+document.body.dataset.step = state.step;
 setPhase('ready');
+setView(location.hash.slice(1));

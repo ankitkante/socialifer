@@ -24,7 +24,6 @@ export const FIELDS = {
       // Not remembered: every video starts private, and "Finish by hand" links to YouTube Studio to make it public.
       { key: 'privacy', type: 'select', label: 'Visibility', initial: 'private',
         choices: [['public', 'Public'], ['unlisted', 'Unlisted'], ['private', 'Private']] },
-      { key: 'publishAt', type: 'datetime-local', label: 'Schedule (optional)' },
       { key: 'audioLanguage', type: 'select', label: 'Audio language', sticky: true, initial: '', choices: AUDIO_LANGUAGES,
         hint: "Set from the video's language under Subtitles." },
       { key: 'category', type: 'select', label: 'Category', initial: '', choices: [['', 'YouTube default (People & Blogs)'], ...YOUTUBE_CATEGORIES] },
