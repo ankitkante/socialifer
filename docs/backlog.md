@@ -8,7 +8,7 @@ Everything still to do: features and fixes not built, and things built but not y
 ## 1. YouTube
 
 - **Tags as chips** (B · phone test, design first, good to have): the Tags field is one comma-separated text box today. Wanted: type a tag, it becomes a chip, tap to remove.
-- **Test a schedule from the phone** (P · phone build): to be tested with the app's own scheduling later.
+- **Test a schedule from the phone** (P · phone build): Pick a time on a YouTube video from the app (see "Scheduling" in section 6).
 
 ## 2. X
 
@@ -38,7 +38,6 @@ The whole feature will be re-reviewed separately; these items wait for that.
 ## 6. Phone ↔ laptop
 
 - **Filter the logs** (idea, 2026-11-17, lowest priority): find log lines by date/time and by a keyword or text. The logs are in `logs/server-YYYY-MM.log` and `logs/phone-YYYY-MM.log`; the phone's Activity log shows the laptop's last 500 phone lines.
-- **Staggered sending** (phone build): to be discussed, then scheduling (see section 8).
 
 ### Not yet tested (app and web app)
 
@@ -47,6 +46,7 @@ Built but not tried live. Once one is confirmed, move it to "Tested live" in [mo
 **How to test:** run `npm start` on the laptop, open the installed app on the same Wi-Fi, and watch the terminal and Laptop → Activity log. For the web app, reload it after restarting the server.
 
 **Still to test:**
+- **Scheduling (built 2026-11-18, [scheduling.md](scheduling.md)):** web page: Write, then Review; Next free time and Pick a time (day strip, warnings, clicking the strip); Schedule; Calendar and Posts; Move, Post now, Edit, Cancel; a missed post moving after the server was off; the old `queue/` posts moving to `POSTS_DIR`. YouTube at a picked time: uploaded at once and public at the time (and update the private-upload note in [platforms.md](platforms.md)). App: the two steps, When, the tabs, Calendar's actions while connected, a handed post showing its time.
 - **The rebranded APK** (built 2026-11-17): the Ring of fire icon and the name Socialifer, pairing the new app (package `com.socialifer.app`), Inter on every screen, and a post. Then uninstall the old Social Post app.
 - **Platform settings reaching a platform:** a YouTube schedule (see section 1). Instagram Stories skipped: the user won't use them.
 - **The laptop refusing a post:** it returns to draft with the reason; a failed try shows "last try failed" on the post.
@@ -71,9 +71,15 @@ Built but not tried live. Once one is confirmed, move it to "Tested live" in [mo
 
 - **LinkedIn photo and video posts** (live test): a text post worked on 2026-11-17; one photo, several photos (`multiImage`) and a video are still untested.
 - **Test live:** Bluesky, Mastodon, Threads, Facebook and Telegram have never been posted to; Discord only against a mock. Details and risks are in "Verification status" in [platforms.md](platforms.md); update it there when one is confirmed.
-- **Scheduling: a queue and a calendar** (idea, after the phone app's first version): write a post when the idea comes and add it to a queue; the laptop server publishes queued posts at a steady pace, in slots you set, so followers aren't flooded. A calendar shows taken and free slots, and a post can go into a specific slot. X and Instagram have no scheduling in their APIs, so the server does the publishing; YouTube can also use its own `publishAt`. Slots missed while the laptop was off are re-spaced into the next free slots, never sent all at once. Still open: how often posts go out, per platform.
+- **Calendar from Pick a time** (B · idea, 2026-11-18): open the Calendar while picking a time, to see the whole week; for now the day strip shows the picked day.
+- **Edit a scheduled post's settings in the app** (P · scheduling build): the app edits the text only; settings are edited on the web page.
+- **Retry a failed scheduled post** (B · scheduling build): its files are deleted after posting, so a failed platform can't be retried from Calendar. The phone's own copy still has Send again.
 - **Reddit reminder in "Finish by hand"** (idea, 2026-11-17): Reddit's API is closed to new apps (see [decisions.md](decisions.md)), so remind the user to post on Reddit by hand, like Substack: Copy text, Share for photos, and a button that opens their profile's post page. Mock it up before building.
 - **Hosted server** (idea, not for now): run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and the phone app can post from anywhere. Put off on 2026-11-16 to save costs. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg.
+- **Settings page** (idea, 2026-11-18): change settings from the web page or the app instead of editing `.env`. Needs its own design first. Wanted:
+  - **Where posts are saved** (`POSTS_DIR`).
+  - **Scheduling rules** (`SCHEDULE` in `public/rules.js`): posting hours, the gaps between posts (text, image and video, and text next to an image or video), posts per day, and possibly per-platform limits.
+- **Daily backup of saved posts** (idea, 2026-11-18): once scheduling keeps posts' history in `POSTS_DIR`, copy the `post.json` files (they're tiny) to a second folder each day and keep the last 30 days.
 
 ## 9. Branding: Socialifer
 

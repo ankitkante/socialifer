@@ -28,7 +28,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 | `server.js` | HTTP server: routing, host/forwarding guard, `/api/*` endpoints, fan-out to platforms |
 | `publish.js` | `publish()`: posting to the selected platforms (checks, compression, burn-ins, results), for `/api/post` and the phone queue |
 | `phone.js` | The phone app's server on `PHONE_PORT` (Wi-Fi): signatures, pairing key in `phone/pairing.json`, the pairing QR code, `/app/*` |
-| `queue.js` | Phone posts on the laptop (`queue/<id>/`), posted one at a time through `publish()`, kept until the phone collects results (7 days at most) |
+| `queue.js` | Every post the laptop keeps, from the page and the phone (`POSTS_DIR/<id>/`): scheduled ones, posted one at a time at their time through `publish()`, and finished ones as history. See [docs/scheduling.md](docs/scheduling.md) |
 | `mobile/` | The phone app (Expo, Android); its files are listed in [docs/mobile.md](docs/mobile.md). Follow `mobile/AGENTS.md` there |
 | `media.js` | Uploads in `uploads/`, public `/media/*` (with Range), 24h cleanup, ffmpeg copies (`fitVideo`, `burnSubtitles`) |
 | `subtitler.js`, `work.js` | Running transcribe for subtitles; one heavy job at a time |
@@ -55,7 +55,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 ## Invariants: don't break these
 
 1. **Local only.** The server binds to `127.0.0.1`. Everything except `GET/HEAD /media/*` must reject requests whose `Host` isn't `localhost:PORT`/`127.0.0.1:PORT` **or** that carry `X-Forwarded-For`/`Forwarded` (that's how a tunnel is detected). This blocks DNS rebinding and stops `TUNNEL_URL` tunnels from exposing the posting API.
-2. **No simple cross-site requests.** `POST /api/post`, `/api/subtitled`, `/api/subtitles`, `/api/subtitles/<id>/stop` and `/api/kept/delete` require `application/json`, and `POST /api/media` requires an `image/*`/`video/*` type (or `application/x-subrip` for SRT subtitles), so browsers must preflight and other websites can't post on the user's behalf. There are deliberately no CORS headers.
+2. **No simple cross-site requests.** `POST /api/post`, `/api/schedule` (and its `move`, `cancel`, `now` and `PUT` edit), `/api/subtitled`, `/api/subtitles`, `/api/subtitles/<id>/stop` and `/api/kept/delete` require `application/json`, and `POST /api/media` requires an `image/*`/`video/*` type (or `application/x-subrip` for SRT subtitles), so browsers must preflight and other websites can't post on the user's behalf. There are deliberately no CORS headers.
 3. **Media ids are 128-bit random hex** and validated with `/^[a-f0-9]{32}$/` before touching the filesystem.
 4. **Server re-validates everything** the UI checks (`problemsFor`); the UI is a convenience, not the gate.
 5. **Secrets never reach the browser.** `/api/platforms` returns only names of env vars, never values.
@@ -79,6 +79,7 @@ The full list, with reasons, is in [docs/decisions.md](docs/decisions.md). The o
 Read the one that matches the task; they hold the detail this file leaves out.
 
 - [docs/architecture.md](docs/architecture.md): how a post flows, errors, logging and progress, `/api/status`.
+- [docs/scheduling.md](docs/scheduling.md): scheduled posts, the slot rules, the Calendar and Posts, and how posts are saved.
 - [docs/platforms.md](docs/platforms.md): each platform's API, limits, quirks, verification status, and adding a platform.
 - [docs/decisions.md](docs/decisions.md): decisions on record, with reasons.
 - [docs/subtitles.md](docs/subtitles.md): generating, reviewing and burning in subtitles, and how transcribe is called.

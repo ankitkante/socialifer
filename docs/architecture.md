@@ -32,6 +32,8 @@ Platform fetchers (Threads, Instagram) ── GET /media/<id>.<ext> ── via T
 
 Each platform posts independently and in parallel, inside its own logging context (`log.js`), so one platform failing never blocks the others and every log line says which post and platform it belongs to. The response is streamed as one JSON event per line: live `status` events with each platform's current step (and a 0 to 1 `progress` when the step reports one), a `result` event per platform as soon as it finishes (`{ id, name, ok, url, warnings, error }`), and a final `done` event.
 
+Scheduled posts, history and the slot rules are in [scheduling.md](scheduling.md).
+
 ## Posting flow
 
 1. The page loads `/api/platforms` and renders a pill per configured platform (the others are listed under **Set up more**). It keeps the selection, the open tab and the theme in `localStorage` (`social-post:selected`, `social-post:tab`, `social-post:theme`).

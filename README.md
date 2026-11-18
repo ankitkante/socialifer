@@ -35,6 +35,7 @@ npm start               # opens on http://localhost:3000
 ## Phone app (in progress)
 
 - **What it is:** an Android app in `mobile/`. Write posts anywhere; tapping Post queues them, and they go to this server automatically the next time the phone is on the same Wi-Fi with the app open.
+- **Write, Calendar, Posts:** writing is two steps (Write, then Review with each platform and **When**). Calendar shows the laptop's posts by week; tap one to move, post now, edit its text or cancel it while connected.
 - **Platform settings:** tap **Settings ›** on a platform's card for its own text and options (X threads, YouTube title, Instagram cover...). Dates open Android's date and time pickers.
 - **Previews:** each platform's card shows a preview under its settings.
 - **Duplicate and Delete:** **Duplicate post** copies any post into a new draft. A post marked ready can be deleted until it starts going to the laptop.
@@ -47,7 +48,10 @@ npm start               # opens on http://localhost:3000
 
 ## Using it
 
-The page has two columns: you write on the left, and the **Post panel** stays pinned on the right. On a phone or narrow window, a bar at the bottom keeps the Post button within reach.
+The page has three views in the header: **Write**, **Calendar** and **Posts**. Writing is two steps: **Write** (your post, files and where it goes), then **Review and post** (each platform's tab, previews and When). The **Post panel** stays pinned on the right; on a phone or narrow window, a bar at the bottom keeps its button within reach.
+
+- **When:** **Next free time** lets the laptop pick, 9 AM to 11 PM: text posts at least 1 hour apart; image and video posts at least 4 hours apart, at most 2 of each a day; and a text post 1 hour from an image or video post on the same platform. **Pick a time** shows that day's strip (green free, orange too close to another post); a time that's too close is a warning, not a block. Posts go out only while the server is running; one missed while it was off moves to the next free time. A YouTube video at a picked time is uploaded at once and goes public at that time.
+- **Calendar and Posts:** every post the laptop keeps, from this page and the phone, waiting or finished. A waiting post can be moved, posted now, edited (text and settings) or cancelled; one already posted is changed on the platform (YouTube links to YouTube Studio). Posts are kept in `Socialifer\posts` in your user folder (`POSTS_DIR` in `.env` to change it).
 
 - **Your post:** type it once, and attach photos or videos with **+ Add photo or video**, by dragging files onto the box, or by pasting an image.
 - **Subtitles:** a Subtitles strip appears under an attached video.
@@ -59,7 +63,7 @@ The page has two columns: you write on the left, and the **Post panel** stays pi
   - Overlapping subtitle lines (as in YouTube's auto captions) are trimmed everywhere, so only one line shows at a time. Your SRT file itself is left as it is.
 - **Post to:** click the YouTube, Instagram or X pills (or any other platform you've set up) to choose where it goes. **+ Set up more** lists the platforms that aren't set up yet and the `.env` values each one needs.
 - **Platform tabs:** each chosen platform gets a tab with a badge: ✓ ready, ! with a count of issues, or i for a note such as "will be compressed". A tab has that platform's own text box (it shows your post as you type until you edit it; **↺ Use main post** switches it back), its options, problems shown right under the field they concern, and a **live preview**:
-  - **YouTube:** title (your first line unless you type one; the rest becomes the description), visibility, schedule, category, tags, custom thumbnail, made for kids, altered or synthetic (AI) content; more: recording date and languages. The preview shows the title as search results cut it and whether the video will be a Short. For a Short, it shows the thumbnail in the Shorts player, the Shorts shelf and a 16:9 frame. It notes a thumbnail whose shape doesn't match the video, or one under 640 px wide.
+  - **YouTube:** title (your first line unless you type one; the rest becomes the description), visibility, category, tags, custom thumbnail, made for kids, altered or synthetic (AI) content; more: recording date and languages. The preview shows the title as search results cut it and whether the video will be a Short. For a Short, it shows the thumbnail in the Shorts player, the Shorts shelf and a 16:9 frame. It notes a thumbnail whose shape doesn't match the video, or one under 640 px wide.
   - **Instagram:** post or Story, cover frame or cover image, also share the Reel to Feed, alt text, AI label; more: audio name and trial reel. The preview shows the caption where the feed cuts it ("… more"). A Reel's cover appears full screen, with the areas Instagram's header and caption cover and the middle square every view keeps. It also appears in the profile grid (3:4), the Reels tab (about 2:3) and, when shared to the feed, as a square. Those grid crops aren't documented, so they're approximate. A photo post shows at its own shape (4:5 to 1.91:1) next to its grid tile. @mentions in the caption link to those accounts and notify them.
   - **X:** split long posts into a numbered thread, alt text, made-with-AI label. The preview shows every post in the thread. A thread breaks at the end of a sentence when one is close to the limit; a post cut mid-sentence ends with "...", and every post ends with its number after an empty line, like `(1/2)`. Each post in a thread is billed separately.
   - Not possible through the APIs: YouTube end screens, cards and monetisation; Instagram library music, filters and stickers; X quote posts (Enterprise plan only).
