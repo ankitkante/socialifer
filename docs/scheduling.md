@@ -1,6 +1,6 @@
 # Scheduling
 
-Built 2026-11-18 on `feature/scheduling`, from the "Scheduling mockup" artifact (flow C: Write, then Review and post). Not yet tested live: see [testing.md](testing.md).
+Built 2026-11-18 on `feature/scheduling`, from the "Scheduling mockup" artifact, https://claude.ai/artifact/CqDbwARqdQ1H9tKemwL8ch (private to the user; flow C: Write, then Review and post). Not yet tested live: see [testing.md](testing.md).
 
 ## Rules
 
