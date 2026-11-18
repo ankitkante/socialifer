@@ -300,6 +300,144 @@ export function problemsFor(platform, text, media, options = {}) {
   return problems;
 }
 
+// ---- Scheduling ----
+
+// Posts keep a pace, so followers (and the platforms) aren't flooded, and only go out in the day's posting hours
+// (laptop time). Image and video posts are a few hours apart whatever their kind, with a few of each kind a day.
+// Text posts keep their own, shorter gap. A text post and an image or video post only keep apart when they share
+// a platform (an X text post next to an X video), since followers see each platform separately.
+export const SCHEDULE = { startHour: 9, endHour: 23, gapHours: 4, textGapHours: 1, mixedGapHours: 1, perDay: { image: 2, video: 2 } };
+const HOUR = 60 * 60 * 1000;
+const isMedia = (kind) => kind === 'image' || kind === 'video';
+
+// How far apart a post (kind, platforms) must be from another post p: { at, kind, platforms }.
+function gapFrom(kind, platforms, p) {
+  if (isMedia(kind) && isMedia(p.kind)) return SCHEDULE.gapHours * HOUR;
+  if (!isMedia(kind) && !isMedia(p.kind)) return SCHEDULE.textGapHours * HOUR;
+  // Posts saved before platforms were known are treated as sharing one, to be safe.
+  const shared = !p.platforms || platforms.some((id) => p.platforms.includes(id));
+  return shared ? SCHEDULE.mixedGapHours * HOUR : 0;
+}
+
+const closeTo = (taken, kind, platforms, at) => taken
+  .map((p) => ({ ...p, gap: gapFrom(kind, platforms, p) }))
+  .filter((p) => p.gap > 0 && Math.abs(p.at - at) < p.gap);
+
+// 'text', 'image' or 'video'. A post can't mix images and videos (see problemsFor), so the first file decides.
+export function postKind(media) {
+  if (!media.length) return 'text';
+  return media.some(isVideo) ? 'video' : 'image';
+}
+
+const atHour = (ms, hour) => new Date(ms).setHours(hour, 0, 0, 0);
+const dayStart = (ms) => atHour(ms, SCHEDULE.startHour);
+const dayEnd = (ms) => atHour(ms, SCHEDULE.endHour);
+const nextDayStart = (ms) => {
+  const d = new Date(ms);
+  d.setDate(d.getDate() + 1);
+  return dayStart(d.getTime());
+};
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+const mediaPosts = (taken) => taken.filter((p) => p.kind === 'image' || p.kind === 'video');
+
+// The first time on or after `from` that a post of this kind, going to these platforms, may go out.
+// taken: [{ at, kind, platforms }], the other posts waiting or already posted (leave out the post being moved).
+export function nextFreeTime(taken, kind, from = Date.now(), platforms = []) {
+  let at = from;
+  // Each pass moves `at` later; a year of passes is far more than any real schedule needs.
+  for (let i = 0; i < 1000; i++) {
+    if (at < dayStart(at)) at = dayStart(at);
+    if (at > dayEnd(at)) { at = nextDayStart(at); continue; }
+    if (isMedia(kind) && mediaPosts(taken).filter((p) => p.kind === kind && sameDay(p.at, at)).length >= SCHEDULE.perDay[kind]) {
+      at = nextDayStart(at);
+      continue;
+    }
+    const close = closeTo(taken, kind, platforms, at);
+    if (!close.length) return at;
+    at = Math.max(...close.map((p) => p.at + p.gap));
+  }
+  return null;
+}
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Written out by hand: the phone's engine and Node format dates differently.
+export function formatTime(ms) {
+  const d = new Date(ms);
+  const h = d.getHours() % 12 || 12;
+  return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+}
+
+export function formatDay(ms) {
+  const d = new Date(ms);
+  return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+function formatGap(ms) {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return plural(minutes, 'minute');
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (m === 30) return `${h}½ hours`;
+  return m ? `${plural(h, 'hour')} ${plural(m, 'minute')}` : plural(h, 'hour');
+}
+
+const KIND_NAMES = { text: 'text post', image: 'image post', video: 'video' };
+
+// Why two kinds of post are kept apart, for the warning.
+function gapRule(kind, other) {
+  if (isMedia(kind) && isMedia(other)) return `Image and video posts are kept ${plural(SCHEDULE.gapHours, 'hour')} apart.`;
+  if (!isMedia(kind) && !isMedia(other)) return `Text posts are kept ${plural(SCHEDULE.textGapHours, 'hour')} apart.`;
+  return `Text and image or video posts on the same platform are kept ${plural(SCHEDULE.mixedGapHours, 'hour')} apart.`;
+}
+
+// What's wrong with posting at `at`: `past` blocks it; `warnings` don't (the user may post close together
+// on purpose), and `nextFree` offers the next time without them. taken and platforms as for nextFreeTime.
+export function slotProblems(taken, kind, at, now = Date.now(), platforms = []) {
+  if (!Number.isFinite(at)) return { past: false, invalid: true, warnings: [], nextFree: null };
+  if (at <= now) return { past: true, invalid: false, warnings: [], nextFree: null };
+  const warnings = [];
+  if (at < dayStart(at) || at > dayEnd(at)) {
+    warnings.push(`${formatTime(at)} is outside posting hours (${formatTime(atHour(at, SCHEDULE.startHour))} to ${formatTime(atHour(at, SCHEDULE.endHour))}).`);
+  }
+  if (isMedia(kind)) {
+    const sameKind = mediaPosts(taken).filter((p) => p.kind === kind && sameDay(p.at, at)).length;
+    if (sameKind >= SCHEDULE.perDay[kind]) {
+      warnings.push(`${formatDay(at)} already has ${plural(sameKind, KIND_NAMES[kind])}; the limit is ${SCHEDULE.perDay[kind]} a day.`);
+    }
+  }
+  const close = closeTo(taken, kind, platforms, at).sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at));
+  for (const p of close) {
+    const gap = Math.abs(p.at - at);
+    const where = gap === 0 ? 'At the same time as' : `${formatGap(gap)} ${p.at < at ? 'after' : 'before'}`;
+    warnings.push(`${where} the ${KIND_NAMES[p.kind] ?? 'post'} at ${formatTime(p.at)}${sameDay(p.at, at) ? '' : ` on ${formatDay(p.at)}`}.`);
+  }
+  for (const rule of new Set(close.map((p) => gapRule(kind, p.kind)))) warnings.push(rule);
+  return { past: false, invalid: false, warnings, nextFree: warnings.length ? nextFreeTime(taken, kind, at, platforms) : null };
+}
+
+// What the day strip draws for `day` (any time that day): the posting hours, the posts in them, and the
+// too-close ranges around the posts this one must keep apart from, clipped to the hours and merged where they
+// overlap. `full` says this kind has reached its daily limit. kind and platforms: the post being placed.
+export function dayStrip(taken, kind, day, platforms = []) {
+  const start = dayStart(day);
+  const end = dayEnd(day);
+  const posts = taken.filter((p) => p.at >= start && p.at <= end).sort((a, b) => a.at - b.at);
+  const ranges = [];
+  const around = taken.map((p) => ({ p, gap: gapFrom(kind, platforms, p) })).filter(({ gap }) => gap > 0)
+    .map(({ p, gap }) => ({ from: Math.max(start, p.at - gap), to: Math.min(end, p.at + gap) }))
+    .filter((r) => r.from < r.to)
+    .sort((a, b) => a.from - b.from);
+  for (const { from, to } of around) {
+    const last = ranges[ranges.length - 1];
+    if (last && from <= last.to) last.to = Math.max(last.to, to);
+    else ranges.push({ from, to });
+  }
+  const full = isMedia(kind) && mediaPosts(taken).filter((p) => p.kind === kind && sameDay(p.at, day)).length >= SCHEDULE.perDay[kind];
+  return { start, end, posts, tooClose: ranges, full };
+}
+
 // ---- Subtitles ----
 
 // Languages offered for a video's speech, its subtitles and YouTube's language fields. The codes are
