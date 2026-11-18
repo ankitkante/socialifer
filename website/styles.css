@@ -169,6 +169,25 @@ footer.site a { color: var(--faint); }
 .closing .actions { margin-top: 8px; }
 footer.site .gh { gap: 6px; }
 
+/* Phones: header on one line (the footer carries Privacy and Terms), equal-width buttons, tidier footer */
+@media (max-width: 600px) {
+  .wrap { padding: 0 20px; }
+  header.site .wrap { flex-wrap: nowrap; padding-top: 18px; padding-bottom: 18px; }
+  nav.site { flex-wrap: nowrap; }
+  nav.site a:not(.gh) { display: none; }
+  .hero { padding-top: 32px; }
+  .hero p { font-size: 18px; }
+  .actions { flex-direction: column; align-items: stretch; max-width: 320px; margin-left: auto; margin-right: auto; width: 100%; }
+  .actions .pill, .actions .ghost { justify-content: center; text-align: center; }
+  .ghost { display: inline-flex; }
+  .ring-section { padding-bottom: 56px; }
+  .features { padding-bottom: 64px; }
+  .features li { padding: 24px 0; }
+  .statement .wrap, .closing { padding-top: 72px; padding-bottom: 72px; }
+  footer.site .wrap { flex-direction: column; gap: 10px; }
+  .doc { padding-top: 24px; padding-bottom: 64px; }
+}
+
 /* Other pages: privacy, terms, 404 */
 .doc { padding-top: 48px; padding-bottom: 96px; }
 .doc h1 { font-size: clamp(36px, 6vw, 56px); line-height: 1.05; letter-spacing: -0.035em; font-weight: 800; margin: 0 0 16px; }
