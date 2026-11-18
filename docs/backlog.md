@@ -40,6 +40,8 @@ The whole feature will be re-reviewed separately; these items wait for that.
 ## 7. Housekeeping
 
 - **Uploads left behind by a page reload** (W · live test): reloading or closing the page with files attached leaves them in `uploads/` until the 24-hour cleanup (about 430 MB after a day of testing). The page also forgets a running subtitle job. Both are the deferred "post survives a reload" idea.
+- **Automated tests for the app** (P · idea, 2026-11-18): the app has none today. Start with logic tests of the plain JS files (`sign.js`, `store.js`, `handover.js`) via `node --test`, with no new packages. Later, maybe end-to-end tests with **Maestro** on the user's own phone over `adb` (USB or Wi-Fi): it supports Expo APKs, installs on Windows and needs Java 17+ and platform-tools. Cloud phones (Maestro Cloud, EAS Workflows, BrowserStack, Firebase Test Lab) can't reach the laptop, so they'd only cover offline screens. Screen tests (Jest + React Native Testing Library) would need new dev packages, so ask first.
+- **Automated tests for the web app** (W · idea, 2026-11-18): `npm test` covers the server, but nothing in `public/js/` is tested; the page is only checked by hand. Start with `node --test` for any `public/js` files that don't touch the page (check which ones). For clicks, previews and the calendar, one option is **Playwright** (drives the installed Chrome, tests are plain Node scripts); it's an npm package, so it needs the user's okay (dev-only).
 
 ## 8. New platforms and big ideas
 
