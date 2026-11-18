@@ -2,6 +2,15 @@
 
 Decided 2026-11-16; first version built. The phone port's security rule is invariant 6 in [AGENTS.md](../AGENTS.md).
 
+**Files in `mobile/`:**
+- **`App.js`:** screens, and the 5-second laptop check.
+- **`src/`:** `Posts.js` (the list), `Compose.js` (writing, checks from `rules.js`), `Fields.js` (a card per platform: count, problems, own text, `FIELDS` controls), `Preview.js` (YouTube/Instagram/X previews, following `public/js/previews.js`), `Finished.js` (results, Send again), `Substack.js` ("Finish by hand": the Substack reminder, platforms' items, the dialog after Post), `options.js` (defaults, sticky values, what's checked and sent), `store.js` (posts in the app's document folder, media copies, cached platforms), `handover.js` (sending ready posts, collecting results), `laptop.js` (pairing, signed calls and uploads), `log.js` (the activity log, sent to the laptop), `status.js` (the laptop's status lines and the tunnel warning), `sign.js` (must match `signature()` in `phone.js`), `Logo.js` (platform logos from `public/icons`, and `BrandMark`), `ui.js` (colours, `Button`, and the `Text`/`TextInput` every screen imports instead of React Native's, which set Inter by weight).
+- **Fonts:** Inter's four weights are in `assets/fonts`.
+- **Build files:** `metro.config.js` lets it import `public/`, and `svg-transformer.js` makes an imported `.svg` its text. `eas.json` and `plugins/allow-http.js` are for the APK build.
+- **Expo's guidance:** follow `mobile/AGENTS.md` there.
+
+**Decisions:**
+
 - **Laptop server as the backend:** to save costs, no hosted server for now (it stays in [docs/backlog.md](backlog.md)).
 - **Code:** Expo (React Native), Android only, in `mobile/` in this repo, so it can share `public/rules.js` with the server.
 - **Offline first:** posts are saved on the phone. Tapping Post marks a post ready; drafts stay on the phone and are never sent.

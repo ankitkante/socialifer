@@ -23,6 +23,13 @@ server.js ──► publish(): Promise.allSettled over selected platforms
 Platform fetchers (Threads, Instagram) ── GET /media/<id>.<ext> ── via TUNNEL_URL tunnel
 ```
 
+**The page's files:**
+- **`public/js/`:** `main.js` (picker, tabs, per-platform sections, field errors, wiring), `fields.js` (saved settings and controls; the lists are in `public/fields.js`), `uploads.js` (attachments, JPEG conversion, thumbnails), `subtitles.js` (the Subtitles strip, generating, SRT uploads, burned-in copies, each platform's subtitles choice), `review.js` (the Review lines dialog), `previews.js` (YouTube/Instagram/X preview cards), `panel.js` (Post panel, posting and its NDJSON stream), `status.js` (theme toggle, status dots), `state.js` (shared state and `hooks`), `dom.js` (helpers, NDJSON reader).
+- **`public/styles.css`:** light and dark tokens on `:root`; `data-theme` on `<html>` overrides the system theme.
+- **`public/fonts/`:** Inter and Noto Sans Devanagari (variable woff2, SIL Open Font License), served by name from `STATIC_FILES`.
+- **`public/icons/`:** one `<id>.svg` per platform from Simple Icons (CC0). LinkedIn comes from v10.0.0, because later versions removed it at LinkedIn's request.
+- **`publish.js`** also exports `describe`, `canCompress` and `failureMessage`.
+
 Each platform posts independently and in parallel, inside its own logging context (`log.js`), so one platform failing never blocks the others and every log line says which post and platform it belongs to. The response is streamed as one JSON event per line: live `status` events with each platform's current step (and a 0 to 1 `progress` when the step reports one), a `result` event per platform as soon as it finishes (`{ id, name, ok, url, warnings, error }`), and a final `done` event.
 
 ## Posting flow
@@ -63,3 +70,14 @@ This file is imported by both the server (`import ... from './public/rules.js'`)
 - `countFor(id, text)` counts grapheme clusters, so an emoji counts as 1. On X and Mastodon every `http(s)://` URL counts as 23 characters.
 - `problemsFor(platform, text, media)` returns human-readable problems: text length, missing required media, too many images, videos or files, mixing images and videos, a missing public URL, image type, and file size. `platform` is the `/api/platforms` shape: `{ id, limit, media, publicUrlReady }`.
 - Sizes use decimal MB (1 MB = 1,000,000 bytes), as the platforms state their limits.
+
+## Errors, logging and progress
+
+- **Throw `ApiError`** (from `platforms/http.js`) for expected failures: API errors, network problems, our own checks. The server shows its message to the user, prefixed with the current step. **Any other error is treated as a bug**: the user sees "Something went wrong in the app…" and the stack trace goes to the terminal.
+- **`request()`** turns network failures into readable messages ("The connection to api.x.com was dropped (ECONNRESET)" instead of "fetch failed"), logs each failed request with the platform's full response, and hides tokens (`redactUrl`). Pass `retries` only for requests that are safe to repeat (status polls, re-sending an upload chunk); `headers` can be a function when every attempt needs a fresh signature (X's OAuth).
+- **Call `step('Uploading the video')`** (from `log.js`) when a platform starts something slow or failure-prone. It's logged as `[post 7] YouTube: …`, streamed to the page as live status, and names the step in the error if it fails. Use `{ quiet: true }` for very frequent steps, such as each upload part, and `{ progress }` (0 to 1) when the step knows how far along it is; the page shows it as a progress bar (X's upload parts, ffmpeg compression).
+- **`POST /api/post` streams NDJSON**: `{ type: 'status', id, step, progress? }`, `{ type: 'result', … }` per platform as it finishes, then `{ type: 'done', results }`. Errors before posting starts are a normal JSON error response. If the stream breaks, the page marks unfinished platforms as "unknown" and warns against retrying blindly.
+
+## Laptop status (`/api/status`)
+
+`GET /api/status` returns `{ ffmpeg, subtitles, subtitlesProblem, tunnel: { configured, reachable } }` for the header's status dots; `subtitles` says whether `TRANSCRIBE_DIR` points at a usable transcribe folder (its `.venv` Python and `subtitles.py`), and the page shows Generate only then. `subtitlesProblem` (from `checkGenerator` in `subtitler.js`) says what to fix when it's set but unusable; the header, the strip and the startup message show it. Reachability is checked by fetching `TUNNEL_URL/media/health` (answered with 204 by `serveMedia`), cached for 20 seconds. The phone's `/app/hello` carries the same object as `status`, without waiting for a tunnel check (the phone gives up on a call after 5 seconds); the app shows it on the Laptop screen and turns the Posts screen's "Connected" line amber when the tunnel is down or not set up.

@@ -124,4 +124,39 @@ These are wired to the documented API parameters but haven't been used on a live
 ## Not supported
 
 - **YouTube Posts (Community):** the Data API has no way to make them (checked 2026-11-17).
-- **Substack:** there's no official API, and Cloudflare blocks posting Notes from outside the browser. See "Decisions on record" in [AGENTS.md](../AGENTS.md).
+- **Substack:** there's no official API, and Cloudflare blocks posting Notes from outside the browser. See [decisions.md](decisions.md).
+
+## Adding a platform: the module contract
+
+```js
+export default {
+  id: 'example',              // stable; used in localStorage and API calls
+  name: 'Example',            // shown in the UI
+  limit: 500,                 // max characters (counted by countFor in public/rules.js)
+  media: {                    // read by problemsFor in public/rules.js
+    maxImages, maxVideos, maxItems, mix,     // counts; mix = images and videos together
+    imageMB, videoMB,                        // decimal MB, null = unchecked
+    videoMinSeconds?, videoMaxSeconds?,      // length limits; omit when unsure rather than guess
+    carouselVideoMaxSeconds?,                // stricter length in multi-file posts (Instagram)
+    videoMaxSecondsHint?,                    // appended to the "too long" message, e.g. how to raise it
+    imageTypes?, imageTypesLabel?,           // restrict image MIME types
+    requiresMedia?, needsPublicUrl?,         // e.g. Instagram
+  },
+  title?: { max: 100 },       // platform needs a title (YouTube); see resolveTitle in rules.js
+  textForbids?: '<>',         // characters the platform rejects in title/text
+  threads?: true,             // long text may be split into a numbered thread (X); see splitThread in rules.js
+  subtitleTracks?: true,      // takes SRT files as options.subtitles, [{ lang, file }] (YouTube); other platforms get one language burned in
+  mediaOptions?: ['thumbnail'], // option fields holding an uploaded image id; the server swaps in the file
+  envVars: ['EXAMPLE_TOKEN'], // required settings; shown when unconfigured
+  isConfigured: () => hasEnv(...),
+  async post(text, media, options) { return { url, warnings?, todo? } }, // url may be null; throw Error on failure.
+                              // warnings: things that failed after the post went live (thumbnail, first comment)
+                              // todo: { text, label, url }, a step left to do by hand, shown in "Finish by hand"
+};
+```
+
+`options` holds per-platform extras that the UI sends as `options[platformId]` in `POST /api/post`, and it's passed both to `problemsFor` and to `post()`:
+- `options[id].text`: the platform's own text, present only if the user edited that platform's box in its tab (an empty string means no text). Unedited boxes just mirror the main post and send nothing. The server resolves it with `effectiveText()` and passes the result to `post()` as `text`, so platform modules never need to look at it. `problemsFor` takes the *main* text plus `options` and resolves it the same way.
+- **Platform fields** (YouTube's title, tags, schedule and thumbnail; Instagram's Story, cover, collaborators and first comment; X's thread, poll and reply settings) are declared in `FIELDS` in `public/fields.js` (the web page and the phone app both draw them). Each entry has a `key`, `type` (text, textarea, select, check, number, date, datetime-local, image, poll), a `label`, and optionally `sticky` (remembered between posts), `when` (hidden and *not sent* when it doesn't apply), `initial` and `hint`. Values reach the server as `options[platformId][key]` and are checked by `FIELD_CHECKS` in `public/rules.js`. To add a field: add it to `FIELDS`, add any check to `FIELD_CHECKS`, and read it in the platform's `post()`.
+
+`media` items passed to `post()` are `{ id, name, type, size, duration, path, url, blob(), buffer() }`. `url` is the public URL (only set when `TUNNEL_URL` is configured). `duration` is in seconds, from ffprobe if installed, else from the browser, else `null`. A video over the platform's `videoMB` has already been swapped for a compressed copy (see `fitVideo` in `media.js`) when ffmpeg is available, so modules don't handle compression. Upload media in order and sequentially. To add a platform, create the module, register it in `platforms/index.js`, add its settings to `.env.example`, and add a row to this file and the README table.

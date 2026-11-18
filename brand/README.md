@@ -42,6 +42,7 @@ A glowing ring with sparks streaking out, like a Diwali chakri: the app sends po
 - **Below 32 px,** use the small version; the full one blurs.
 - **Don't** recolour it outside the palette, stretch it, add shadows or glows, or put the plum mark on a dark background.
 - **With the name:** mark on the left, "socialifer" in Inter Bold, letter-spacing about −2%, mark about 1.5× the text height.
+- **Where copies live** (keep them in step): the web app serves its favicons from here (`/favicon.ico`, `/favicon.svg`) and has its header mark inline in `public/index.html`; the phone app's mark is `BrandMark` in `mobile/src/Logo.js`, and its icons in `mobile/assets` are copies of `png/` files; the website has its own copies (see [docs/website.md](../docs/website.md)).
 
 ## Colours
 
