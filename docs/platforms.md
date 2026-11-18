@@ -8,7 +8,7 @@ Length checks only use limits we are reasonably confident in. Where a platform's
 
 | Platform | Checked | Source / confidence |
 |---|---|---|
-| Instagram | 3 s to 15 min; 60 s for videos in a carousel | Meta Reels publishing docs. The carousel limit is the least certain. |
+| Instagram | Up to 15 min; 60 s for videos in a carousel | Meta Reels publishing docs. The carousel limit is the least certain. The docs' 3 s minimum isn't checked: a 2.2 s Reel posted fine on 2026-11-18. |
 | YouTube | Up to 15 min (`YOUTUBE_MAX_MINUTES`) | YouTube: unverified channels are capped at 15 minutes; phone-verified channels up to 12 hours. |
 | X | Up to 20 min (`X_VIDEO_MAX_MINUTES`) | X's chunked upload docs: 20 min by default, 125 min for Premium. |
 | Threads | Up to 5 min | Threads API docs. |

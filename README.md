@@ -77,7 +77,7 @@ Supported files: JPEG, PNG, GIF and WebP images, MP4 and MOV videos, and SRT sub
 | Bluesky | 300 | 4 images or 1 video | Not checked | Images up to 1 MB, video up to 100 MB. |
 | Mastodon | 500 (links count as 23) | 4 images or 1 video | Not checked | Limits vary by server. |
 | Threads | 500 | Up to 20, mixed | Up to 5 min | Media needs `TUNNEL_URL`. |
-| Instagram | 2,200 | 1 to 10, mixed | 3 s to 15 min; up to 1 min in a multi-file post | **Needs an image or video.** JPEG images only (PNG and WebP are converted automatically). Video up to 300 MB. A single video becomes a Reel. Needs `TUNNEL_URL`. |
+| Instagram | 2,200 | 1 to 10, mixed | Up to 15 min; up to 1 min in a multi-file post | **Needs an image or video.** JPEG images only (PNG and WebP are converted automatically). Video up to 300 MB. A single video becomes a Reel. Needs `TUNNEL_URL`. |
 | YouTube | 5,000 (description) | **Exactly 1 video** | Up to 15 min (`YOUTUBE_MAX_MINUTES` once your channel is phone-verified) | Needs a title (up to 100 characters). By default the first line of your post is the title and the rest is the description. No `<` or `>`. |
 | LinkedIn | 3,000 | Up to 20 images or 1 video | 3 s to 30 min | |
 | Facebook | 63,206 | Up to 10 images or 1 video | Up to 20 min | Posts to a Facebook Page. Facebook's API can't post to personal profiles. |

@@ -5,6 +5,7 @@ import x from '../platforms/x.js';
 import mastodon from '../platforms/mastodon.js';
 import instagram from '../platforms/instagram.js';
 import telegram from '../platforms/telegram.js';
+import linkedin from '../platforms/linkedin.js';
 
 const describe = (p, publicUrlReady = false) => ({ id: p.id, limit: p.limit, media: p.media, title: p.title, textForbids: p.textForbids, publicUrlReady });
 const image = (name = 'a.jpg', size = 1000, type = 'image/jpeg') => ({ name, type, size });
@@ -64,7 +65,9 @@ test('checks video length, including stricter limits for multi-file posts', () =
   const ig = describe(instagram, true);
   const long = { ...video('long.mp4'), duration: 16 * 60 };
   assert.ok(problemsFor(ig, 'hi', [long]).some((m) => /16:00 long; the limit is 15:00/.test(m)));
-  assert.ok(problemsFor(ig, 'hi', [{ ...video('short.mp4'), duration: 2 }]).some((m) => /shorter than 3 seconds/.test(m)));
+  // Short clips are fine on Instagram (a 2.2-second Reel posted live), but LinkedIn still has a minimum.
+  assert.deepEqual(problemsFor(ig, 'hi', [{ ...video('short.mp4'), duration: 2 }]), []);
+  assert.ok(problemsFor(describe(linkedin, true), 'hi', [{ ...video('short.mp4'), duration: 2 }]).some((m) => /shorter than 3 seconds/.test(m)));
   assert.deepEqual(problemsFor(ig, 'hi', [{ ...video(), duration: 120 }]), []);
   assert.ok(problemsFor(ig, 'hi', [image(), { ...video(), duration: 120 }]).some((m) => /limit in a multi-file post is 1:00/.test(m)));
   // Unknown length (browser couldn't read it) isn't treated as a problem.

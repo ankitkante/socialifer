@@ -50,8 +50,8 @@ export default {
     mix: true,
     imageMB: 8,
     videoMB: 300,
-    // Reels run 3 seconds to 15 minutes; videos inside a carousel are capped at 60 seconds.
-    videoMinSeconds: 3,
+    // Reels run up to 15 minutes; videos inside a carousel are capped at 60 seconds. Meta's docs
+    // also say 3 seconds minimum, but a 2.2-second Reel posted fine on 2026-11-18, so it isn't checked.
     videoMaxSeconds: 15 * 60,
     carouselVideoMaxSeconds: 60,
     imageTypes: ['image/jpeg'],
