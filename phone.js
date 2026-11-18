@@ -7,15 +7,13 @@ import os from 'node:os';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import QRCode from 'qrcode';
 import { platforms } from './platforms/index.js';
-import { canCompress, describe, publish } from './publish.js';
-import { createQueue } from './queue.js';
+import { canCompress, describe } from './publish.js';
 import { httpError } from './media.js';
 import { appendPhoneLog, log, readPhoneLog } from './log.js';
 import { laptopStatus } from './status.js';
 
 const DIR = new URL('./phone/', import.meta.url);
 const PAIRING = new URL('pairing.json', DIR);
-const QUEUE_DIR = new URL('./queue/', import.meta.url);
 const DEFAULT_PORT = 3001;
 // Phone and laptop clocks are both set from the internet, so a minute either way is plenty.
 const MAX_SKEW_MS = 60_000;
@@ -170,12 +168,20 @@ export function createPhoneServer(key, queue) {
         const ids = (searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 100);
         return sendJson(res, 200, queue.status(ids));
       }
-      const post = /^\/app\/posts\/([a-f0-9]{32})(\/ready|\/files\/(\d{1,3}))?$/.exec(pathname);
+      // Every post on the laptop, from the page and the phone, for the app's Calendar and Posts tabs.
+      if (req.method === 'GET' && pathname === '/app/schedule') {
+        return sendJson(res, 200, { posts: queue.list(), now: Date.now() });
+      }
+      const post = /^\/app\/posts\/([a-f0-9]{32})(\/ready|\/move|\/cancel|\/now|\/files\/(\d{1,3}))?$/.exec(pathname);
       if (post) {
         const [, id, rest, n] = post;
         if (req.method === 'PUT' && !rest) return sendJson(res, 200, await queue.create(id, parseJson(raw)));
         if (req.method === 'PUT' && n !== undefined) return sendJson(res, 200, await queue.receiveFile(id, Number(n), req));
         if (req.method === 'POST' && rest === '/ready') return sendJson(res, 200, await queue.ready(id));
+        if (req.method === 'POST' && rest === '/move') return sendJson(res, 200, await queue.move(id, parseJson(raw)?.at));
+        if (req.method === 'POST' && rest === '/cancel') return sendJson(res, 200, await queue.cancel(id));
+        if (req.method === 'POST' && rest === '/now') return sendJson(res, 200, await queue.postNow(id));
+        if (req.method === 'PATCH' && !rest) return sendJson(res, 200, await queue.edit(id, parseJson(raw)));
         if (req.method === 'DELETE' && !rest) {
           await queue.remove(id);
           res.writeHead(204);
@@ -194,7 +200,8 @@ export function createPhoneServer(key, queue) {
 }
 
 // PHONE_PORT=off turns the phone server off (the tests do this).
-export async function startPhoneServer() {
+// queue: the server's post store (queue.js), shared with the web page.
+export async function startPhoneServer(queue) {
   const setting = process.env.PHONE_PORT?.trim();
   if (setting === 'off') return null;
   const port = setting ? Number(setting) : DEFAULT_PORT;
@@ -203,9 +210,6 @@ export async function startPhoneServer() {
     return null;
   }
   const key = await loadKey();
-  const queue = createQueue({ dir: QUEUE_DIR, publish });
-  await queue.load();
-  setInterval(() => queue.cleanup().catch((err) => log.warn(`Couldn't clean up old phone posts: ${err.message}`)), 60 * 60 * 1000).unref();
   const server = createPhoneServer(key, queue);
   try {
     // All interfaces, because the Wi-Fi address can change; requests from outside home networks are refused.

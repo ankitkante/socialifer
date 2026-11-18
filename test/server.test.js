@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const logDir = mkdtempSync(join(tmpdir(), 'sp-logs-'));
+const postsDir = mkdtempSync(join(tmpdir(), 'sp-posts-'));
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
@@ -50,7 +51,7 @@ before(async () => {
   // No platform credentials: an empty env keeps a developer's .env out of the test.
   server = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
     // LOG_DIR keeps the test's log lines out of the real logs/.
-    env: { PORT: String(port), PHONE_PORT: 'off', LOG_DIR: logDir, SystemRoot: process.env.SystemRoot },
+    env: { PORT: String(port), PHONE_PORT: 'off', LOG_DIR: logDir, POSTS_DIR: postsDir, SystemRoot: process.env.SystemRoot },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve) => server.stdout.on('data', (d) => d.toString().includes('running') && resolve()));
@@ -59,6 +60,7 @@ before(async () => {
 after(() => {
   server.kill();
   rmSync(logDir, { recursive: true, force: true });
+  rmSync(postsDir, { recursive: true, force: true });
 });
 
 test('serves the page, the shared rules and the platform list', async () => {
@@ -226,4 +228,53 @@ test('reports ffmpeg and tunnel status', async () => {
   assert.deepEqual(status.tunnel, { configured: false, reachable: false });
   // The health file the tunnel check fetches is public, like other /media/ files.
   assert.equal(await rawGet('/media/health', { Host: 'abc.trycloudflare.com', 'X-Forwarded-For': '1.2.3.4' }), 204);
+});
+
+const json = (method, path, body) =>
+  fetch(`${base}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+test('schedules a post from the page, lists it, and changes it while it waits', async () => {
+  const { id: image } = await (await upload(PNG, 'image/png')).json();
+  const later = Date.now() + 3 * 24 * 60 * 60 * 1000;
+
+  // Like the other write endpoints, a cross-site form post is refused.
+  const plain = await fetch(`${base}/api/schedule`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
+  assert.equal(plain.status, 415);
+  assert.equal((await json('POST', '/api/schedule', { text: 'Hi', platforms: ['x'], when: 'picked', at: Date.now() - 1000 })).status, 400);
+  assert.equal((await json('POST', '/api/schedule', { text: 'x'.repeat(300), platforms: ['x'], when: 'picked', at: later })).status, 400);
+
+  const res = await json('POST', '/api/schedule', { text: 'Later', platforms: ['x'], media: [image], when: 'picked', at: later });
+  assert.equal(res.status, 201);
+  const post = await res.json();
+  assert.equal(post.state, 'waiting');
+  assert.equal(post.kind, 'image');
+  assert.equal(post.at, later);
+  // The upload was copied, so deleting it doesn't affect the post.
+  await fetch(`${base}/api/media/${image}`, { method: 'DELETE' });
+
+  const { posts } = await (await fetch(`${base}/api/schedule`)).json();
+  assert.ok(posts.some((p) => p.id === post.id && p.text === 'Later'));
+
+  const moved = await (await json('POST', `/api/schedule/${post.id}/move`, { at: later + 60_000 })).json();
+  assert.equal(moved.post.at, later + 60_000);
+  const edited = await (await json('PUT', `/api/schedule/${post.id}`, { text: 'Edited', options: {} })).json();
+  assert.equal(edited.post.text, 'Edited');
+  assert.equal((await json('POST', `/api/schedule/${post.id}/cancel`, {})).status, 200);
+  assert.equal((await json('POST', `/api/schedule/${post.id}/cancel`, {})).status, 404);
+});
+
+test('a post sent straight from the page is kept for the Calendar', async () => {
+  await events(await post({ text: 'Straight away', platforms: ['x'] }));
+  for (let i = 0; i < 50; i++) {
+    const { posts } = await (await fetch(`${base}/api/schedule`)).json();
+    const kept = posts.find((p) => p.text === 'Straight away');
+    if (kept) {
+      assert.equal(kept.state, 'done');
+      assert.equal(kept.when, 'now');
+      assert.equal(kept.results[0].ok, false);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.fail('the post was not kept');
 });

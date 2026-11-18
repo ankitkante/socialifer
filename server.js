@@ -11,6 +11,7 @@ import {
 import { checkGenerator, NOT_SET, queueJob, getJob, stopJob, watch, finished, stopLeftover, cleanupTranscripts } from './subtitler.js';
 import { canCompress, describe, publish, failureMessage } from './publish.js';
 import { startPhoneServer } from './phone.js';
+import { createQueue, moveOldPosts, postsDir, postsUrl } from './queue.js';
 import { laptopStatus } from './status.js';
 
 const logDir = startLogFiles();
@@ -21,6 +22,14 @@ const HOST = '127.0.0.1';
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
 // A Whisper run left by a server that died mid-job would hold over 4 GB and make the next job fail.
 await stopLeftover();
+
+// Scheduled posts and the history of finished ones, from the page and the phone. Kept outside the project
+// (POSTS_DIR), so they survive git clean and fresh clones. Posts from the old queue/ folder move to the default
+// folder once; with POSTS_DIR set (as the tests do), nothing is moved.
+const moved = process.env.POSTS_DIR?.trim() ? 0 : await moveOldPosts(new URL('./queue/', import.meta.url), postsUrl());
+if (moved) log.info(`Moved ${moved} post${moved > 1 ? 's' : ''} from queue/ to ${postsDir()}`);
+const queue = createQueue({ dir: postsUrl(), publish });
+await queue.load();
 
 const STATIC_FILES = {
   '/': { file: 'public/index.html', type: 'text/html; charset=utf-8' },
@@ -255,9 +264,37 @@ const server = http.createServer(async (req, res) => {
       const send = (event) => {
         if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
       };
+      const postedAt = Date.now();
       const results = await publish(text.trim(), ids, media, options, subtitles, send, { keepVideos: true });
+      // Kept for the Calendar, and so later posts are spaced from this one; saved before 'done', since the
+      // page loads the schedule again then.
+      await queue.record({ text: text.trim(), platforms: ids, media, options, results, postedAt })
+        .catch((err) => log.warn(`Couldn't save the post for the Calendar: ${err.message}`));
       send({ type: 'done', results });
       return res.end();
+    }
+
+    // The Calendar and Posts: every post the laptop keeps, waiting or finished, from the page and the phone.
+    if (req.method === 'GET' && pathname === '/api/schedule') {
+      return sendJson(res, 200, { posts: queue.list(), now: Date.now() });
+    }
+
+    // A post for later: at the next free time (when: 'auto') or at a time the user picked ('picked', at).
+    if (req.method === 'POST' && pathname === '/api/schedule') {
+      requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
+      return sendJson(res, 201, await queue.createFromUploads(await readJsonBody(req)));
+    }
+
+    // Changing a waiting post: move it, cancel it, post it now, or edit its text and settings.
+    const scheduled = /^\/api\/schedule\/([a-f0-9]{32})(\/move|\/cancel|\/now)?$/.exec(pathname);
+    if (scheduled && (req.method === 'POST' || req.method === 'PUT')) {
+      requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
+      const [, id, action] = scheduled;
+      const body = await readJsonBody(req);
+      if (req.method === 'PUT' && !action) return sendJson(res, 200, await queue.edit(id, body));
+      if (req.method === 'POST' && action === '/move') return sendJson(res, 200, await queue.move(id, body?.at));
+      if (req.method === 'POST' && action === '/cancel') return sendJson(res, 200, await queue.cancel(id));
+      if (req.method === 'POST' && action === '/now') return sendJson(res, 200, await queue.postNow(id));
     }
 
     sendJson(res, 404, { error: 'Not found' });
@@ -294,7 +331,7 @@ server.listen(PORT, HOST, async () => {
   console.log(tool ? `Generate subtitles: using transcribe in ${tool.dir}`
     : problem ? `Generate subtitles is off: ${problem}`
       : 'Generate subtitles is off: TRANSCRIBE_DIR isn\'t set (see "Generating subtitles" in the README). Uploading an SRT still works.');
-  await startPhoneServer();
+  await startPhoneServer(queue);
 });
 
 const cleanup = () => Promise.all([
@@ -302,6 +339,7 @@ const cleanup = () => Promise.all([
   // Saved Whisper transcripts go a day after they were last used.
   cleanupTranscripts().catch((err) => log.warn(`Couldn't clean up old transcripts: ${err.message}`)),
   cleanupLogs().catch((err) => log.warn(`Couldn't clean up old log files: ${err.message}`)),
+  queue.cleanup().catch((err) => log.warn(`Couldn't clean up old posts: ${err.message}`)),
 ]);
 cleanup();
 setInterval(cleanup, 60 * 60 * 1000).unref();
