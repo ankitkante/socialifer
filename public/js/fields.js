@@ -2,6 +2,7 @@
 import { el } from './dom.js';
 import { effectiveText } from '/rules.js';
 import { FIELDS, fieldsOf, initialOf, savedOr } from '/fields.js';
+import { backgroundCss, slideBackground, slideStyle } from '/slides.js';
 import { state, hooks, read, write, KEYS } from './state.js';
 import { CONVERT_TO_JPEG, toJpeg, mediaMeta } from './uploads.js';
 
@@ -105,6 +106,18 @@ async function pickFieldImage(id, key, file) {
   hooks.update();
 }
 
+// A small drawing of a slide style on the chosen background: lines of text, or a big first line for the cover.
+function styleThumb(styleId, backgroundId) {
+  const style = slideStyle(styleId);
+  const thumb = el('span', { className: `style-thumb ${style.align}` });
+  Object.assign(thumb.style, backgroundCss(backgroundId, 116));
+  thumb.style.color = slideBackground(backgroundId).text;
+  const bars = style.cover ? ['80%', '55%'] : ['80%', '70%', '76%', '44%'];
+  thumb.append(...bars.map((width) => el('i', { className: style.cover ? 'big' : '', style: `width: ${width}` })));
+  if (style.cover) thumb.append(el('i', { className: 'small', style: 'width: 30%' }));
+  return thumb;
+}
+
 // One control. Every field gets a hidden error line under it, filled in by main.js's checks.
 export function renderField(id, f) {
   const values = state.settings[id];
@@ -115,7 +128,24 @@ export function renderField(id, f) {
     hooks.update();
   };
   let control;
-  if (f.type === 'check') {
+  if (f.type === 'slideStyle' || f.type === 'slideBackground') {
+    const swatches = f.type === 'slideBackground';
+    const label = el('span', {}, f.label, swatches ? el('strong', { className: 'picked', textContent: ` · ${slideBackground(values[f.key]).name}` }) : '');
+    control = el('div', { className: 'field' }, label, el('div', { className: swatches ? 'swatches' : 'slide-styles' },
+      ...f.choices.map(([value, name]) => {
+        const button = swatches
+          ? el('button', { type: 'button', className: 'swatch', title: name })
+          : el('button', { type: 'button', className: 'slide-style' }, styleThumb(value, values.slideBackground), el('span', { textContent: name }));
+        if (swatches) {
+          Object.assign(button.style, backgroundCss(value, 44));
+          button.setAttribute('aria-label', name);
+        }
+        button.setAttribute('aria-pressed', String(values[f.key] === value));
+        // Rebuilt, so the other picker's thumbnails take the new choice.
+        button.addEventListener('click', () => { state.sectionsKey = ''; set(value); });
+        return button;
+      })));
+  } else if (f.type === 'check') {
     const box = el('input', { type: 'checkbox', checked: Boolean(values[f.key]) });
     box.addEventListener('change', () => set(box.checked));
     control = el('label', { className: 'field check' }, box, f.label);

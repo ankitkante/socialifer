@@ -13,6 +13,7 @@ import { canCompress, describe, publish, failureMessage } from './publish.js';
 import { startPhoneServer } from './phone.js';
 import { createQueue, moveOldPosts, postsDir, postsUrl } from './queue.js';
 import { laptopStatus } from './status.js';
+import { previewSlides } from './slides.js';
 
 const logDir = startLogFiles();
 const PORT = Number(process.env.PORT) || 3000;
@@ -36,6 +37,7 @@ const STATIC_FILES = {
   '/styles.css': { file: 'public/styles.css', type: 'text/css; charset=utf-8' },
   '/rules.js': { file: 'public/rules.js', type: 'text/javascript; charset=utf-8' },
   '/fields.js': { file: 'public/fields.js', type: 'text/javascript; charset=utf-8' },
+  '/slides.js': { file: 'public/slides.js', type: 'text/javascript; charset=utf-8' },
   '/favicon.ico': { file: 'brand/favicon.ico', type: 'image/x-icon' },
   '/favicon.svg': { file: 'brand/favicon.svg', type: 'image/svg+xml' },
   '/fonts/inter-latin.woff2': { file: 'public/fonts/inter-latin.woff2', type: 'font/woff2' },
@@ -232,6 +234,13 @@ const server = http.createServer(async (req, res) => {
       stopJob(job);
       res.writeHead(204);
       return res.end();
+    }
+
+    // The slides a text-only Instagram post becomes, small, for the previews.
+    if (req.method === 'POST' && pathname === '/api/slides') {
+      requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
+      const { text = '', style, background } = await readJsonBody(req);
+      return sendJson(res, 200, { slides: await previewSlides(String(text), style, background) });
     }
 
     if (req.method === 'POST' && pathname === '/api/post') {

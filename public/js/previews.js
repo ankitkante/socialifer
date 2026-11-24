@@ -3,6 +3,7 @@
 import { el, truncate } from './dom.js';
 import { countFor, effectiveText, resolveTitle, splitThread, formatDuration } from '/rules.js';
 import { isVideoFile } from './uploads.js';
+import { hooks } from './state.js';
 
 const SHORTS_MAX_SECONDS = 180;
 const YOUTUBE_TITLE_SHOWN = 70; // search results cut titles off around here
@@ -16,11 +17,12 @@ const FEED_RATIO_MAX = 1.91;
 
 const ratioOf = (m) => (m?.width && m?.height ? m.width / m.height : null);
 
-// One labelled frame, for platforms that show the same picture in several places.
+// One labelled frame, for platforms that show the same picture in several places. The label goes on top, like
+// every other heading on the page, so it's clear where each view starts.
 function previewView(label, hint, ...content) {
   return el('figure', { className: 'preview-view' },
-    ...content,
-    el('figcaption', {}, el('strong', { textContent: label }), hint ? el('span', { textContent: hint }) : ''));
+    el('figcaption', {}, el('strong', { textContent: label }), hint ? el('span', { textContent: hint }) : ''),
+    ...content);
 }
 
 function mediaBox(item, { ratio, placeholder, corner }) {
@@ -127,9 +129,69 @@ function youtube({ text, options, items }) {
   );
 }
 
+// ---- Carousels you can step through ----
+
+// Which slide each carousel shows, kept across redraws (the preview is rebuilt as the post changes).
+const showing = { index: 0 };
+
+// The big picture with ‹ › and its "2/3" corner, then every slide small; clicking one shows it big.
+// pics: [{ src, alt }], ratio: the big picture's shape.
+function carousel(pics, { ratio, placeholder }) {
+  if (showing.index >= pics.length) showing.index = 0;
+  const go = (i) => { showing.index = i; hooks.update(); };
+  const big = mediaBox(pics[showing.index] ? { preview: pics[showing.index].src } : null,
+    { ratio, placeholder, corner: pics.length > 1 ? `${showing.index + 1}/${pics.length}` : '' });
+  if (showing.index > 0) big.append(stepButton('prev', 'Previous slide', () => go(showing.index - 1)));
+  if (showing.index < pics.length - 1) big.append(stepButton('next', 'Next slide', () => go(showing.index + 1)));
+  const strip = pics.length > 1 ? el('div', { className: 'slide-strip' }, ...pics.map((pic, i) => {
+    const button = el('button', { type: 'button', ariaLabel: `Show slide ${i + 1}` }, el('img', { src: pic.src, alt: '' }));
+    button.setAttribute('aria-label', `Show slide ${i + 1}`);
+    button.setAttribute('aria-pressed', String(i === showing.index));
+    button.addEventListener('click', () => go(i));
+    return button;
+  })) : '';
+  return { big, strip };
+}
+
+function stepButton(side, label, onClick) {
+  const button = el('button', { type: 'button', className: `step ${side}`, textContent: side === 'prev' ? '‹' : '›' });
+  button.setAttribute('aria-label', label);
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+// Slides of a text-only post, drawn by the server (the same code that makes the posted ones). Asked for a moment
+// after typing stops; the last answer stays on screen meanwhile.
+const slideCache = { key: '', slides: null, timer: null, error: '' };
+
+function textSlideImages(caption, style, background) {
+  const key = JSON.stringify([caption, style, background]);
+  if (key !== slideCache.key) {
+    slideCache.key = key;
+    clearTimeout(slideCache.timer);
+    slideCache.timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/slides', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: caption, style, background }),
+        });
+        const data = await res.json();
+        if (slideCache.key !== key) return;
+        if (!res.ok) throw new Error(data.error || `The slides couldn't be drawn (${res.status})`);
+        Object.assign(slideCache, { slides: data.slides, error: '' });
+      } catch (err) {
+        if (slideCache.key === key) slideCache.error = err.message;
+      }
+      hooks.update();
+    }, 400);
+  }
+  return slideCache;
+}
+
 function instagram({ text, options, items }) {
   const o = options.instagram ?? {};
   const story = o.postAs === 'story';
+  const captionText = effectiveText(text, o, 'instagram');
+  if (!items.length && !story && captionText.trim()) return textCarousel(captionText, o);
   const first = items[0];
   const vertical = story || (items.length === 1 && first && isVideoFile(first.file));
   const caption = effectiveText(text, o, 'instagram');
@@ -157,9 +219,9 @@ function instagram({ text, options, items }) {
   }
 
   // Grid crops aren't documented. These follow a Reel measured on the user's profile (2026-11-09):
-  // tiles keep the lower part of the cover, not the middle (styles.css, .ig-tile.grid / .reels-tab).
+  // tiles keep the lower part of the cover, not the middle (styles.css, .ig-tile.profile-grid / .reels-tab).
   const gridTile = previewView('Profile grid', '3:4, cut more at the top. Approximate.',
-    el('div', { className: 'ig-tile grid' }, mediaBox(cover, { ratio: '3 / 4', placeholder: '' })));
+    el('div', { className: 'ig-tile profile-grid' }, mediaBox(cover, { ratio: '3 / 4', placeholder: '' })));
 
   if (vertical) {
     // A landscape video with no cover plays whole, with bars (checked live); a cover fills the frame.
@@ -167,7 +229,7 @@ function instagram({ text, options, items }) {
     if (!customCover && ratioOf(first?.meta) > 1) full.classList.add('fit');
     full.append(
       el('div', { className: 'ig-band top', textContent: 'Reels' }),
-      el('div', { className: 'ig-band bottom' }, el('strong', { textContent: 'Your account' }), caption ? el('div', {}, ...captionNodes) : ''),
+      el('div', { className: 'ig-band bottom' }, el('strong', { textContent: 'yourusername' }), caption ? el('div', {}, ...captionNodes) : ''),
       el('div', { className: 'safe-box' }),
     );
     return el('div', { className: 'preview' },
@@ -188,16 +250,42 @@ function instagram({ text, options, items }) {
 
   const ratio = ratioOf(first?.meta);
   const feedRatio = ratio ? Math.min(FEED_RATIO_MAX, Math.max(FEED_RATIO_MIN, ratio)) : FEED_RATIO_MIN;
+  // A carousel steps through its files; a single photo is just shown.
+  const { big, strip } = items.length > 1
+    ? carousel(items.map((item) => ({ src: item.thumb || item.preview })), { ratio: String(feedRatio), placeholder: '' })
+    : { big: mediaBox(cover, { ratio: String(feedRatio), placeholder: 'Instagram needs a photo or video', corner }), strip: '' };
   return el('div', { className: 'preview' },
     el('span', { className: 'preview-label', textContent: `Preview: ${kind}` }),
     el('div', { className: 'preview-views' },
       previewView('Feed', 'At the photo\'s own shape, from 4:5 to 1.91:1.', el('div', { className: 'preview-card ig-feed' },
-        mediaBox(cover, { ratio: String(feedRatio), placeholder: 'Instagram needs a photo or video', corner }),
-        caption ? el('div', { className: 'preview-body' }, el('div', { className: 'preview-text' }, el('strong', { textContent: 'Your account ' }), ...captionNodes)) : '',
-      )),
+        big,
+        caption ? el('div', { className: 'preview-body' }, el('div', { className: 'preview-text' }, el('strong', { textContent: 'yourusername ' }), ...captionNodes)) : '',
+      ), strip),
       gridTile,
     ),
     ...hints,
+  );
+}
+
+// A text-only post: its slides as the server will post them, and the caption, which keeps the whole text.
+function textCarousel(caption, o) {
+  // A new style splits the text differently, so the preview starts again from the first slide.
+  if (showing.style !== o.slideStyle) Object.assign(showing, { style: o.slideStyle, index: 0 });
+  const { slides, error } = textSlideImages(caption, o.slideStyle, o.slideBackground);
+  const pics = (slides ?? []).map((src) => ({ src }));
+  const { big, strip } = carousel(pics, { ratio: '4 / 5', placeholder: error || 'Drawing the slides…' });
+  const kind = pics.length > 1 ? `Carousel of ${pics.length}` : 'Post';
+  return el('div', { className: 'preview' },
+    el('span', { className: 'preview-label', textContent: `Preview: ${kind}` }),
+    el('div', { className: 'preview-views' },
+      previewView('Feed', pics.length > 1 ? 'Click a slide, or use the arrows, to see each one.' : '', el('div', { className: 'preview-card ig-feed' },
+        big,
+        el('div', { className: 'preview-body' }, el('div', { className: 'preview-text' },
+          el('strong', { textContent: 'yourusername ' }), ...withTags(clipped(caption, INSTAGRAM_CAPTION_SHOWN)))),
+      ), strip),
+      previewView('Profile grid', 'The first slide, 3:4, cut more at the top. Approximate.',
+        el('div', { className: 'ig-tile profile-grid' }, mediaBox(pics[0] ? { preview: pics[0].src } : null, { ratio: '3 / 4', placeholder: '' }))),
+    ),
   );
 }
 
@@ -207,7 +295,7 @@ function x({ text, options, items, platform }) {
   const length = countFor('x', body);
   const parts = o.thread ? splitThread('x', body, platform.limit) : [body];
   const posts = parts.map((part, i) => el('div', { className: 'post' },
-    el('div', { className: 'preview-meta' }, el('strong', { textContent: 'Your account' }), i ? ' · reply' : ''),
+    el('div', { className: 'preview-meta' }, el('strong', { textContent: 'yourusername' }), i ? ' · reply' : ''),
     el('div', { className: 'preview-text', textContent: part || 'Your post' }),
     i === 0 && items[0] ? mediaBox(items[0], { placeholder: '' }) : '',
     el('span', {

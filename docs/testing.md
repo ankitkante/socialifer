@@ -8,6 +8,13 @@ What has been tried live, and what's still to try. Offline checks (`npm test`) a
 
 ## To test
 
+### Instagram text carousels (built 2026-11-24, [platforms.md](platforms.md))
+
+- **Web page:** Slide style and Background being remembered for the next post; Story hidden.
+- **Posting:** a one-slide post; each slide's alt text; a scheduled text post.
+- **The app (needs the APK rebuilt or Expo Go):** the same pickers; the slides from the laptop when connected, the phone's own drawing offline (backgrounds, Hindi); tapping a slide opens it full width and swipes; a text post sent from the phone going out as slides.
+- **Photo carousels:** the web preview's ‹ › and small slides; on the app, tapping a file and swiping.
+
 ### Scheduling (built 2026-11-18, [scheduling.md](scheduling.md))
 
 - **Web page, writing:** Write, then Review; Back to writing; Next free time and Pick a time; the day strip (colours, clicking it picks a time), the warnings and their "next free time" link; the button's wording (Post now, Post at…, Schedule for…).
@@ -76,6 +83,11 @@ What has been tried live, and what's still to try. Offline checks (`npm test`) a
 - **Instagram trial reels:** once the account has 200 followers (see Instagram in [platforms.md](platforms.md)).
 
 ## Tested live
+
+### Instagram text carousels (2026-11-24, web page)
+
+- **Web page:** the note, Slide style and Background, the laptop's preview (‹ ›, clicking a small slide, back to slide 1 on a new style), paragraphs kept together, Hindi in every style, over 10 slides blocked.
+- **Posting:** a text-only carousel posted to Instagram from the web page.
 
 ### Platforms
 

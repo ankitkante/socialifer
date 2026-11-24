@@ -24,7 +24,17 @@ Everything still to do: features and fixes not built. What's built but not yet t
 
 ## 3. Instagram
 
-- **Text-only posts as a carousel** (idea): turn the text into an image carousel, since Instagram needs an image or video.
+- **Text-only posts as a carousel** (B · idea; built 2026-11-24, to test; remove once tested): turn the text into an image carousel, since Instagram needs an image or video. Mockup: "Instagram text carousel mockup", https://claude.ai/artifact/Kob5VcG9U2rD6zvydpqMw2 (private to the user). Agreed so far:
+  - **Automatic:** a text-only post with Instagram ticked gets slides; no button (a photo plus text-slides isn't needed).
+  - **Splitting (changed 2026-11-24 after the first web test):** paragraphs stay together (short ones share a slide; one up to 20% over a slide stays whole, the type shrinks); a longer one, or text with no paragraphs, is split at sentences into about equally full slides. A sentence is only cut when it alone is too long for a slide. Line breaks are kept.
+  - **Over 10 slides:** Instagram gets a problem and the post is blocked until shortened or Instagram is unticked.
+  - **Per post, two choices:** a Style (A centred bold, B left-aligned with an arrow, C first sentence as a cover) and a Background (12 presets: Paper (default), Glow, Midnight, Sunset, Ocean, Aurora, Peach, Mint, Forest, Ripple, Lemon, Ink). No slide numbers (Instagram shows its own). Slides are 4:5, 1080 × 1350.
+  - **Caption:** still holds the full text (search and screen readers), even though the slides show it too.
+  - **Picker:** Slide style and Background show in Instagram's fields only for a text-only post; boards "Web app: Instagram tab" and "Phone app: Instagram card" in the mockup.
+  - **No Stories from text:** "Post as: Story" is hidden for a text-only post; carousels only. Later idea: a one-slide 9:16 Story when the text fits.
+  - **The server makes the slides:** clients send the text, style and background; the server draws the JPEGs with `@napi-rs/canvas` (tested 2026-11-24: Hindi conjuncts and matras right, loads the bundled WOFF2 fonts; `sharp` ignored them) and the previews come from the server. Offline, the phone draws an approximate preview with `react-native-svg`; the slide text is exact, since the split is in `rules.js`.
+  - **Clickable preview:** web: click a small slide or use ‹ › on the big one; phone: tap a slide to open it full width and swipe. Photo and video carousels get the same.
+- **Custom slide styles for text carousels** (B · idea, 2026-11-24, after the presets round): the first round has neutral background presets only. Later, let each brand set its own look: background and text colours, a font from a short list, a logo, the @handle and slide numbers, saved once rather than per post. Nothing hard-coded, since many brands use the app; once there are several accounts, each gets its own style.
 
 ## 4. Subtitles (web page only for now)
 
@@ -39,6 +49,7 @@ The whole feature will be re-reviewed separately; these items wait for that.
 - **"Post to" pills look like the tabs** (W · live test, design first): the pills choose platforms; the tabs right below (All / YouTube / X / Instagram) open each platform's settings. The user keeps clicking a pill when they mean the tab, which also unselects the platform.
 - **Thumbnail title tool** (B · live test, design first): add a title to an existing thumbnail inside the app. The user does this today in a separate Claude conversation ("Add caption to thumbnails"); ask what it does and what goes wrong. The previews already know the safe areas: an Instagram cover keeps 7.5–92.5% of the width and 21.875–78.125% of the height (`.safe-box` in `styles.css`); the Shorts player covers the bottom 25%. Hindi needs Nirmala UI on Windows.
 - **Rethink image handling on the phone** (P · phone test, 2026-11-17, design first): photos taken on a phone are often too big for the platforms (Instagram 8 MB, X 5 MB, YouTube thumbnails 2 MB), so in practice photos and thumbnails can't be posted from the phone. Today the app takes photos as they are (`quality: 1` in `Compose.js`) and only reports the size. This revisits the thumbnail decision in AGENTS.md ("never shrink it for the user"); discuss the options with the user first.
+- **Say when a platform's own text didn't follow the main post** (B · carousel test, 2026-11-24): once a platform's box on Review is edited, it stops following the main post, so going back to Write and changing the text leaves that platform with the old text, unnoticed (it happened with Instagram's caption). Proposed: a note in that platform's tab (and card on the app), e.g. "Instagram has its own text, so it didn't change. Use the main post's text again", with the link doing just that.
 - **Posts screen redesign** (P · idea, 2026-11-17, design first): the app's landing screen feels crude, just the working screen. Suggested: New post as a round plum ＋ button at the bottom right; the "Connected to laptop" line as a small green/amber chip by the Laptop link; rows with a photo thumbnail, the start of the text and platform logos, grouped under Ready, On the laptop and Finished; an empty screen with the Ring of fire mark and a line on how posting works; a splash screen like traditional apps; a small Ring of fire burst when a post goes live (on the web app too).
 
 ## 6. Phone ↔ laptop

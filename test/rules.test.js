@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countFor, problemsFor, burnLanguage, burnTarget, parseSrt, formatSrt, isSubtitleLanguage, SUBTITLE_LANGUAGES } from '../public/rules.js';
+import { countFor, problemsFor, splitSlides, textSlides, burnLanguage, burnTarget, parseSrt, formatSrt, isSubtitleLanguage, SUBTITLE_LANGUAGES } from '../public/rules.js';
 import x from '../platforms/x.js';
 import mastodon from '../platforms/mastodon.js';
 import instagram from '../platforms/instagram.js';
@@ -44,10 +44,58 @@ test('enforces file sizes in decimal MB', () => {
 });
 
 test('Instagram needs media, JPEG images and a public URL', () => {
-  assert.ok(problemsFor(describe(instagram, true), 'hi', []).some((m) => /Needs an image or video/.test(m)));
+  assert.ok(problemsFor(describe(instagram, true), '', []).some((m) => /Needs an image or video/.test(m)));
   assert.ok(problemsFor(describe(instagram, false), 'hi', [image()]).some((m) => /TUNNEL_URL/.test(m)));
   assert.ok(problemsFor(describe(instagram, true), 'hi', [image('a.png', 10, 'image/png')]).some((m) => /JPEG/.test(m)));
   assert.deepEqual(problemsFor(describe(instagram, true), 'hi', [image(), video()]), []);
+});
+
+test('splits text without paragraphs into slides of whole sentences, about equally full', () => {
+  const s = (n) => `Sentence number ${n} has a few words in it.`; // 42 characters
+  const text = [1, 2, 3, 4, 5, 6, 7].map(s).join(' ');
+  // 160 characters a slide: 3 slides, and no sentence left alone at the end.
+  assert.deepEqual(splitSlides(text, 'centred'), [[1, 2], [3, 4], [5, 6, 7]].map((group) => group.map(s).join(' ')));
+  // Hindi sentences end with a danda.
+  assert.equal(splitSlides(`${'क '.repeat(70)}।  ${'ख '.repeat(70)}।`, 'centred').length, 2);
+});
+
+test('paragraphs stay together; short ones share a slide', () => {
+  const text = `The entire world cares about fonts because Steve Jobs took a calligraphy class.
+
+Entire marketing and design teams discuss typography when creating content. All of this just because one person took a class and then later decided to include fonts in his product.
+
+This tells us that everything that you do matters. Every small insignificant skill you acquire will eventually come back and help you in some way.
+
+So, keep learning whatever you want to. There will be a use for it someday.`;
+  const paragraphs = text.split('\n\n');
+  // The second paragraph (180 characters) is a little over a slide but stays whole.
+  assert.deepEqual(splitSlides(text, 'centred'), paragraphs);
+  assert.deepEqual(splitSlides('One short line.\n\nAnother one.', 'centred'), ['One short line.\n\nAnother one.']);
+  // Line breaks inside a paragraph are kept.
+  assert.deepEqual(splitSlides('Roses are red.\nViolets are blue.', 'centred'), ['Roses are red.\nViolets are blue.']);
+});
+
+test('only a sentence too long for a slide is split, at a word', () => {
+  const long = Array(60).fill('word').join(' ') + '.'; // 300 characters
+  const slides = splitSlides(`${long} Short one.`, 'centred');
+  assert.ok(slides.every((slide) => slide.length <= 160));
+  assert.equal(slides.join(' '), `${long} Short one.`);
+});
+
+test('the cover style puts the first sentence alone on slide 1', () => {
+  assert.deepEqual(splitSlides('A hook. Then the rest. And more.', 'cover'), ['A hook.', 'Then the rest. And more.']);
+});
+
+test('a text-only Instagram post becomes slides, up to 10', () => {
+  const ig = describe(instagram, true);
+  assert.deepEqual(problemsFor(ig, 'Just some text.', []), []);
+  assert.deepEqual(textSlides(ig, 'Just some text.', [], {}), ['Just some text.']);
+  assert.equal(textSlides(ig, 'Just some text.', [image()], {}), null);
+  assert.ok(problemsFor(describe(instagram, false), 'Just some text.', []).some((m) => /TUNNEL_URL/.test(m)));
+  const eleven = Array(11).fill('x'.repeat(150) + '.').join(' ');
+  assert.ok(problemsFor(ig, eleven, []).some((m) => /needs 11 slides/.test(m)));
+  // A Story still needs a file.
+  assert.ok(problemsFor(ig, 'Just some text.', [], { postAs: 'story' }).some((m) => /Story takes exactly one/.test(m)));
 });
 
 test('YouTube needs one video and a title, falling back to the first line', async () => {

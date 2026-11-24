@@ -1,4 +1,6 @@
 // Shared by the browser and the server so both agree on what each platform accepts.
+import { slideStyle } from './slides.js';
+
 // React Native's engine (Hermes) has no Intl.Segmenter, so the phone app gets a close count instead:
 // code points, not counting combining marks (Hindi vowel signs) or emoji joiners. The server counts exactly.
 const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null;
@@ -164,6 +166,130 @@ function threadFor(platform, text, options) {
   return platform.threads && options.thread ? splitThread(platform.id, text, platform.limit) : null;
 }
 
+// ---- Text carousels: a text-only post as slides (Instagram) ----
+
+// Hindi sentences end with a danda (।).
+const SLIDE_SENTENCE_END = /[.!?…।॥]["'”’)\]]*$/;
+
+// The first words of `text` that fit in `room` characters, and the rest. A single word longer than that is cut.
+function takeWords(text, room) {
+  const words = text.split(' ');
+  let head = '';
+  let i = 0;
+  for (; i < words.length; i++) {
+    const next = head ? `${head} ${words[i]}` : words[i];
+    if (graphemes(next) > room) break;
+    head = next;
+  }
+  if (!head) {
+    const cut = segmenter ? sliceGraphemes(words[0], room) : [...words[0]].slice(0, room).join('');
+    return [cut, [words[0].slice(cut.length), ...words.slice(1)].join(' ').trim()];
+  }
+  return [head, words.slice(i).join(' ')];
+}
+
+// A paragraph that's a little over a slide's budget stays whole; the laptop shrinks the type to fit it.
+const PARAGRAPH_SLACK = 1.2;
+
+// A paragraph's sentences, each with what came before it: a space, or a line break kept from the text.
+function sentencesOf(paragraph) {
+  const out = [];
+  let current = '';
+  let before = '';
+  let gap = '';
+  for (const token of paragraph.split(/(\s+)/)) {
+    if (!token) continue;
+    if (!/\S/.test(token)) { gap = token.includes('\n') ? '\n' : ' '; continue; }
+    if (current) current += gap; else before = gap;
+    current += token;
+    gap = '';
+    if (SLIDE_SENTENCE_END.test(token)) { out.push({ text: current, before }); current = ''; }
+  }
+  if (current) out.push({ text: current, before });
+  return out;
+}
+
+const joinSentences = (list) => list.map((s, i) => (i ? s.before || ' ' : '') + s.text).join('');
+
+// A paragraph too long for one slide, split at sentences into as few slides as it needs, about equally full, so
+// no sentence is left alone at the end. Only a sentence too long for a slide by itself is split, at a word.
+function balanced(sentences, budget) {
+  const items = sentences.flatMap((s) => {
+    const pieces = [];
+    let { text, before } = s;
+    while (graphemes(text) > budget) {
+      const [head, rest] = takeWords(text, budget);
+      pieces.push({ text: head, before });
+      text = rest;
+      before = ' ';
+    }
+    if (text) pieces.push({ text, before });
+    return pieces;
+  });
+  const total = graphemes(joinSentences(items));
+  // Sentences don't divide evenly, so a split into `count` slides can need one more; then try with one more.
+  for (let count = Math.ceil(total / budget); ; count++) {
+    const target = total / count;
+    const parts = [];
+    let current = [];
+    for (const s of items) {
+      const now = graphemes(joinSentences(current));
+      const next = graphemes(joinSentences([...current, s]));
+      // A new slide when this one is full, or when it's closer to an equal share without the next sentence.
+      if (current.length && (next > budget || (parts.length < count - 1 && Math.abs(now - target) < Math.abs(next - target)))) {
+        parts.push(current);
+        current = [s];
+      } else current.push(s);
+    }
+    if (current.length) parts.push(current);
+    if (parts.length <= count) return parts.map(joinSentences);
+  }
+}
+
+// The text of each slide. Paragraphs (split by a blank line) stay together: short ones share a slide, a blank
+// line between them; one too long for a slide is split at sentences (balanced). Text with no paragraphs is one
+// long paragraph. Line breaks inside a paragraph are kept. The "cover" style puts the first sentence alone on slide 1.
+export function splitSlides(text, styleId) {
+  const style = slideStyle(styleId);
+  const paragraphs = text.replace(/\r\n?/g, '\n').split(/\n[ \t]*\n\s*/)
+    .map((p) => p.replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').trim())
+    .filter(Boolean);
+  if (!paragraphs.length) return [];
+
+  const slides = [];
+  if (style.cover) {
+    const [first, ...others] = sentencesOf(paragraphs[0]);
+    const [head, rest] = takeWords(first.text, style.cover.budget);
+    slides.push(head);
+    const remaining = joinSentences([...(rest ? [{ text: rest, before: '' }] : []), ...others]).trim();
+    if (remaining) paragraphs[0] = remaining; else paragraphs.shift();
+  }
+  let slide = '';
+  const flush = () => { if (slide) slides.push(slide); slide = ''; };
+  for (const p of paragraphs) {
+    const length = graphemes(p);
+    if (length > style.budget * PARAGRAPH_SLACK) {
+      flush();
+      slides.push(...balanced(sentencesOf(p), style.budget));
+    } else if (slide && graphemes(slide) + 2 + length <= style.budget) {
+      slide += `\n\n${p}`;
+    } else {
+      flush();
+      slide = p;
+    }
+  }
+  flush();
+  return slides;
+}
+
+// The slides a platform makes from a text-only post, or null when it doesn't (it has media, or the platform
+// can't). Instagram needs an image or video, so its text becomes images; options.slideStyle picks the layout.
+export function textSlides(platform, text, media, options = {}) {
+  if (!platform.media?.textSlides || media.length || options.postAs === 'story') return null;
+  const own = effectiveText(text, options, platform.id);
+  return own.trim() ? splitSlides(own, options.slideStyle) : null;
+}
+
 // ---- Per-platform fields ----
 
 // "a, b\nc" -> ['a', 'b', 'c']; used for YouTube tags.
@@ -232,6 +358,12 @@ export function adjustmentsFor(platform, media, options = {}, text = '') {
   if (platform.id === 'instagram' && options.postAs === 'story' && effectiveText(text, options, platform.id).trim()) {
     notes.push("Stories don't show captions, so the text won't appear");
   }
+  const slides = textSlides(platform, text, media, options);
+  if (slides && slides.length <= (platform.media.maxItems ?? Infinity)) {
+    notes.push(slides.length > 1
+      ? `No photo or video, so your text becomes a carousel of ${slides.length} slides`
+      : 'No photo or video, so your text becomes an image');
+  }
   return notes;
 }
 
@@ -267,12 +399,16 @@ export function problemsFor(platform, text, media, options = {}) {
 
   const videos = media.filter(isVideo);
   const images = media.filter((m) => !isVideo(m));
-  if (r.requiresMedia && media.length === 0) problems.push(r.maxImages ? 'Needs an image or video' : 'Needs a video');
+  const slides = textSlides(platform, mainText, media, options);
+  if (slides && slides.length > r.maxItems) {
+    problems.push(`This text needs ${slides.length} slides; ${platform.name ?? 'it'} takes ${r.maxItems} at most. Shorten it, or untick ${platform.name ?? 'it'}`);
+  }
+  if (r.requiresMedia && media.length === 0 && !slides) problems.push(r.maxImages ? 'Needs an image or video' : 'Needs a video');
   if (images.length > r.maxImages) problems.push(r.maxImages ? `Up to ${plural(r.maxImages, 'image')}` : 'Images not supported');
   if (videos.length > r.maxVideos) problems.push(r.maxVideos ? `Up to ${plural(r.maxVideos, 'video')}` : 'Videos not supported');
   if (!r.mix && images.length && videos.length) problems.push("Can't mix images and videos");
   if (media.length > r.maxItems) problems.push(`Up to ${r.maxItems} files per post`);
-  if (r.needsPublicUrl && media.length && !platform.publicUrlReady) problems.push('Media needs TUNNEL_URL (see README)');
+  if (r.needsPublicUrl && (media.length || slides) && !platform.publicUrlReady) problems.push('Media needs TUNNEL_URL (see README)');
 
   for (const m of images) {
     if (r.imageTypes && !r.imageTypes.includes(m.type)) problems.push(`${m.name}: ${r.imageTypesLabel}`);

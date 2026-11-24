@@ -67,6 +67,7 @@ test('serves the page, the shared rules and the platform list', async () => {
   assert.equal((await fetch(`${base}/`)).status, 200);
   assert.equal((await fetch(`${base}/rules.js`)).status, 200);
   assert.equal((await fetch(`${base}/fields.js`)).status, 200);
+  assert.equal((await fetch(`${base}/slides.js`)).status, 200);
   const platforms = await (await fetch(`${base}/api/platforms`)).json();
   assert.ok(platforms.length >= 9);
   assert.ok(platforms.every((p) => p.configured === false && Array.isArray(p.envVars) && p.media));
@@ -81,6 +82,19 @@ test('rejects foreign hosts and tunnelled requests to the app', async () => {
 test('rejects requests that could be sent cross-site without a preflight', async () => {
   const res = await fetch(`${base}/api/post`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
   assert.equal(res.status, 415);
+  const slides = await fetch(`${base}/api/slides`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
+  assert.equal(slides.status, 415);
+});
+
+test('draws the slides of a text-only post for the preview', async () => {
+  const res = await fetch(`${base}/api/slides`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'A first sentence. हिंदी में दूसरा वाक्य।', style: 'cover', background: 'midnight' }),
+  });
+  const { slides } = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(slides.length, 2);
+  assert.ok(slides.every((s) => s.startsWith('data:image/jpeg;base64,')));
 });
 
 test('uploads, serves (with ranges and through a tunnel) and deletes media', async () => {

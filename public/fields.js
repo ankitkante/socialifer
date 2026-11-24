@@ -1,6 +1,7 @@
 // Each platform's extra fields (YouTube's title, Instagram's Post as, X's thread...), shared by the web page
 // (public/js/fields.js draws them) and the phone app (mobile/src/Fields.js). Plain data: no page code here.
 import { LANGUAGES as ALL_LANGUAGES, SUBTITLE_LANGUAGES } from './rules.js';
+import { SLIDE_STYLES, SLIDE_BACKGROUNDS } from './slides.js';
 
 const YOUTUBE_CATEGORIES = [
   ['1', 'Film & Animation'], ['2', 'Autos & Vehicles'], ['10', 'Music'], ['15', 'Pets & Animals'], ['17', 'Sports'],
@@ -12,6 +13,9 @@ const LANGUAGES = [['', 'Not set'], ...ALL_LANGUAGES];
 const AUDIO_LANGUAGES = [['', 'Not set'], ...SUBTITLE_LANGUAGES];
 const singleVideo = ({ media, values }) => media.length === 1 && media[0].type.startsWith('video/') && values.postAs !== 'story';
 const hasImage = ({ media }) => media.some((m) => !m.type.startsWith('video/'));
+const hasMedia = ({ media }) => media.length > 0;
+// A text-only post goes to Instagram as slides of its text (slides.js).
+const textOnly = ({ media }) => media.length === 0;
 
 // Each platform's tab is built from this list. `sticky` values are remembered between posts; `when`
 // hides (and stops sending) fields that don't apply to what's attached; `beforeText` goes above the
@@ -42,7 +46,12 @@ export const FIELDS = {
   instagram: {
     textLabel: 'Caption',
     main: [
-      { key: 'postAs', type: 'select', label: 'Post as', initial: 'feed', choices: [['feed', 'Post or Reel'], ['story', 'Story']] },
+      // Hidden for text-only posts: a Story takes one image, and text becomes a carousel.
+      { key: 'postAs', type: 'select', label: 'Post as', initial: 'feed', choices: [['feed', 'Post or Reel'], ['story', 'Story']], when: hasMedia },
+      { key: 'slideStyle', type: 'slideStyle', label: 'Slide style', sticky: true, initial: 'centred', wide: true, when: textOnly,
+        choices: SLIDE_STYLES.map((s) => [s.id, s.name]) },
+      { key: 'slideBackground', type: 'slideBackground', label: 'Background', sticky: true, initial: 'paper', wide: true, when: textOnly,
+        choices: SLIDE_BACKGROUNDS.map((b) => [b.id, b.name]) },
       { key: 'coverSeconds', type: 'number', label: 'Cover frame (seconds into the video)', placeholder: '0', when: singleVideo },
       { key: 'shareToFeed', type: 'check', label: 'Also share to Feed (your profile grid and followers\' home feeds)', sticky: true, initial: true, when: singleVideo },
       { key: 'cover', type: 'image', label: 'Or upload a cover image', hint: 'Replaces the frame above.', wide: true, when: singleVideo },
@@ -69,5 +78,5 @@ export const FIELDS = {
 export const fieldsOf = (id) => [...(FIELDS[id]?.main ?? []), ...(FIELDS[id]?.more ?? [])];
 export const initialOf = (f) => f.initial ?? (f.type === 'check' ? false : '');
 // A remembered value, unless the list no longer offers it (e.g. an audio language from before the Hindi/English list).
-export const savedOr = (f, saved) => saved === undefined || (f.type === 'select' && !f.choices.some(([v]) => v === saved))
+export const savedOr = (f, saved) => saved === undefined || (f.choices && !f.choices.some(([v]) => v === saved))
   ? initialOf(f) : saved;

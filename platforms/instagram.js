@@ -58,6 +58,8 @@ export default {
     imageTypesLabel: 'Instagram only accepts JPEG images',
     requiresMedia: true,
     needsPublicUrl: true,
+    // A text-only post becomes slides of its text (public/slides.js), drawn by the server before posting.
+    textSlides: true,
   },
   envVars: ENV,
   // Option fields that hold an uploaded image; the server swaps the id for the file before post().
@@ -101,14 +103,14 @@ export default {
       containerId = await createContainer({
         image_url: media[0].url,
         ...common,
-        ...altText,
+        ...(media[0].altText ? { alt_text: media[0].altText } : altText),
       });
     } else {
       const children = [];
       for (const m of media) {
         children.push(await createContainer(isVideo(m)
           ? { media_type: 'VIDEO', video_url: m.url, is_carousel_item: 'true' }
-          : { image_url: m.url, is_carousel_item: 'true', ...altText }));
+          : { image_url: m.url, is_carousel_item: 'true', ...(m.altText ? { alt_text: m.altText } : altText) }));
       }
       step('Waiting for Instagram to download and process the files');
       for (const child of children) await waitUntilReady(child);

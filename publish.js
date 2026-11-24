@@ -2,7 +2,8 @@
 // and what both are told about each platform.
 import { platforms } from './platforms/index.js';
 import { ApiError } from './platforms/http.js';
-import { problemsFor, effectiveText, resolveTitle, isVideo, burnLanguage, burnTarget, languageName } from './public/rules.js';
+import { problemsFor, effectiveText, resolveTitle, isVideo, burnLanguage, burnTarget, languageName, textSlides } from './public/rules.js';
+import { slideMedia } from './slides.js';
 import { log, runWithContext, step, currentStep } from './log.js';
 import { publicBaseUrl, videoTools, getMedia, fitVideo, burnSubtitles, keepVideo } from './media.js';
 
@@ -124,7 +125,12 @@ export async function publish(text, ids, media, options, subtitles = {}, onEvent
         // Platforms with a title get it resolved here, since it can come from the main post's first line.
         const postOptions = p.title ? { ...own, title: resolveTitle(text, own.title) } : own;
         if (p.subtitleTracks) postOptions.subtitles = subtitleTracks(media, subtitles, choice);
-        const ownMedia = await mediaFor(p, p.subtitleTracks ? media : await withSubtitles(p, media, subtitles, choice));
+        // A text-only post goes to Instagram as slides of its text.
+        const slides = textSlides(describe(p), text, media, own);
+        if (slides) step(slides.length > 1 ? `Making ${slides.length} slides from the text` : 'Making an image from the text');
+        const ownMedia = slides
+          ? await slideMedia(effectiveText(text, own, p.id), own.slideStyle, own.slideBackground)
+          : await mediaFor(p, p.subtitleTracks ? media : await withSubtitles(p, media, subtitles, choice));
         sent[p.id] = ownMedia;
         step('Posting', { quiet: true });
         const value = await p.post(effectiveText(text, own, p.id), ownMedia, postOptions);

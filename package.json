@@ -18,6 +18,7 @@
     "sp-mobile-apk": "npm --prefix mobile run build:apk"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.2.0",
     "qrcode": "^1.5.4"
   }
 }

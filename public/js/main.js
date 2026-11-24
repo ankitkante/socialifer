@@ -1,6 +1,6 @@
 // Socialifer's page: the platform picker, per-platform tabs (fields, errors, previews), and wiring.
 import { $, el, logo, truncate, BRAND_COLORS } from './dom.js';
-import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, splitThread, postKind } from '/rules.js';
+import { countFor, problemsFor, adjustmentsFor, resolveTitle, effectiveText, splitThread, postKind, textSlides } from '/rules.js';
 import { state, hooks, activeTargets, saveSelected, write, KEYS } from './state.js';
 import { FIELDS, fieldsOf, loadSettings, platformOptions, mirrored, fieldUploading, renderField } from './fields.js';
 import { addFiles, mediaMeta, uploadsBusy, uploadsFailed, isVideoFile } from './uploads.js';
@@ -237,6 +237,8 @@ function summaryFor(p, text, options, media) {
     const title = resolveTitle(text, o.title);
     return title ? `Title: "${truncate(title, 48).text}${truncate(title, 48).cut ? '…' : ''}"` : 'Needs a title';
   }
+  const slides = textSlides(p, text, media, o);
+  if (slides) return slides.length > 1 ? `Carousel of ${slides.length} slides made from the text` : 'An image made from the text';
   if (p.id === 'instagram') {
     const kind = o.postAs === 'story' ? 'Story' : media.length > 1 ? `Carousel of ${media.length}` : media[0]?.type.startsWith('video/') ? 'Reel' : 'Post';
     return `${kind}${own ? `, ${countFor(p.id, own)}-character caption` : ''}`;
