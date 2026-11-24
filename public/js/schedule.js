@@ -1,8 +1,8 @@
-// Calendar and Posts: every post the laptop keeps (from this page and the phone), waiting or finished, and the
-// changes a waiting one allows: Move, Post now, Edit (text and settings) and Cancel. Anything already on a
-// platform is changed there; YouTube's link opens YouTube Studio.
+// Calendar and Posts: every post the laptop keeps (from this page and the phone), waiting, finished or cancelled,
+// and the changes a waiting one allows: Post now, Move, Edit (text and settings) and Cancel. Any post can be
+// deleted for good. Anything already on a platform is changed there; YouTube's link opens YouTube Studio.
 import { $, el, logo, truncate } from './dom.js';
-import { formatTime, formatDay, problemsFor } from '/rules.js';
+import { formatTime, formatDay, problemsFor, sideBySide, SCHEDULE } from '/rules.js';
 import { FIELDS, fieldsOf } from '/fields.js';
 import { state } from './state.js';
 import { schedule, loadSchedule, timeOf, whenLabel, picker, dayValue, timeValue, fromInputs } from './when.js';
@@ -11,6 +11,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 let weekStart = mondayOf(Date.now());
 let openId = null; // the post shown in the side panel
 let note = ''; // what the last change said (YouTube keeps its own time…)
+let filter = 'all'; // Posts: all, waiting, finished or cancelled
 
 function mondayOf(ms) {
   const d = new Date(ms);
@@ -26,6 +27,7 @@ const addDays = (ms, n) => { const d = new Date(ms); d.setDate(d.getDate() + n);
 const youtubeAhead = (p) => p.youtube === 'done' && p.state === 'waiting';
 
 function statusOf(p) {
+  if (p.state === 'cancelled') return { className: 'cancelled', text: 'Cancelled' };
   if (p.state === 'waiting') return { className: 'waiting', text: p.at <= Date.now() ? 'Going out now' : 'Waiting' };
   if (p.state === 'posting') return { className: 'posting', text: 'Posting' };
   if (p.state === 'unknown') return { className: 'fail', text: 'Unknown' };
@@ -63,13 +65,14 @@ async function change(p, action, body = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `The server returned an error (HTTP ${res.status}). Check the terminal.`);
   note = data.note ?? '';
-  if (action === 'cancel' && !data.post) openId = null;
+  if ((action === 'cancel' || action === 'delete') && !data.post) openId = null;
   await loadSchedule();
   return data;
 }
 
-function act(p, action, label, { confirm: ask } = {}) {
-  const button = el('button', { type: 'button', className: action === 'cancel' ? 'secondary small danger' : 'secondary small', textContent: label });
+function act(p, action, label, { confirm: ask, primary = false } = {}) {
+  const kind = primary ? 'primary' : action === 'cancel' || action === 'delete' ? 'secondary danger' : 'secondary';
+  const button = el('button', { type: 'button', className: `${kind} wide-action`, textContent: label });
   button.addEventListener('click', async () => {
     if (action === 'move') return openMove(p);
     if (action === 'edit') return openEdit(p);
@@ -173,7 +176,7 @@ function openEdit(p) {
 function detail(p) {
   const status = statusOf(p);
   const when = p.state === 'waiting' ? `${p.at <= Date.now() ? 'Now' : whenLabel(p.at)}` : whenLabel(timeOf(p));
-  const how = p.when === 'picked' ? 'Time you picked' : p.when === 'now' ? 'Posted straight away' : 'Next free time';
+  const how = p.when === 'picked' ? 'Time you picked' : p.when === 'now' ? 'Immediately' : 'Next free time';
   const parts = [
     el('div', { className: 'detail-head' },
       el('span', { className: `badge ${status.className}`, textContent: status.text }),
@@ -209,71 +212,156 @@ function detail(p) {
       el('p', { textContent: 'YouTube already has this video. Change its time, text or settings in YouTube Studio.' }),
       el('a', { href: studioLink(results.get('youtube').url), target: '_blank', rel: 'noopener', textContent: 'Open in YouTube Studio' })));
   }
+  const remove = act(p, 'delete', 'Delete post', { confirm: "Delete this post everywhere, from this page and the phone? It can't be undone." });
   if (p.state === 'waiting') {
     parts.push(el('div', { className: 'detail-actions' },
-      act(p, 'move', 'Move'), act(p, 'now', 'Post now', { confirm: 'Post this now?' }), act(p, 'edit', 'Edit'),
-      act(p, 'cancel', 'Cancel', { confirm: onYoutube ? 'Cancel the other platforms? YouTube keeps its video.' : 'Cancel this post? It will be deleted.' })));
+      act(p, 'now', 'Post now', { confirm: 'Post this now?', primary: true }), act(p, 'move', 'Move to another time…'), act(p, 'edit', 'Edit text and settings'),
+      act(p, 'cancel', 'Cancel post', { confirm: onYoutube ? 'Cancel the other platforms? YouTube keeps its video.' : 'Cancel this post? It stays in Posts, marked cancelled.' }),
+      remove));
+  } else if (p.state === 'cancelled') {
+    parts.push(el('p', { className: 'hint', textContent: "Cancelled: it didn't go out." }), el('div', { className: 'detail-actions' }, remove));
   } else if (p.state !== 'posting') {
-    parts.push(el('p', { className: 'hint', textContent: 'Already on the platforms: change it there.' }));
+    parts.push(el('p', { className: 'hint', textContent: 'Already on the platforms: change it there.' }), el('div', { className: 'detail-actions' }, remove));
   }
   if (note) parts.push(el('p', { className: 'status', textContent: note }));
   return parts;
 }
 
-function showDetail(aside) {
+// empty: what the panel shows with no post selected (the Calendar's summary), or nothing to hide it.
+function showDetail(aside, empty = null) {
   const p = schedule.posts.find((x) => x.id === openId);
-  aside.hidden = !p;
+  aside.hidden = !p && !empty;
   if (p) aside.replaceChildren(...detail(p));
+  else if (empty) aside.replaceChildren(...empty);
 }
 
-function card(p, { withDay = false } = {}) {
+// ---- Calendar: a week, Monday first, as a grid of days by hours (the Scheduling mockup's Web Calendar) ----
+
+const HOUR_PX = 40;
+const HOUR_MS = 60 * 60 * 1000;
+const at = (p) => (p.state === 'waiting' || p.state === 'cancelled' ? p.at : timeOf(p));
+// Three looks only (decided 2026-11-19): scheduled, posted (✓, or ✕ when a platform failed) and cancelled.
+// Everything else (who picked the time, where it came from) is in the post's details.
+const lookOf = (p) => (p.state === 'cancelled' ? 'cancelled' : p.state === 'waiting' || p.state === 'posting' ? 'scheduled' : 'posted');
+
+function event(p, top, place) {
   const status = statusOf(p);
-  const t = p.state === 'waiting' ? p.at : timeOf(p);
-  const button = el('button', { type: 'button', className: `post-card ${status.className}${p.id === openId ? ' open' : ''}` },
-    el('span', { className: 'card-top' },
-      el('b', { textContent: withDay ? whenLabel(t) : formatTime(t) }),
-      el('span', { className: 'logos' }, ...p.platforms.map(logo))),
-    el('span', { className: 'card-text', textContent: snippet(p, withDay ? 120 : 60) }),
-    el('span', { className: `badge ${status.className}`, textContent: `${kindLabel[p.kind]} · ${status.text}` }));
+  const look = lookOf(p);
+  const media = p.kind === 'image' || p.kind === 'video';
+  const mark = look === 'posted' ? (status.className === 'fail' ? '✕ ' : '✓ ') : '';
+  const width = 100 / place.cols;
+  const button = el('button', {
+    type: 'button', className: `event ${look}${media ? '' : ' chip'}${status.className === 'fail' ? ' failed' : ''}${p.id === openId ? ' open' : ''}`,
+    title: `${formatTime(at(p))} · ${kindLabel[p.kind]} · ${p.platforms.map(nameOf).join(', ')} · ${status.text}`,
+  },
+  el('b', { textContent: `${mark}${formatTime(at(p))} ${kindLabel[p.kind]}` }),
+  ...(media ? [el('span', { textContent: p.platforms.map(nameOf).join(', ') })] : [el('span', { textContent: ` · ${p.platforms.map(nameOf).join(', ')}` })]));
+  Object.assign(button.style, { top: `${top}px`, left: `calc(${place.col * width}% + 4px)`, width: `calc(${width}% - 6px)` });
   button.addEventListener('click', () => { openId = p.id; note = ''; render(); });
   return button;
 }
 
-// ---- Calendar: a week, Monday first ----
-
 export function renderCalendar() {
   const end = addDays(weekStart, 7);
-  const today = new Date().toDateString();
-  $('calendar-title').textContent = `${formatDay(weekStart)} to ${formatDay(addDays(weekStart, 6))}`;
-  $('calendar-note').textContent = schedule.error || 'Posts go out 9 AM to 11 PM. Text posts are kept 1 hour apart; image and video posts 4 hours apart, at most 2 of each a day; a text post and an image or video post on the same platform 1 hour apart.';
-  const posts = schedule.posts.filter((p) => { const t = p.state === 'waiting' ? p.at : timeOf(p); return t >= weekStart && t < end; });
-  $('week').replaceChildren(...[0, 1, 2, 3, 4, 5, 6].map((i) => {
+  const now = Date.now();
+  const first = new Date(weekStart);
+  const last = new Date(addDays(weekStart, 6));
+  $('calendar-title').textContent = first.getMonth() === last.getMonth()
+    ? `${first.getDate()} – ${last.getDate()} ${MONTHS[first.getMonth()]}`
+    : `${first.getDate()} ${MONTHS[first.getMonth()].slice(0, 3)} – ${last.getDate()} ${MONTHS[last.getMonth()].slice(0, 3)}`;
+  $('calendar-today').disabled = weekStart === mondayOf(now);
+  $('calendar-note').textContent = schedule.error || '';
+  const posts = schedule.posts.filter((p) => Number.isFinite(at(p)) && at(p) >= weekStart && at(p) < end);
+  // 9 AM to 11 PM, wider when a post is outside them (one sent Immediately at night).
+  const hourOf = (p) => new Date(at(p)).getHours();
+  const startHour = Math.min(SCHEDULE.startHour, ...posts.map(hourOf));
+  const endHour = Math.max(SCHEDULE.endHour, ...posts.map((p) => hourOf(p) + 1));
+  const height = (endHour - startHour) * HOUR_PX;
+  const y = (ms) => { const d = new Date(ms); return (d.getHours() - startHour + d.getMinutes() / 60) * HOUR_PX; };
+
+  const head = el('div', { className: 'grid-row grid-head' }, el('span'), ...[0, 1, 2, 3, 4, 5, 6].map((i) => {
     const day = addDays(weekStart, i);
-    const own = posts.filter((p) => new Date(p.state === 'waiting' ? p.at : timeOf(p)).toDateString() === new Date(day).toDateString())
-      .sort((a, b) => (a.state === 'waiting' ? a.at : timeOf(a)) - (b.state === 'waiting' ? b.at : timeOf(b)));
-    return el('section', { className: 'day' + (new Date(day).toDateString() === today ? ' today' : '') + (day + DAY_MS <= Date.now() ? ' past' : '') },
-      el('h2', { textContent: formatDay(day) }),
-      ...(own.length ? own.map((p) => card(p)) : [el('p', { className: 'hint', textContent: 'Nothing' })]));
+    const today = new Date(day).toDateString() === new Date(now).toDateString();
+    return el('span', { className: `grid-day${today ? ' today' : ''}`, textContent: `${formatDay(day).split(' ').slice(0, 2).join(' ')}${today ? ' · today' : ''}` });
   }));
-  showDetail($('calendar-detail'));
+  const axis = el('div', { className: 'grid-axis', style: `height: ${height}px` });
+  for (let h = startHour; h <= endHour; h += 2) {
+    axis.append(el('span', { className: 'grid-hour', style: `top: ${(h - startHour) * HOUR_PX}px`, textContent: formatTime(new Date(weekStart).setHours(h, 0, 0, 0)).replace(':00', '') }));
+  }
+  const columns = [0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const day = addDays(weekStart, i);
+    const today = new Date(day).toDateString() === new Date(now).toDateString();
+    const col = el('div', { className: `grid-col${today ? ' today' : ''}${day + DAY_MS <= now ? ' past' : ''}`, style: `height: ${height}px` });
+    for (let h = startHour; h <= endHour; h += 2) col.append(el('span', { className: 'grid-line', style: `top: ${(h - startHour) * HOUR_PX}px` }));
+    const own = posts.filter((p) => new Date(at(p)).toDateString() === new Date(day).toDateString()).sort((a, b) => at(a) - at(b));
+    const boxes = own.map((p) => { const top = y(at(p)); return { top, bottom: top + (p.kind === 'text' ? 24 : 44) }; });
+    sideBySide(boxes).forEach((place, n) => col.append(event(own[n], boxes[n].top, place)));
+    if (today && y(now) >= 0 && y(now) <= height) col.append(el('span', { className: 'grid-now', style: `top: ${y(now)}px` }));
+    return col;
+  });
+  const body = el('div', { className: 'grid-row grid-body' }, axis, ...columns);
+  $('week').replaceChildren(el('div', { className: 'grid' }, head, body));
+  showDetail($('calendar-detail'), summary(now));
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// The side panel with nothing selected: today's counts and what's waiting (as in the mockup).
+function summary(now) {
+  const today = schedule.posts.filter((p) => p.state !== 'cancelled' && Number.isFinite(at(p)) && new Date(at(p)).toDateString() === new Date(now).toDateString());
+  const count = (kind) => today.filter((p) => p.kind === kind).length;
+  const waiting = schedule.posts.filter((p) => p.state === 'waiting').sort((a, b) => a.at - b.at);
+  return [
+    el('p', { className: 'hint', textContent: 'Click a post to see it in full and change it.' }),
+    el('p', {}, el('b', { textContent: 'Today: ' }), `videos ${count('video')} of ${SCHEDULE.perDay.video}, images ${count('image')} of ${SCHEDULE.perDay.image}`),
+    el('p', {}, el('b', { textContent: 'Waiting: ' }), waiting.length ? `${waiting.length} post${waiting.length > 1 ? 's' : ''} · next ${whenLabel(waiting[0].at)}` : 'nothing'),
+  ];
 }
 
 $('calendar-prev').addEventListener('click', () => { weekStart = addDays(weekStart, -7); renderCalendar(); });
 $('calendar-next').addEventListener('click', () => { weekStart = addDays(weekStart, 7); renderCalendar(); });
 $('calendar-today').addEventListener('click', () => { weekStart = mondayOf(Date.now()); renderCalendar(); });
 
-// ---- Posts: waiting first (soonest first), then finished (newest first) ----
+// ---- Posts: filter pills (All, Waiting, Finished, Cancelled), waiting soonest first, the rest newest first ----
+
+const FILTERS = [
+  ['all', 'All', () => true],
+  ['waiting', 'Waiting', (p) => p.state === 'waiting' || p.state === 'posting'],
+  ['finished', 'Finished', (p) => p.state === 'done' || p.state === 'unknown'],
+  ['cancelled', 'Cancelled', (p) => p.state === 'cancelled'],
+];
+
+function row(p) {
+  const status = statusOf(p);
+  const t = at(p);
+  const button = el('button', { type: 'button', className: `post-row ${status.className}${p.id === openId ? ' open' : ''}` },
+    el('span', { className: 'row-text', textContent: snippet(p, 140) }),
+    el('span', { className: `row-status ${status.className}` },
+      el('span', { className: 'logos' }, ...p.platforms.map(logo)),
+      `${status.className === 'ok' ? '✓ ' : ''}${Number.isFinite(t) ? whenLabel(t) : ''} · ${status.text}`));
+  button.addEventListener('click', () => { openId = p.id; note = ''; render(); });
+  return button;
+}
 
 export function renderPosts() {
-  const waiting = schedule.posts.filter((p) => p.state === 'waiting' || p.state === 'posting').sort((a, b) => a.at - b.at);
-  const finished = schedule.posts.filter((p) => p.state === 'done' || p.state === 'unknown').sort((a, b) => timeOf(b) - timeOf(a));
-  $('posts-note').textContent = schedule.error || 'Waiting posts are kept on the laptop and can be changed until they go out. Drafts stay where you write them.';
-  const list = (title, posts, empty) => el('section', { className: 'post-list' },
-    el('h2', { textContent: `${title} (${posts.length})` }),
-    ...(posts.length ? posts.map((p) => card(p, { withDay: true })) : [el('p', { className: 'hint', textContent: empty })]));
-  $('post-lists').replaceChildren(
-    list('Waiting', waiting, 'Nothing waiting. Posts you schedule show here.'),
-    list('Finished', finished, 'Nothing posted yet.'));
+  const waitingFirst = (a, b) => {
+    const wa = a.state === 'waiting' || a.state === 'posting';
+    const wb = b.state === 'waiting' || b.state === 'posting';
+    if (wa !== wb) return wa ? -1 : 1;
+    return wa ? a.at - b.at : (at(b) ?? 0) - (at(a) ?? 0);
+  };
+  $('posts-note').textContent = schedule.error || 'Waiting posts are kept on the laptop and can be changed until they go out.';
+  const pills = el('div', { className: 'filter-pills', role: 'group', ariaLabel: 'Show' }, ...FILTERS.map(([id, label, test]) => {
+    const n = schedule.posts.filter(test).length;
+    const pill = el('button', { type: 'button', className: `filter-pill${filter === id ? ' on' : ''}`, textContent: id === 'all' ? label : `${label} ${n}` });
+    pill.setAttribute('aria-pressed', String(filter === id));
+    pill.addEventListener('click', () => { filter = id; renderPosts(); });
+    return pill;
+  }));
+  const shown = schedule.posts.filter(FILTERS.find(([id]) => id === filter)[2]).sort(waitingFirst);
+  $('post-lists').replaceChildren(pills, shown.length
+    ? el('div', { className: 'post-rows' }, ...shown.map(row))
+    : el('p', { className: 'hint', textContent: filter === 'all' ? 'No posts yet. Posts you schedule or post show here.' : 'Nothing here.' }));
   showDetail($('posts-detail'));
 }
 

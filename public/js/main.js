@@ -41,8 +41,10 @@ function renderPicker() {
   ));
   $('setup-list').replaceChildren(...setupItems());
   $('first-run-list').replaceChildren(...setupItems());
+  // Platforms not set up aren't offered (decided 2026-11-19): six of them have never been tried live, so a
+  // "set up more" list made them look ready. The first-run screen still lists them, to set up the first one.
   const toggle = $('setup-toggle');
-  toggle.hidden = unconfigured.length === 0;
+  toggle.hidden = true;
   toggle.textContent = `+ Set up more (${unconfigured.length})`;
 }
 
@@ -318,11 +320,15 @@ function update() {
   $('when').hidden = !review || state.phase !== 'ready';
   const postNow = targets.length > 1 ? `Post to ${targets.length} platforms` : targets.length === 1 ? `Post to ${targets[0].name}` : 'Post';
   $('post-label').textContent = !review ? 'Next: review and post'
+    : state.phase === 'ready' && choice.mode === 'now' ? 'Post now'
     : state.phase === 'ready' && !choice.now && choice.label ? choice.label : postNow;
   // Posting while subtitles are still being burned in is fine: those platforms wait for their copy.
   const burning = readiness.filter((r) => r.subtitles?.busy).map((r) => r.p.name);
   const note = burning.length ? `${burning.length > 1 ? `${burning.slice(0, -1).join(', ')} and ${burning.at(-1)}` : burning[0]} finish adding subtitles before ${burning.length > 1 ? 'they post' : 'it posts'}.` : '';
-  renderPanel(readiness, { blocked: issueCount > 0, reason, reasonIsError: issueCount > 0 || uploadsFailed(), note, generating: making });
+  // Red for errors (something to fix: issues, failed uploads, a time that passed or is outside posting hours);
+  // grey for a plain next step (choose a platform, write something). Warnings are orange where they're shown.
+  const timeError = reason && reason === choice.blocked && choice.blocked !== 'Choose a day and a time';
+  renderPanel(readiness, { blocked: issueCount > 0, reason, reasonIsError: issueCount > 0 || uploadsFailed() || Boolean(timeError), note, generating: making });
   renderStrip();
 }
 

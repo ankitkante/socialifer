@@ -1,7 +1,7 @@
 // "When" on the Review step: the next free time, or a time you pick with the day strip and its warnings.
 // Also the schedule the Calendar and Posts read, and the strip the Move dialog reuses.
 import { $, el } from './dom.js';
-import { nextFreeTime, slotProblems, dayStrip, formatTime, formatDay, SCHEDULE } from '/rules.js';
+import { nextFreeTime, slotProblems, outsideHours, dayStrip, formatTime, formatDay, SCHEDULE } from '/rules.js';
 import { state, hooks } from './state.js';
 
 // The laptop's posts, refreshed when the Review step, the Calendar or Posts open, and every minute while they show.
@@ -22,9 +22,9 @@ export async function loadSchedule() {
 
 export const timeOf = (p) => p.postedAt ?? p.at;
 
-// Posts holding a time, for the slot rules; leave out the post being moved.
+// Posts holding a time, for the slot rules (not cancelled ones); leave out the post being moved.
 export const takenSlots = (except) => schedule.posts
-  .filter((p) => p.id !== except && Number.isFinite(timeOf(p)))
+  .filter((p) => p.id !== except && p.state !== 'cancelled' && Number.isFinite(timeOf(p)))
   .map((p) => ({ id: p.id, at: timeOf(p), kind: p.kind, platforms: p.platforms }));
 
 // ---- Dates as the browser's date and time inputs want them ----
@@ -106,10 +106,15 @@ export function picker(value, kind, { except, platforms = [], onChange }) {
   day.addEventListener('change', () => onChange({ ...value, day: day.value }));
   time.addEventListener('change', () => onChange({ ...value, time: time.value }));
   const check = slotProblems(taken, kind, at, Date.now(), platforms);
-  if (check.warnings.length || check.past) time.classList.add('warn');
+  if (check.warnings.length || check.past || check.outside) time.classList.add('warn');
   const notes = [];
-  if (check.invalid) notes.push(el('p', { className: 'when-warning', textContent: 'Choose a day and a time.' }));
+  if (check.invalid) notes.push(el('p', { className: 'hint', textContent: 'Choose a day and a time.' }));
   else if (check.past) notes.push(el('p', { className: 'when-warning err', textContent: 'That time has passed. Pick a later time.' }));
+  else if (check.outside) {
+    const next = el('button', { type: 'button', className: 'link', textContent: whenLabel(check.nextFree) });
+    next.addEventListener('click', () => onChange({ day: dayValue(check.nextFree), time: timeValue(check.nextFree) }));
+    notes.push(el('div', { className: 'when-warning err' }, check.outside, ' Next free time: ', next, '.'));
+  }
   else if (check.warnings.length) {
     const next = el('button', { type: 'button', className: 'link', textContent: whenLabel(check.nextFree) });
     next.addEventListener('click', () => onChange({ day: dayValue(check.nextFree), time: timeValue(check.nextFree) }));
@@ -126,13 +131,22 @@ export function picker(value, kind, { except, platforms = [], onChange }) {
 
 // ---- The When choice on the Review step ----
 
+const LEAD_MS = 5 * 60_000;
+// Where Pick a time starts: the next free time at least 5 minutes ahead, on a 5-minute mark (as in the app).
+function firstPick(kind, platforms) {
+  return nextFreeTime(takenSlots(), kind, Math.ceil((Date.now() + LEAD_MS) / LEAD_MS) * LEAD_MS, platforms);
+}
+
 // What Post does: { now: post straight away, at, mode, label for the button, blocked: why it can't }.
 export function whenChoice(kind, platforms = []) {
   const w = state.when;
+  // Immediately: straight away, whatever the posting hours and gaps (decided 2026-11-19).
+  if (w.mode === 'now') return { mode: 'now', at: Date.now(), now: true };
   if (w.mode === 'picked') {
     const at = fromInputs(w.day, w.time);
     if (!Number.isFinite(at)) return { mode: 'picked', blocked: 'Choose a day and a time' };
     if (at <= Date.now()) return { mode: 'picked', blocked: 'That time has passed. Pick a later time.' };
+    if (outsideHours(at)) return { mode: 'picked', blocked: outsideHours(at) };
     return { mode: 'picked', at, now: false, label: `Schedule for ${whenLabel(at)}` };
   }
   const at = nextFreeTime(takenSlots(), kind, Date.now(), platforms);
@@ -149,7 +163,8 @@ export function renderWhen(kind, { youtubeVideo, platforms }) {
     const radio = el('input', { type: 'radio', name: 'when', checked: w.mode === mode });
     radio.addEventListener('change', () => {
       w.mode = mode;
-      if (mode === 'picked' && !w.day) Object.assign(w, { day: dayValue(next), time: timeValue(next) });
+      // A fresh start each time, at least 5 minutes ahead: an old or "now" time would already have passed.
+      if (mode === 'picked') { const start = firstPick(kind, platforms); Object.assign(w, { day: dayValue(start), time: timeValue(start) }); }
       hooks.update();
     });
     return el('label', { className: 'when-option' + (w.mode === mode ? ' on' : '') }, radio,
@@ -164,6 +179,7 @@ export function renderWhen(kind, { youtubeVideo, platforms }) {
   } else {
     parts.push(pick);
   }
+  parts.push(option('now', 'Immediately', 'Goes out now, whatever the posting hours and gaps'));
   if (schedule.error) parts.push(el('p', { className: 'hint error', textContent: schedule.error }));
   box.replaceChildren(...parts);
 }

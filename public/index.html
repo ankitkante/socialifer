@@ -111,15 +111,25 @@
   </aside>
 </div>
 
-<!-- Calendar: a week at a time, waiting and finished posts (schedule.js). -->
+<!-- Calendar: a week at a time as days by hours, scheduled, posted and cancelled posts (schedule.js). -->
 <main class="view-page" id="calendar-view" hidden>
   <div class="view-head">
-    <h1 id="calendar-title">This week</h1>
     <div class="view-actions">
       <button type="button" class="secondary small" id="calendar-prev" aria-label="Previous week">‹</button>
-      <button type="button" class="secondary small" id="calendar-today">Today</button>
+      <h1 id="calendar-title">This week</h1>
       <button type="button" class="secondary small" id="calendar-next" aria-label="Next week">›</button>
+      <details class="calendar-key">
+        <summary aria-label="What the colours mean" title="What the colours mean">ⓘ</summary>
+        <div class="key-body">
+          <!-- Small samples of the real posts, so the key looks exactly like the Calendar. -->
+          <p><span class="event chip scheduled key-sample"><b>9:00 AM Text</b></span>Scheduled: waiting to go out</p>
+          <p><span class="event chip posted key-sample"><b>✓ 9:00 AM Text</b></span>Posted: ✓, or a red ✕ when a platform failed</p>
+          <p><span class="event chip cancelled key-sample"><b>9:00 AM Text</b></span>Cancelled: didn't go out</p>
+          <p class="hint">Click a post for its details: who picked the time, where it came from, its links.</p>
+        </div>
+      </details>
     </div>
+    <button type="button" class="secondary small" id="calendar-today">This week</button>
   </div>
   <p class="hint" id="calendar-note"></p>
   <div class="calendar-body">
@@ -128,7 +138,7 @@
   </div>
 </main>
 
-<!-- Posts: waiting posts first, then finished ones, from the page and the phone (schedule.js). -->
+<!-- Posts: every post from the page and the phone, with filter pills (schedule.js). -->
 <main class="view-page" id="posts-view" hidden>
   <div class="view-head"><h1>Posts</h1></div>
   <p class="hint" id="posts-note"></p>
