@@ -282,7 +282,8 @@ test('schedules a post from the page, lists it, and changes it while it waits', 
 
 test('a post sent straight from the page is kept for the Calendar', async () => {
   await events(await post({ text: 'Straight away', platforms: ['x'] }));
-  for (let i = 0; i < 50; i++) {
+  // By the clock, as in queue.test.js: a busy test run can take more than a second.
+  for (const deadline = Date.now() + 15_000; Date.now() < deadline;) {
     const { posts } = await (await fetch(`${base}/api/schedule`)).json();
     const kept = posts.find((p) => p.text === 'Straight away');
     if (kept) {

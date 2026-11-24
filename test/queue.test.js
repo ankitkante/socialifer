@@ -59,8 +59,11 @@ function send(method, path, { json, file, type } = {}) {
   return fetch(`${base}${path}`, { method, headers, ...(body !== undefined && { body }) });
 }
 
-async function until(id, state) {
-  for (let i = 0; i < 200; i++) {
+// Waits by the clock, not a count of tries: when npm test runs every file at once, a post can take a few seconds
+// (a 4-second limit failed about one run in three).
+async function until(id, state, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
     const [s] = await (await send('GET', `/app/posts?ids=${id}`)).json();
     if (s.state === state) return s;
     await new Promise((resolve) => setTimeout(resolve, 20));

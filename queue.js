@@ -157,10 +157,20 @@ export function createQueue({ dir, publish, now = () => Date.now(), postingHours
     if (postingHours && at > now() && outsideHours(at)) throw httpError(400, outsideHours(at));
   };
 
-  async function save(post) {
-    const tmp = new URL('post.json.tmp', folder(post.id));
-    await writeFile(tmp, JSON.stringify(post, null, 2));
-    await rename(tmp, new URL('post.json', folder(post.id)));
+  // Saves of one post take turns: two at once (the phone collecting a post while the queue tidies up after it)
+  // would share post.json.tmp, and the second rename would find it gone.
+  const saving = new Map(); // post id -> the last save's promise
+  function save(post) {
+    const write = async () => {
+      const tmp = new URL('post.json.tmp', folder(post.id));
+      await writeFile(tmp, JSON.stringify(post, null, 2));
+      await rename(tmp, new URL('post.json', folder(post.id)));
+    };
+    const next = (saving.get(post.id) ?? Promise.resolve()).catch(() => {}).then(write);
+    saving.set(post.id, next);
+    const done = () => { if (saving.get(post.id) === next) saving.delete(post.id); };
+    next.then(done, done);
+    return next;
   }
 
   // Everything the page and the phone show about a post. received is internal.
@@ -362,7 +372,9 @@ export function createQueue({ dir, publish, now = () => Date.now(), postingHours
   // as the phone asked (it deletes a post it hasn't finished sending).
   async function remove(id) {
     const post = find(id);
-    if (post.state === 'posting' || current === post) throw httpError(409, 'This post is being posted right now.');
+    // A finished post can be collected even while the queue is still tidying up after it (deleting its files):
+    // it's marked done first, and the phone collects as soon as it sees that.
+    if (post.state === 'posting' || (current === post && !isHistory(post))) throw httpError(409, 'This post is being posted right now.');
     if (isHistory(post)) {
       if (!post.collected) {
         post.collected = true;
