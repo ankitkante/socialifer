@@ -55,7 +55,7 @@ Requires Node 22.9+ (`--env-file-if-exists`, `fs.openAsBlob`, global `fetch`/`Fo
 ## Invariants: don't break these
 
 1. **Local only.** The server binds to `127.0.0.1`. Everything except `GET/HEAD /media/*` must reject requests whose `Host` isn't `localhost:PORT`/`127.0.0.1:PORT` **or** that carry `X-Forwarded-For`/`Forwarded` (that's how a tunnel is detected). This blocks DNS rebinding and stops `TUNNEL_URL` tunnels from exposing the posting API.
-2. **No simple cross-site requests.** `POST /api/post`, `/api/schedule` (and its `move`, `cancel`, `now` and `PUT` edit), `/api/subtitled`, `/api/subtitles`, `/api/subtitles/<id>/stop` and `/api/kept/delete` require `application/json`, and `POST /api/media` requires an `image/*`/`video/*` type (or `application/x-subrip` for SRT subtitles), so browsers must preflight and other websites can't post on the user's behalf. There are deliberately no CORS headers.
+2. **No simple cross-site requests.** `POST /api/post`, `/api/schedule` (and its `move`, `cancel`, `now`, `delete` and `PUT` edit), `/api/subtitled`, `/api/subtitles`, `/api/subtitles/<id>/stop` and `/api/kept/delete` require `application/json`, and `POST /api/media` requires an `image/*`/`video/*` type (or `application/x-subrip` for SRT subtitles), so browsers must preflight and other websites can't post on the user's behalf. There are deliberately no CORS headers.
 3. **Media ids are 128-bit random hex** and validated with `/^[a-f0-9]{32}$/` before touching the filesystem.
 4. **Server re-validates everything** the UI checks (`problemsFor`); the UI is a convenience, not the gate.
 5. **Secrets never reach the browser.** `/api/platforms` returns only names of env vars, never values.

@@ -5,6 +5,15 @@ Everything still to do: features and fixes not built. What's built but not yet t
 **Where:** W = web app, P = app (the phone app), B = both, S = server only.
 **From:** where the item came from, kept for history: *live test* (first live web test, 2026-11-12), *phone test* (phone testing, 2026-11-17), *phone build* (building the phone app, 2026-11-16 to 17), *idea* (ideas for later).
 
+## Next up
+
+- **Reddit in "Finish by hand"** (P · phone test, 2026-11-18): the reminder covers YouTube and Substack; it should also remind about Reddit. Same as the "Reddit reminder" idea in section 8 (moved up). **Open question (2026-11-19):** build it like the Substack part (Copy text, Share for photos and text, Done, no mockup), or mock it up first?
+- **"Needs your attention" after a sync** (P · phone test, 2026-11-19, design first): when the phone syncs with the laptop, flag posts that need a look. Proposed: a "2 posts need your attention" banner on Posts (tap to show only those), a count on the Posts tab, and a reason line on each post with its action: too close to another post (a picked time made offline that clashes with one scheduled on the laptop meanwhile; the laptop keeps both today, since too close is only a warning, and nobody sees it), moved because its time passed while away, refused by the laptop, or failed on a platform. A post clears once it's acted on or "Okay" is tapped.
+- **Where the Activity log lives** (P · phone test, 2026-11-19, to think about): it's under Laptop, but it shows the phone's own log (`phone-*.log` on the laptop plus lines not yet sent), not the laptop's `server-*.log`. Decide where it belongs, and whether the laptop's lines about phone posts (received, scheduled) should be shown too.
+- **Drafts on the web page** (W · parity, wanted 2026-11-19, upcoming round): the web page can't save drafts (a reload or closing it loses the post); the app saves every draft. Features must match on both, so the web page gets drafts: saved as you type, Save as draft, a Drafts pill in Posts (as in the mockup's Web Posts), opening one in Write. Post history already exists (Posts). Decide where web drafts live (the laptop's `POSTS_DIR`, likely) and whether they show in the app.
+- **Web Review as platform cards** (W · mockup check, 2026-11-19, later): the Scheduling mockup's web Review (`WebC_Review`) shows a card per platform, its preview beside its settings; the page still has a tab per platform. A redesign; overlaps "Post to pills look like the tabs" in section 5.
+- **Calendar from a library** (P · phone test, 2026-11-19): replace the hand-built Calendar (`Calendar.js`: week day buttons and the day timeline) with **react-native-calendars** (Wix): its week strip and `Timeline` day view (events, a "now" line) match the mockup's layout. Plain JS, works in Expo Go; 10.3k stars, last release Jan 2026, code changed Oct 2026. Its theme is separate from Paper's, so plum and Inter are set on it by hand. Checked 2026-11-19: react-native-big-calendar (v5 still beta, 0.6k stars) and @howljs/calendar-kit (last release Oct 2025, needs Reanimated and gesture handler). Ask before installing.
+
 ## 1. YouTube
 
 - **Tags as chips** (B · phone test, design first, good to have): the Tags field is one comma-separated text box today. Wanted: type a tag, it becomes a chip, tap to remove.
@@ -31,7 +40,6 @@ The whole feature will be re-reviewed separately; these items wait for that.
 - **Thumbnail title tool** (B · live test, design first): add a title to an existing thumbnail inside the app. The user does this today in a separate Claude conversation ("Add caption to thumbnails"); ask what it does and what goes wrong. The previews already know the safe areas: an Instagram cover keeps 7.5–92.5% of the width and 21.875–78.125% of the height (`.safe-box` in `styles.css`); the Shorts player covers the bottom 25%. Hindi needs Nirmala UI on Windows.
 - **Rethink image handling on the phone** (P · phone test, 2026-11-17, design first): photos taken on a phone are often too big for the platforms (Instagram 8 MB, X 5 MB, YouTube thumbnails 2 MB), so in practice photos and thumbnails can't be posted from the phone. Today the app takes photos as they are (`quality: 1` in `Compose.js`) and only reports the size. This revisits the thumbnail decision in AGENTS.md ("never shrink it for the user"); discuss the options with the user first.
 - **Posts screen redesign** (P · idea, 2026-11-17, design first): the app's landing screen feels crude, just the working screen. Suggested: New post as a round plum ＋ button at the bottom right; the "Connected to laptop" line as a small green/amber chip by the Laptop link; rows with a photo thumbnail, the start of the text and platform logos, grouped under Ready, On the laptop and Finished; an empty screen with the Ring of fire mark and a line on how posting works; a splash screen like traditional apps; a small Ring of fire burst when a post goes live (on the web app too).
-- **Drafts and post history** (W · idea): deferred for the web page. The phone app keeps its own drafts, and its finished posts act as a simple history.
 
 ## 6. Phone ↔ laptop
 
@@ -48,7 +56,7 @@ The whole feature will be re-reviewed separately; these items wait for that.
 - **Calendar from Pick a time** (B · idea, 2026-11-18): open the Calendar while picking a time, to see the whole week; for now the day strip shows the picked day.
 - **Edit a scheduled post's settings in the app** (P · scheduling build): the app edits the text only; settings are edited on the web page.
 - **Retry a failed scheduled post** (B · scheduling build): its files are deleted after posting, so a failed platform can't be retried from Calendar. The phone's own copy still has Send again.
-- **Reddit reminder in "Finish by hand"** (idea, 2026-11-17): Reddit's API is closed to new apps (see [decisions.md](decisions.md)), so remind the user to post on Reddit by hand, like Substack: Copy text, Share for photos, and a button that opens their profile's post page. Mock it up before building.
+- **Reddit reminder in "Finish by hand"** (idea, 2026-11-17; wanted now, see "Next up"): Reddit's API is closed to new apps (see [decisions.md](decisions.md)), so remind the user to post on Reddit by hand, like Substack: Copy text, Share for photos, and a button that opens their profile's post page. Mock it up before building.
 - **Hosted server** (idea, not for now): run the server in the cloud instead of on your PC, so scheduled posts go out while the PC is off and the phone app can post from anywhere. Put off on 2026-11-16 to save costs. It needs a login on the API (today there is none, because it only listens on your PC), the `.env` keys stored on the server, and storage for uploads and queued posts that survives restarts. Instagram would no longer need the cloudflared tunnel, because the server can give Meta public media links itself. The aim is a free or pay-as-you-go plan; any plan must stay awake for scheduled posts, have enough storage and bandwidth for videos, and allow ffmpeg.
 - **Settings page** (idea, 2026-11-18): change settings from the web page or the app instead of editing `.env`. Needs its own design first. Wanted:
   - **Where posts are saved** (`POSTS_DIR`).
@@ -69,3 +77,7 @@ The brand itself (name, logo, colours, fonts, voice) is in [brand/README.md](../
 - **Claim the handles:** @socialifer on X, Instagram, YouTube, Threads, Bluesky, LinkedIn, Reddit and Substack. The user will do this last.
 - **Wordmark lockup:** one image file with the mark plus "socialifer", the text turned into outlines so it doesn't need Inter. Only needed for images (share image, profile banners, email signature); make it when those are made.
 - **Sending email as @socialifer.com** (low priority): from Gmail through an outgoing mail service (for example Brevo's free plan). Receiving already works.
+
+## 10. More ideas
+
+- **Several accounts on one platform** (B · idea, 2026-11-19): post to more than one account on the same platform (two X accounts, say). Today each platform has one set of credentials in `.env`. Discuss before building.

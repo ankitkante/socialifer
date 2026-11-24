@@ -19,6 +19,32 @@ What has been tried live, and what's still to try. Offline checks (`npm test`) a
 - **App:** the two steps, When (day chips, Other…, the time dialog, the strip, warnings), the tabs, a handed post showing its time, "On the laptop. It goes out…" after Post, Calendar's Move, Post now, Edit and Cancel while connected, and web-page posts listed in Posts.
 - **App, YouTube at a picked time:** Pick a time on a YouTube video from the phone.
 
+### App fixes from phone testing (built 2026-11-19 on `fix/app-testing-bugs`)
+
+- **Look:** Paper's controls in plum and Inter on every screen; the tab bar's icons (pencil, calendar, list).
+- **Pairing on demand:** a fresh install opens on Posts with no camera prompt; drafts are saved while unpaired; the red "isn't paired" note on Posts and its Pair now; Laptop → Pair with your laptop.
+- **Posts:** the ＋ button; long press to select, tap to add more, Delete (and the refusal for a post already going to the laptop); Back leaves selecting.
+- **Duplicate:** the snackbar on the post's screen; Duplicate in the select bar for one post (not shown for two, or once media is removed).
+- **Post to:** only set-up platforms; "Pair once to choose platforms" before pairing; an unset platform on an old post is flagged in red and blocks Next.
+- **Web page:** no "+ Set up more" button.
+- **APK:** its size after the arm64-only build, and that it installs and runs.
+- **When:** the radios; the day chips; Pick a time starting a few minutes ahead with no "passed" message; a time after 11 PM blocks Schedule, with "Use the next free time".
+- **Off hours on the web page:** the same block in Pick a time; Move to an off-hours time is refused.
+- **Calendar:** the week's day buttons, the day's timeline, This week, the legend; phone posts not yet sent show (dashed grey) and open in Write; posts in the day strip while reviewing another post.
+- **Finish by hand:** when unpaired, "Saved on this phone. Pair with your laptop to send it."
+
+### Round 3 fixes (built 2026-11-19 on `fix/app-testing-bugs`; web page and app)
+
+- **Immediately:** posts at once, even at night or right after another post; the button says Post now. Web page: with live progress.
+- **Cancel:** from Calendar (web and app) and a post's own screen in the app; the post stays, marked Cancelled, on both; its slot is free again.
+- **Delete:** a waiting, finished and cancelled post, from the web page, the app's list (long press) and its own screen; gone from both after the next sync; the YouTube note when YouTube has the video; the app refusing while away from the laptop.
+- **Calendar:** web week grid (days by hours, today, the red now line, the side panel's summary); app day view; Scheduled · Posted · Cancelled looks; two posts at the same time side by side; This week; the ⓘ.
+- **Posts:** web filter pills with counts; app sections.
+- **App:** Posts · Calendar tabs; Write full screen; Save as draft; red, orange and grey messages.
+- **Round 4 (2026-11-24):** the Calendar key's sample chips (web and app); the app's Today button (disabled only on today); Share text copying too, with its note; the app in the launcher's Productivity group; the `+05:30` on log lines and a `timing` line per finished post (made, reached, scheduled, posted).
+- **Branding:** the splash (plum, white mark and "socialifer", not cut off by Android's circle); the mark before the Posts and Calendar titles; the mark in the empty states.
+- **Web page:** Pick a time starting a few minutes ahead; "Choose a day and a time" grey.
+
 ### App (phone)
 
 - **The rebranded APK** (built 2026-11-17): the Ring of fire icon and the name Socialifer, pairing the new app (package `com.socialifer.app`), Inter on every screen, and a post. Then uninstall the old Social Post app.
@@ -62,6 +88,10 @@ What has been tried live, and what's still to try. Offline checks (`npm test`) a
 
 - **Subtitles (2026-11-12, one 54-second vertical Hindi talk):** generating Hindi and English, an uploaded SRT with its language, Review lines, two YouTube caption tracks with their real languages (`captions.insert`), and the burned-in English copy on X and Instagram.
 - **Finish by hand (2026-11-18):** the dialog with the YouTube Studio link and the Substack part.
+
+### App (2026-11-19)
+
+- **Share text for Substack:** on a text post, the share sheet opened, and picking Substack opened its app with the text filled in.
 
 ### App (2026-11-17)
 
