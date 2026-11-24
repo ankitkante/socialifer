@@ -84,7 +84,7 @@ What has been tried live, and what's still to try. Offline checks (`npm test`) a
 
 ## Tested live
 
-### Instagram text carousels (2026-11-24, web page)
+### Instagram text carousels (2026-11-24, web page and app)
 
 - **Web page:** the note, Slide style and Background, the laptop's preview (‹ ›, clicking a small slide, back to slide 1 on a new style), paragraphs kept together, Hindi in every style, over 10 slides blocked.
 - **Posting:** a text-only carousel posted to Instagram from the web page.

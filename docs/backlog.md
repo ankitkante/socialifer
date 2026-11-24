@@ -24,17 +24,9 @@ Everything still to do: features and fixes not built. What's built but not yet t
 
 ## 3. Instagram
 
-- **Text-only posts as a carousel** (B · idea; built 2026-11-24, to test; remove once tested): turn the text into an image carousel, since Instagram needs an image or video. Mockup: "Instagram text carousel mockup", https://claude.ai/artifact/Kob5VcG9U2rD6zvydpqMw2 (private to the user). Agreed so far:
-  - **Automatic:** a text-only post with Instagram ticked gets slides; no button (a photo plus text-slides isn't needed).
-  - **Splitting (changed 2026-11-24 after the first web test):** paragraphs stay together (short ones share a slide; one up to 20% over a slide stays whole, the type shrinks); a longer one, or text with no paragraphs, is split at sentences into about equally full slides. A sentence is only cut when it alone is too long for a slide. Line breaks are kept.
-  - **Over 10 slides:** Instagram gets a problem and the post is blocked until shortened or Instagram is unticked.
-  - **Per post, two choices:** a Style (A centred bold, B left-aligned with an arrow, C first sentence as a cover) and a Background (12 presets: Paper (default), Glow, Midnight, Sunset, Ocean, Aurora, Peach, Mint, Forest, Ripple, Lemon, Ink). No slide numbers (Instagram shows its own). Slides are 4:5, 1080 × 1350.
-  - **Caption:** still holds the full text (search and screen readers), even though the slides show it too.
-  - **Picker:** Slide style and Background show in Instagram's fields only for a text-only post; boards "Web app: Instagram tab" and "Phone app: Instagram card" in the mockup.
-  - **No Stories from text:** "Post as: Story" is hidden for a text-only post; carousels only. Later idea: a one-slide 9:16 Story when the text fits.
-  - **The server makes the slides:** clients send the text, style and background; the server draws the JPEGs with `@napi-rs/canvas` (tested 2026-11-24: Hindi conjuncts and matras right, loads the bundled WOFF2 fonts; `sharp` ignored them) and the previews come from the server. Offline, the phone draws an approximate preview with `react-native-svg`; the slide text is exact, since the split is in `rules.js`.
-  - **Clickable preview:** web: click a small slide or use ‹ › on the big one; phone: tap a slide to open it full width and swipe. Photo and video carousels get the same.
+- **A Story from text** (B · idea, 2026-11-24): text-only posts go to Instagram as a carousel and Story is hidden for them. Later: a one-slide 9:16 Story when the text fits. (Text carousels themselves are built and tested: see [platforms.md](platforms.md) and [decisions.md](decisions.md).)
 - **Custom slide styles for text carousels** (B · idea, 2026-11-24, after the presets round): the first round has neutral background presets only. Later, let each brand set its own look: background and text colours, a font from a short list, a logo, the @handle and slide numbers, saved once rather than per post. Nothing hard-coded, since many brands use the app; once there are several accounts, each gets its own style.
+- **LinkedIn: text posts as a document carousel** (B · idea, 2026-11-24): LinkedIn's swipeable "carousels" are document posts (a PDF shown a page at a time). The text slides could become those pages, so a text-only post goes to LinkedIn as a swipeable document too. Today LinkedIn takes 2–20 images as a `multiImage` grid, not a swipe. **First:** check LinkedIn's Documents API (upload, then `content.media` with the document) and whether `w_member_social` is enough; then whether `@napi-rs/canvas` can write the PDF.
 
 ## 4. Subtitles (web page only for now)
 
