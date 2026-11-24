@@ -19,7 +19,8 @@ const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name,
 // schedule: the laptop's posts as last seen, plus this phone's not yet sent, for When's next free time and warnings.
 // Two steps, as on the web page: Write (text, files, where to post), then Review (each platform, previews, When).
 // onAct(post, 'cancel' | 'delete'): Cancel or Delete on the laptop, for a post it has (needs a connection).
-export default function Compose({ initial, platforms, settings, schedule, connected, onAct, onClose, onPosted, onOpen }) {
+// drawSlides(body): asks the laptop for a text-only post's slides (null when it isn't connected).
+export default function Compose({ initial, platforms, settings, schedule, connected, onAct, onClose, onPosted, onOpen, drawSlides }) {
   const [step, setStep] = useState('write');
   // Posts saved before per-platform settings existed get the default values.
   const [post, setPost] = useState(() => ({ ...initial, options: withDefaults(initial.options, settings.sticky) }));
@@ -290,6 +291,7 @@ export default function Compose({ initial, platforms, settings, schedule, connec
             onText={setText}
             onPickImage={pickImage}
             onRemoveImage={removeImage}
+            drawSlides={drawSlides}
           />
         )) : null}
 

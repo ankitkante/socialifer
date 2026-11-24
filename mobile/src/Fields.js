@@ -8,6 +8,7 @@ import { FIELDS } from '../../public/fields.js';
 import { countFor, effectiveText, resolveTitle, splitThread } from '../../public/rules.js';
 import { mediaFile } from './store';
 import Preview from './Preview';
+import { BackgroundPicker, StylePicker } from './Slides';
 import { colors, Text, TextInput } from './ui';
 import Logo from './Logo';
 
@@ -20,7 +21,7 @@ function counter(p, text, own) {
   return { label: `${n.toLocaleString()} / ${p.limit.toLocaleString()}`, over: n > p.limit };
 }
 
-export default function PlatformCard({ p, post, check, editable, onOption, onText, onPickImage, onRemoveImage }) {
+export default function PlatformCard({ p, post, check, editable, onOption, onText, onPickImage, onRemoveImage, drawSlides }) {
   const [open, setOpen] = useState(false);
   const [more, setMore] = useState(false);
   const spec = FIELDS[p.id] ?? {};
@@ -36,6 +37,7 @@ export default function PlatformCard({ p, post, check, editable, onOption, onTex
       key={f.key}
       f={f}
       value={own[f.key]}
+      values={own}
       post={post}
       editable={editable}
       placeholder={f.key === 'title' ? `Defaults to: ${resolveTitle(post.text, '') || 'the first line of your post'}` : f.placeholder}
@@ -80,7 +82,7 @@ export default function PlatformCard({ p, post, check, editable, onOption, onTex
           ) : null}
           {more ? extra.map(field) : null}
           {spec.info ? <Text style={styles.hint}>{spec.info}</Text> : null}
-          <Preview p={p} post={post} />
+          <Preview p={p} post={post} drawSlides={drawSlides} />
         </View>
       ) : null}
     </View>
@@ -132,9 +134,13 @@ function DateField({ f, value, editable, onChange }) {
   );
 }
 
-function Field({ f, value, post, editable, placeholder, onChange, onPickImage, onRemoveImage }) {
+function Field({ f, value, values, post, editable, placeholder, onChange, onPickImage, onRemoveImage }) {
   let control;
-  if (f.type === 'check') {
+  if (f.type === 'slideStyle') {
+    control = <StylePicker f={f} value={value} background={values.slideBackground} editable={editable} onChange={onChange} />;
+  } else if (f.type === 'slideBackground') {
+    control = <BackgroundPicker f={f} value={value} editable={editable} onChange={onChange} />;
+  } else if (f.type === 'check') {
     control = (
       <View style={styles.checkRow}>
         <Switch value={Boolean(value)} onValueChange={onChange} disabled={!editable} color={colors.accent} accessibilityLabel={f.label} />

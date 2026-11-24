@@ -190,6 +190,8 @@ function takeWords(text, room) {
 
 // A paragraph that's a little over a slide's budget stays whole; the laptop shrinks the type to fit it.
 const PARAGRAPH_SLACK = 1.2;
+// The cover's first sentence can run to twice its budget before it's cut.
+const COVER_SLACK = 2;
 
 // A paragraph's sentences, each with what came before it: a space, or a line break kept from the text.
 function sentencesOf(paragraph) {
@@ -259,7 +261,9 @@ export function splitSlides(text, styleId) {
   const slides = [];
   if (style.cover) {
     const [first, ...others] = sentencesOf(paragraphs[0]);
-    const [head, rest] = takeWords(first.text, style.cover.budget);
+    // The whole first sentence, even past the cover's budget (the type shrinks to fit). Only one too long to
+    // read on one slide is cut, at a word.
+    const [head, rest] = takeWords(first.text, style.cover.budget * COVER_SLACK);
     slides.push(head);
     const remaining = joinSentences([...(rest ? [{ text: rest, before: '' }] : []), ...others]).trim();
     if (remaining) paragraphs[0] = remaining; else paragraphs.shift();

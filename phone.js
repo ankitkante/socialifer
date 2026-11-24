@@ -11,6 +11,7 @@ import { canCompress, describe } from './publish.js';
 import { httpError } from './media.js';
 import { appendPhoneLog, log, readPhoneLog } from './log.js';
 import { laptopStatus } from './status.js';
+import { previewSlides } from './slides.js';
 
 const DIR = new URL('./phone/', import.meta.url);
 const PAIRING = new URL('pairing.json', DIR);
@@ -163,6 +164,11 @@ export function createPhoneServer(key, queue) {
         appendPhoneLog(lines.map((l) => l.replace(/[\r\n]+/g, ' ').slice(0, 2000)));
         res.writeHead(204);
         return res.end();
+      }
+      // The slides a text-only Instagram post becomes, for the app's preview (the same drawing as the page's).
+      if (req.method === 'POST' && pathname === '/app/slides') {
+        const { text = '', style, background } = parseJson(raw) ?? {};
+        return sendJson(res, 200, { slides: await previewSlides(String(text), style, background) });
       }
       if (req.method === 'GET' && pathname === '/app/posts') {
         const ids = (searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 100);

@@ -210,7 +210,8 @@ function Main() {
     return (
       <View style={styles.fill}>
         <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} schedule={allPosts.posts}
-          connected={connected} onAct={actOnOwn} onClose={close} onPosted={posted} onOpen={(post) => setScreen({ name: 'compose', post })} />
+          connected={connected} onAct={actOnOwn} onClose={close} onPosted={posted} onOpen={(post) => setScreen({ name: 'compose', post })}
+          drawSlides={connected ? (body) => call(pairing, 'POST', '/app/slides', { json: body, timeoutMs: 20000 }) : null} />
       </View>
     );
   }

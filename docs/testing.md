@@ -12,7 +12,7 @@ What has been tried live, and what's still to try. Offline checks (`npm test`) a
 
 - **Web page:** Slide style and Background being remembered for the next post; Story hidden.
 - **Posting:** a one-slide post; each slide's alt text; a scheduled text post.
-- **The app (needs the APK rebuilt or Expo Go):** the same pickers; the slides from the laptop when connected, the phone's own drawing offline (backgrounds, Hindi); tapping a slide opens it full width and swipes; a text post sent from the phone going out as slides.
+- **The app:** Hindi in the phone's own drawing; the rebuilt APK (tested in Expo Go so far).
 - **Photo carousels:** the web preview's ‹ › and small slides; on the app, tapping a file and swiping.
 
 ### Scheduling (built 2026-11-18, [scheduling.md](scheduling.md))
@@ -88,6 +88,7 @@ What has been tried live, and what's still to try. Offline checks (`npm test`) a
 
 - **Web page:** the note, Slide style and Background, the laptop's preview (‹ ›, clicking a small slide, back to slide 1 on a new style), paragraphs kept together, Hindi in every style, over 10 slides blocked.
 - **Posting:** a text-only carousel posted to Instagram from the web page.
+- **The app, in Expo Go:** the pickers, the laptop's slides, the phone's own drawing offline (every background matched), Cover first keeping a long first sentence whole, tapping a slide to open it full width and swiping, and a text post from the phone going out as a 4-slide carousel (with X in the same post).
 
 ### Platforms
 

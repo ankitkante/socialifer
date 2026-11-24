@@ -2,8 +2,9 @@
 // platform's interface) built from the same rules the laptop uses, so a preview matches what's sent.
 // Videos have no frame thumbnail on the phone, so a video shows as a dark box unless a cover or thumbnail is set.
 import { Image, StyleSheet, View } from 'react-native';
-import { countFor, effectiveText, resolveTitle, splitThread, formatDuration } from '../../public/rules.js';
+import { countFor, effectiveText, resolveTitle, splitThread, formatDuration, splitSlides } from '../../public/rules.js';
 import { mediaFile } from './store';
+import { Carousel, TextSlides } from './Slides';
 import { colors, Text } from './ui';
 
 const SHORTS_MAX_SECONDS = 180;
@@ -42,9 +43,10 @@ function Media({ uri, ratio, placeholder, corner, children, blurred }) {
 function View2({ label, hint, children, width }) {
   return (
     <View style={[styles.view, width ? { width } : null]}>
-      {children}
+      {/* The label on top, like the card's other headings, so it's clear where each view starts. */}
       <Text style={styles.viewLabel}>{label}</Text>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      {children}
     </View>
   );
 }
@@ -127,12 +129,31 @@ function youtube(post) {
   };
 }
 
-function instagram(post) {
+function instagram(post, platform, drawSlides) {
   const o = post.options?.instagram ?? {};
   const story = o.postAs === 'story';
   const first = post.media[0];
   const vertical = story || (post.media.length === 1 && isVideo(first));
   const caption = effectiveText(post.text, o, 'instagram');
+  // A text-only post: its text as slides, and the caption, which keeps the whole text.
+  if (!post.media.length && !story && caption.trim()) {
+    const count = Math.min(10, splitSlides(caption, o.slideStyle).length);
+    return {
+      label: `Preview: ${count > 1 ? `Carousel of ${count}` : 'Post'}`,
+      content: (
+        <View style={styles.views}>
+          <View2 label="Feed" hint="Your text as slides; the caption keeps the whole text." width={240}>
+            <TextSlides text={caption} styleId={o.slideStyle} backgroundId={o.slideBackground} drawSlides={drawSlides} width={238}
+              caption={<Text style={[styles.text, styles.body]}><Text style={styles.overlayStrongDark}>yourusername </Text><Clipped text={caption} n={INSTAGRAM_CAPTION_SHOWN} tags /></Text>} />
+          </View2>
+          <View2 label="Profile grid" hint="The first slide, 3:4. Approximate." width={110}>
+            <TextSlides text={caption} styleId={o.slideStyle} backgroundId={o.slideBackground} drawSlides={drawSlides} width={110} tile />
+          </View2>
+        </View>
+      ),
+      notes: [],
+    };
+  }
   const kind = story ? 'Story' : post.media.length > 1 ? `Carousel of ${post.media.length}` : isVideo(first) ? 'Reel' : 'Post';
   const coverUri = uriOf(post, o.cover) ?? uriOf(post, first);
   const placeholder = isVideo(first) ? '▶ Video' : 'Attach a photo or video';
@@ -160,7 +181,7 @@ function instagram(post) {
             <Media uri={coverUri} ratio={9 / 16} placeholder={placeholder}>
               <View style={[styles.band, { top: 0 }]}><Text style={styles.bandText}>Reels</Text></View>
               <View style={[styles.band, styles.bandBottom]}>
-                <Text style={styles.overlayStrong}>Your account</Text>
+                <Text style={styles.overlayStrong}>yourusername</Text>
                 {caption ? <Text style={styles.overlayText} numberOfLines={2}><Clipped text={caption} n={INSTAGRAM_CAPTION_SHOWN} tags /></Text> : null}
               </View>
               <View style={styles.safeBox} />
@@ -182,10 +203,19 @@ function instagram(post) {
     content: (
       <View style={styles.views}>
         <View2 label="Feed" hint="At the photo's own shape, from 4:5 to 1.91:1." width={240}>
-          <View style={styles.card}>
-            <Media uri={coverUri} ratio={feedRatio} placeholder="Instagram needs a photo or video" corner={corner} />
-            {caption ? <Text style={[styles.text, styles.body]}><Text style={styles.overlayStrongDark}>Your account </Text><Clipped text={caption} n={INSTAGRAM_CAPTION_SHOWN} tags /></Text> : null}
-          </View>
+          {post.media.length > 1 ? (
+            // A carousel: tap a file to open it full width and swipe through.
+            <Carousel count={post.media.length} width={238} renderSlide={(i, w) => (
+              <View style={{ width: w }}><Media uri={uriOf(post, post.media[i])} ratio={feedRatio} placeholder={isVideo(post.media[i]) ? '▶ Video' : ''} /></View>
+            )}>
+              {caption ? <Text style={[styles.text, styles.body]}><Text style={styles.overlayStrongDark}>yourusername </Text><Clipped text={caption} n={INSTAGRAM_CAPTION_SHOWN} tags /></Text> : null}
+            </Carousel>
+          ) : (
+            <View style={styles.card}>
+              <Media uri={coverUri} ratio={feedRatio} placeholder="Instagram needs a photo or video" corner={corner} />
+              {caption ? <Text style={[styles.text, styles.body]}><Text style={styles.overlayStrongDark}>yourusername </Text><Clipped text={caption} n={INSTAGRAM_CAPTION_SHOWN} tags /></Text> : null}
+            </View>
+          )}
         </View2>
         {grid}
       </View>
@@ -208,7 +238,7 @@ function x(post, platform) {
       <View style={styles.thread}>
         {parts.map((part, i) => (
           <View key={i} style={styles.post}>
-            <Text style={styles.meta}><Text style={styles.overlayStrongDark}>Your account</Text>{i ? ' · reply' : ''}</Text>
+            <Text style={styles.meta}><Text style={styles.overlayStrongDark}>yourusername</Text>{i ? ' · reply' : ''}</Text>
             <Text style={styles.text}>{part || 'Your post'}</Text>
             {i === 0 && post.media[0] ? <Media uri={firstUri} ratio={ratioOf(post.media[0]) ?? 16 / 9} placeholder={isVideo(post.media[0]) ? '▶ Video' : ''} /> : null}
             <Text style={[styles.count, countFor('x', part) > platform.limit && { color: colors.danger }]}>{countFor('x', part)} / {platform.limit}</Text>
@@ -223,8 +253,9 @@ function x(post, platform) {
 const BUILDERS = { youtube, instagram, x };
 export const hasPreview = (id) => id in BUILDERS;
 
-export default function Preview({ p, post }) {
-  const built = BUILDERS[p.id]?.(post, p);
+// drawSlides: asks the laptop for a text-only post's slides (null while it isn't connected).
+export default function Preview({ p, post, drawSlides }) {
+  const built = BUILDERS[p.id]?.(post, p, drawSlides);
   if (!built) return null;
   return (
     <View style={{ gap: 8 }}>

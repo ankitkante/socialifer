@@ -84,6 +84,9 @@ test('only a sentence too long for a slide is split, at a word', () => {
 
 test('the cover style puts the first sentence alone on slide 1', () => {
   assert.deepEqual(splitSlides('A hook. Then the rest. And more.', 'cover'), ['A hook.', 'Then the rest. And more.']);
+  // A first sentence past the cover's 90 characters stays whole.
+  const long = 'Ray Bradbury had simple advice for anyone who wants to write: write a short story every week.';
+  assert.equal(splitSlides(`${long} The rest.`, 'cover')[0], long);
 });
 
 test('a text-only Instagram post becomes slides, up to 10', () => {

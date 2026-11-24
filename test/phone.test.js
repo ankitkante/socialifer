@@ -64,6 +64,16 @@ test('a signed hello returns the platforms', async () => {
   assert.equal(typeof hello.status.tunnel.configured, 'boolean');
 });
 
+test('draws the slides of a text-only post for a signed request only', async () => {
+  const body = JSON.stringify({ text: 'One. Two.', style: 'cover', background: 'paper' });
+  const res = await signed('/app/slides', { method: 'POST', body });
+  assert.equal(res.status, 200);
+  const { slides } = await res.json();
+  assert.equal(slides.length, 2);
+  assert.ok(slides[0].startsWith('data:image/jpeg;base64,'));
+  assert.equal((await fetch(`${base}/app/slides`, { method: 'POST', body })).status, 401);
+});
+
 test('refuses unsigned requests and the wrong key', async () => {
   assert.equal((await fetch(`${base}/app/hello`)).status, 401);
   const res = await signed('/app/hello', { key: 'b'.repeat(32) });
