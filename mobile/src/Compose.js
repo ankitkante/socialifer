@@ -4,26 +4,29 @@ import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { problemsFor, adjustmentsFor, formatDuration, postKind } from '../../public/rules.js';
-import { addMedia, copyPost, deletePost, loadSettings, mediaFile, newId, readPost, removeMedia, savePost, saveSettings } from './store';
+import { addMedia, canDeleteState, copyPost, deleteByHand, deletePost, loadSettings, mediaFile, newId, removeMedia, savePost, saveSettings } from './store';
 import Finished from './Finished';
 import { optionsFor, withDefaults } from './options';
 import PlatformCard from './Fields';
 import { log, short } from './log';
-import { Button, Screen, colors, Text, TextInput } from './ui';
+import { Button, Screen, colors, Text, TextInput, useToast } from './ui';
 import Logo, { brandColor } from './Logo';
 import When, { takenSlots, whenChoice, whenLabel } from './When';
 
 const metaOf = (media) => media.map(({ name, type, size, duration }) => ({ name, type, size, duration }));
 
 // onPosted: Post was tapped (closes the post, then the Substack reminder opens); onOpen: shows another post, e.g. the copy made by Send again.
-// schedule: the laptop's posts as last seen, for When's next free time and warnings.
+// schedule: the laptop's posts as last seen, plus this phone's not yet sent, for When's next free time and warnings.
 // Two steps, as on the web page: Write (text, files, where to post), then Review (each platform, previews, When).
-export default function Compose({ initial, platforms, settings, schedule, onClose, onPosted, onOpen }) {
+// onAct(post, 'cancel' | 'delete'): Cancel or Delete on the laptop, for a post it has (needs a connection).
+export default function Compose({ initial, platforms, settings, schedule, connected, onAct, onClose, onPosted, onOpen }) {
   const [step, setStep] = useState('write');
   // Posts saved before per-platform settings existed get the default values.
   const [post, setPost] = useState(() => ({ ...initial, options: withDefaults(initial.options, settings.sticky) }));
   const [notice, setNotice] = useState('');
   const [deleteNote, setDeleteNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
   const editable = post.state === 'draft' || post.state === 'ready';
   const isEmpty = !post.text.trim() && post.media.length === 0;
 
@@ -42,8 +45,12 @@ export default function Compose({ initial, platforms, settings, schedule, onClos
   // Any edit to a ready post makes it a draft again, so a half-finished change never goes to the laptop.
   const change = (changes) => setPost((p) => ({ ...p, ...changes, state: 'draft', error: null }));
 
+  // Only platforms set up on the laptop are offered (decided 2026-11-19). One a post already has that isn't set up
+  // (taken out of .env since) stays on it, flagged, and blocks Post until it's removed or set up.
   const usable = platforms.filter((p) => p.configured);
   const targets = usable.filter((p) => post.platforms.includes(p.id));
+  const unset = post.platforms.filter((id) => !usable.some((p) => p.id === id));
+  const nameOf = (id) => platforms.find((p) => p.id === id)?.name ?? id;
   const media = metaOf(post.media);
   const checks = useMemo(() => targets.map((p) => {
     const own = optionsFor(post, p.id);
@@ -55,15 +62,20 @@ export default function Compose({ initial, platforms, settings, schedule, onClos
   }), [post, platforms]);
   const issues = checks.reduce((n, c) => n + c.problems.length, 0);
   const kind = postKind(media);
-  const taken = takenSlots(schedule);
+  // Leaves this post out: once Post is tapped it's in the schedule too, as a phone post not yet sent.
+  const taken = takenSlots(schedule, post.id);
   const choice = whenChoice(kind, taken, post.when, post.platforms);
   // The Write step only needs a post and somewhere to send it; issues are fixed on Review, where the settings are.
-  const writeReason = targets.length === 0 ? 'Select at least one platform'
+  const writeReason = platforms.length === 0 ? 'Pair once to choose platforms'
+    : unset.length ? `${unset.map(nameOf).join(', ')} ${unset.length > 1 ? "aren't" : "isn't"} set up on your laptop`
+    : targets.length === 0 ? 'Select at least one platform'
     : isEmpty ? 'Write something, or add a photo or video'
     : '';
   const reason = writeReason
     || (issues ? `Fix ${issues} issue${issues > 1 ? 's' : ''} first` : '')
     || (choice.blocked ?? '');
+  // Red for an error (something to fix), grey for a plain next step (decided 2026-11-19).
+  const isError = (text) => Boolean(text) && !['Select at least one platform', 'Write something, or add a photo or video', 'Choose a day and a time'].includes(text);
   const review = step === 'review' || !editable;
   const postNow = targets.length > 1 ? `Post to ${targets.length} platforms` : targets.length ? `Post to ${targets[0].name}` : 'Post';
 
@@ -127,34 +139,64 @@ export default function Compose({ initial, platforms, settings, schedule, onClos
 
   const submit = () => {
     saveSettings({ ...loadSettings(), selected: post.platforms });
-    const when = choice.mode === 'picked' ? { mode: 'picked', at: choice.at } : { mode: 'auto', at: null };
-    const ready = { ...post, when, state: 'ready', sendId: newId(), error: null };
+    const when = choice.mode === 'picked' ? { mode: 'picked', at: choice.at } : choice.mode === 'now' ? { mode: 'now', at: null } : { mode: 'auto', at: null };
+    const ready = { ...post, when, state: 'ready', sendId: newId(), error: null, readyAt: Date.now() };
     savePost(ready);
-    log(`Post ${short(ready.sendId)}: ready for ${ready.platforms.join(', ')}${ready.media.length ? ` with ${ready.media.length} file${ready.media.length > 1 ? 's' : ''}` : ''}${when.mode === 'picked' ? `, for ${whenLabel(when.at)}` : ''}`);
+    // Each Post gives a new sendId, so a post edited after Post shows up in the logs under a new name; say which.
+    const replaces = post.sendId ? ` (replaces post ${short(post.sendId)}, edited after Post)` : '';
+    log(`Post ${short(ready.sendId)}: ready for ${ready.platforms.join(', ')}${ready.media.length ? ` with ${ready.media.length} file${ready.media.length > 1 ? 's' : ''}` : ''}${when.mode === 'picked' ? `, for ${whenLabel(when.at)}` : when.mode === 'now' ? ', immediately' : ''}${replaces}`);
     onPosted(ready);
   };
 
-  // Drafts, finished posts, and ready posts that haven't started going to the laptop. The laptop is never told.
-  // The saved copy is read first: a hand-over that started before this post was opened may be sending it.
-  const canDelete = ['draft', 'ready', 'done'].includes(post.state);
-  const removePost = () => {
-    const saved = readPost(post.id);
-    if (saved && (saved.state === 'sending' || saved.state === 'handed')) {
-      setDeleteNote("It has started going to the laptop, so it can't be deleted now.");
+  // Drafts and ready posts are only on this phone. Once the laptop has a post, Cancel stops it (it stays here,
+  // marked cancelled) and Delete removes it everywhere; both need the laptop.
+  const onLaptop = post.sendId && ['handed', 'done', 'cancelled'].includes(post.state);
+  const canDelete = canDeleteState(post.state) || onLaptop;
+  const removePost = async () => {
+    if (!onLaptop) {
+      if (!deleteByHand(post.id)) { setDeleteNote("It has started going to the laptop, so it can't be deleted now."); return; }
+      onClose();
       return;
     }
-    deletePost(post.id);
-    log(post.state === 'done' ? `Deleted finished post ${short(post.sendId)}`
-      : post.state === 'ready' ? `Deleted post ${short(post.sendId)} before it went to the laptop`
-      : 'Deleted a draft');
+    if (!connected) { setDeleteNote('Connect to the laptop to delete it everywhere.'); return; }
+    setBusy(true);
+    try {
+      const data = await onAct(post, 'delete');
+      toast(data?.note ?? 'Deleted everywhere.');
+      onClose();
+    } catch (err) {
+      setDeleteNote(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const cancelPost = async () => {
+    if (!connected) { setDeleteNote('Connect to the laptop to cancel it.'); return; }
+    setBusy(true);
+    try {
+      const data = await onAct(post, 'cancel');
+      toast(data?.note ?? "Cancelled. It stays in Posts, marked cancelled.");
+      onClose();
+    } catch (err) {
+      setDeleteNote(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Drafts are saved on every change; this just says so and goes back to the list.
+  const saveDraft = () => {
+    toast('Saved as a draft.');
     onClose();
   };
 
-  // A new draft with the same text, platforms, settings and media. Not offered once the media copies are gone.
+  // A new draft with the same text, platforms, settings and media, opened in place of this one, with a message
+  // saying so (the two look the same). Not offered once the media copies are gone.
   const duplicate = () => {
     const copy = copyPost(post, post.platforms, { fresh: true });
     log(`${post.sendId ? `Post ${short(post.sendId)}` : 'A draft'}: duplicated into a new draft`);
     onOpen(copy);
+    toast("Copy made. You're now editing the copy; the original is in Posts.");
   };
 
   return (
@@ -170,6 +212,7 @@ export default function Compose({ initial, platforms, settings, schedule, onClos
         {post.state === 'sending' && post.retryError ? <Text style={styles.error}>Last try to send it failed: {post.retryError} It will be tried again.</Text> : null}
         {post.state === 'ready' ? <Text style={styles.note}>Ready. It goes to the laptop the next time they're on the same Wi-Fi. Editing makes it a draft again.</Text> : null}
         {post.state === 'handed' && post.at > Date.now() ? <Text style={styles.note}>On the laptop, going out {whenLabel(post.at)}. Change it in Calendar.</Text> : null}
+        {post.state === 'cancelled' ? <Text style={styles.note}>Cancelled: it didn't go out.</Text> : null}
         {post.moved ? <Text style={styles.note}>Moved: its time, {whenLabel(post.moved.from)}, passed while the laptop was off.</Text> : null}
 
         {editable && review ? (
@@ -206,26 +249,33 @@ export default function Compose({ initial, platforms, settings, schedule, onClos
         {notice ? <Text style={styles.error}>{notice}</Text> : null}
 
         <Text style={styles.label}>Post to</Text>
-        {platforms.length === 0 ? <Text style={styles.note}>Connect to the laptop once to load your platforms.</Text> : null}
+        {platforms.length === 0 ? <Text style={styles.note}>Pair once to choose platforms. Your post is saved here meanwhile.</Text> : null}
+        {platforms.length > 0 && usable.length === 0 ? <Text style={styles.note}>No platforms are set up on your laptop yet. Add one in its .env file.</Text> : null}
         <View style={styles.pills}>
-          {platforms.map((p) => {
+          {[...usable, ...unset.map((id) => platforms.find((p) => p.id === id) ?? { id, name: id, configured: false })].map((p) => {
             const on = post.platforms.includes(p.id);
             // Logos only (decided 2026-11-17); the name is read out by TalkBack. Chosen: brand-coloured, with a light tint of it.
             return (
               <Pressable
                 key={p.id}
-                disabled={!p.configured || !editable}
+                // An unset platform can only be taken off.
+                disabled={!editable || (!p.configured && !on)}
                 onPress={() => toggle(p.id)}
                 accessibilityRole="switch"
-                accessibilityLabel={p.name}
-                accessibilityState={{ checked: on, disabled: !p.configured || !editable }}
-                style={[styles.pill, on && { borderColor: brandColor(p.id), backgroundColor: `${brandColor(p.id)}17` }, !p.configured && styles.pillOff]}
+                accessibilityLabel={p.configured ? p.name : `${p.name}: not set up on your laptop`}
+                accessibilityState={{ checked: on, disabled: !editable || (!p.configured && !on) }}
+                style={[styles.pill, on && { borderColor: brandColor(p.id), backgroundColor: `${brandColor(p.id)}17` }, !p.configured && styles.pillUnset]}
               >
                 <Logo id={p.id} size={22} color={on ? undefined : colors.placeholder} />
               </Pressable>
             );
           })}
         </View>
+        {unset.length ? (
+          <Text style={styles.error}>
+            Not set up on your laptop: {unset.map(nameOf).join(', ')}. Tap {unset.length > 1 ? 'them' : 'it'} to remove {unset.length > 1 ? 'them' : 'it'}, or set {unset.length > 1 ? 'them' : 'it'} up in the laptop's .env.
+          </Text>
+        ) : null}
 
         </>) : null}
 
@@ -264,18 +314,20 @@ export default function Compose({ initial, platforms, settings, schedule, onClos
         {editable && step === 'write' ? (
           <View style={{ gap: 6 }}>
             <Button label="Next: review and post ›" onPress={() => setStep('review')} disabled={Boolean(writeReason)} />
-            {writeReason ? <Text style={styles.reason}>{writeReason}</Text> : null}
+            {writeReason ? <Text style={[styles.reason, isError(writeReason) && styles.reasonError]}>{writeReason}</Text> : null}
+            {post.state === 'draft' ? <Button kind="secondary" icon="content-save-outline" label="Save as draft" onPress={saveDraft} disabled={isEmpty} /> : null}
           </View>
         ) : null}
         {editable && step === 'review' ? (
           <View style={{ gap: 6 }}>
-            <Button label={choice.now || !choice.label ? postNow : choice.label} onPress={submit} disabled={Boolean(reason)} />
-            {reason ? <Text style={styles.reason}>{reason}</Text> : null}
+            <Button label={choice.mode === 'now' ? 'Post now' : choice.now || !choice.label ? postNow : choice.label} onPress={submit} disabled={Boolean(reason)} />
+            {reason ? <Text style={[styles.reason, isError(reason) && styles.reasonError]}>{reason}</Text> : null}
             <Text style={styles.reason}>It goes to the laptop the next time they're on the same Wi-Fi, and goes out from there.</Text>
           </View>
         ) : null}
         {!post.mediaRemoved && !isEmpty ? <Button kind="secondary" label="Duplicate post" onPress={duplicate} /> : null}
-        {canDelete ? <Button kind="danger" label="Delete post" onPress={removePost} /> : null}
+        {post.state === 'handed' ? <Button kind="danger" label="Cancel post" onPress={cancelPost} disabled={busy} /> : null}
+        {canDelete ? <Button kind="danger" label={onLaptop ? 'Delete post everywhere' : 'Delete post'} onPress={removePost} disabled={busy} /> : null}
         {deleteNote ? <Text style={styles.error}>{deleteNote}</Text> : null}
       </ScrollView>
     </Screen>
@@ -283,7 +335,7 @@ export default function Compose({ initial, platforms, settings, schedule, onClos
 }
 
 export const STATE_LABEL = {
-  draft: 'Draft', ready: 'Ready', sending: 'Sending to laptop', handed: 'On the laptop', done: 'Finished',
+  draft: 'Draft', ready: 'Ready', sending: 'Sending to laptop', handed: 'On the laptop', done: 'Finished', cancelled: 'Cancelled',
 };
 
 const styles = StyleSheet.create({
@@ -305,7 +357,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '600', color: colors.text },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: { borderWidth: 1.5, borderColor: colors.line, borderRadius: 22, width: 52, height: 44, alignItems: 'center', justifyContent: 'center' },
-  pillOff: { opacity: 0.35 },
+  pillUnset: { borderColor: colors.danger, borderStyle: 'dashed', backgroundColor: colors.bg },
   check: { backgroundColor: colors.soft, borderRadius: 8, padding: 10, gap: 3 },
   checkName: { fontWeight: '600', color: colors.text },
   count: { fontWeight: '400', color: colors.muted },
@@ -314,6 +366,7 @@ const styles = StyleSheet.create({
   ok: { color: colors.ok },
   error: { color: colors.danger },
   reason: { color: colors.muted, textAlign: 'center' },
+  reasonError: { color: colors.danger },
   summary: { backgroundColor: colors.soft, borderRadius: 8, padding: 12, gap: 6 },
   summaryText: { fontSize: 15, color: colors.text },
   link: { color: colors.accent, fontWeight: '600' },

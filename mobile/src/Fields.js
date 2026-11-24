@@ -1,7 +1,8 @@
 // One card per chosen platform: its count, problems and notes, and (opened) its own text and FIELDS settings.
 // Cards instead of the web page's tabs, so they can't be mistaken for the "Post to" pills.
 import { useState } from 'react';
-import { FlatList, Image, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Dialog, Portal, RadioButton, Switch } from 'react-native-paper';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { FIELDS } from '../../public/fields.js';
 import { countFor, effectiveText, resolveTitle, splitThread } from '../../public/rules.js';
@@ -136,7 +137,7 @@ function Field({ f, value, post, editable, placeholder, onChange, onPickImage, o
   if (f.type === 'check') {
     control = (
       <View style={styles.checkRow}>
-        <Switch value={Boolean(value)} onValueChange={onChange} disabled={!editable} />
+        <Switch value={Boolean(value)} onValueChange={onChange} disabled={!editable} color={colors.accent} accessibilityLabel={f.label} />
         <Text style={styles.checkLabel}>{f.label}</Text>
       </View>
     );
@@ -190,22 +191,20 @@ function Select({ f, value, editable, onChange }) {
       <Pressable style={styles.input} onPress={() => editable && setOpen(true)}>
         <Text style={styles.selectText}>{current} ▾</Text>
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>{f.label}</Text>
-            <FlatList
-              data={f.choices}
-              keyExtractor={([v]) => v || '(none)'}
-              renderItem={({ item: [v, label] }) => (
-                <Pressable style={styles.choice} onPress={() => { onChange(v); setOpen(false); }}>
-                  <Text style={[styles.choiceText, v === value && { color: colors.accent, fontWeight: '600' }]}>{label}</Text>
-                </Pressable>
-              )}
-            />
-          </View>
-        </Pressable>
-      </Modal>
+      <Portal>
+        <Dialog visible={open} onDismiss={() => setOpen(false)} style={styles.sheet}>
+          <Dialog.Title style={styles.sheetTitle}>{f.label}</Dialog.Title>
+          <Dialog.ScrollArea style={{ maxHeight: 420, paddingHorizontal: 0 }}>
+            <ScrollView>
+              <RadioButton.Group value={value ?? ''} onValueChange={(v) => { onChange(v); setOpen(false); }}>
+                {f.choices.map(([v, label]) => (
+                  <RadioButton.Item key={v || '(none)'} value={v} label={label} mode="android" color={colors.accent} labelStyle={styles.choiceText} />
+                ))}
+              </RadioButton.Group>
+            </ScrollView>
+          </Dialog.ScrollArea>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -230,9 +229,7 @@ const styles = StyleSheet.create({
   checkLabel: { flex: 1, color: colors.text },
   imageRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   imageThumb: { width: 64, height: 64, borderRadius: 6 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
-  sheet: { backgroundColor: '#fff', borderRadius: 12, padding: 12, maxHeight: '70%' },
-  sheetTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text },
-  choice: { paddingVertical: 10 },
-  choiceText: { fontSize: 15, color: colors.text },
+  sheet: { backgroundColor: colors.bg },
+  sheetTitle: { fontSize: 18, fontFamily: 'Inter_600SemiBold', color: colors.text },
+  choiceText: { fontSize: 15, color: colors.text, fontFamily: 'Inter_400Regular' },
 });

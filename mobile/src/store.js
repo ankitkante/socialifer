@@ -55,6 +55,21 @@ export function deletePost(id) {
   if (dir.exists) dir.delete();
 }
 
+// Deleting a post by hand (its screen or the list): drafts, finished posts, and ready posts that haven't started
+// going to the laptop. The laptop is never told. The saved copy is read first: a hand-over may be sending it.
+// Returns false when it can't be deleted now.
+export const canDeleteState = (state) => ['draft', 'ready', 'done'].includes(state);
+export function deleteByHand(id) {
+  const saved = readPost(id);
+  if (!saved) return true;
+  if (!canDeleteState(saved.state)) return false;
+  deletePost(id);
+  log(saved.state === 'done' ? `Deleted finished post ${short(saved.sendId)}`
+    : saved.state === 'ready' ? `Deleted post ${short(saved.sendId)} before it went to the laptop`
+    : 'Deleted a draft');
+  return true;
+}
+
 export const mediaFile = (post, item) => new File(postDir(post.id), item.file);
 
 // Copies a picked photo or video into the post's folder, so it survives being deleted from the gallery.

@@ -1,9 +1,10 @@
 // Hands ready posts to the laptop and collects their results. A post on the phone goes:
-// draft → ready (Post tapped) → sending (files going over) → handed (on the laptop) → done (results back).
+// draft → ready (Post tapped) → sending (files going over) → handed (on the laptop) → done (results back), or
+// cancelled (Cancel on the laptop, from either device). Deleted on the laptop: the phone's copy goes too.
 // The laptop's queue is keyed by sendId, made fresh each time Post is tapped: a hand-over cut off halfway carries
 // on next time, and a post fixed after the laptop refused it isn't mistaken for the old version.
 import { call, uploadFile } from './laptop';
-import { listPosts, readPost, savePost, mediaFile } from './store';
+import { deletePost, listPosts, readPost, savePost, mediaFile } from './store';
 import { optionsFor } from './options';
 import { log, short } from './log';
 
@@ -53,8 +54,10 @@ async function send(pairing, post, onChange) {
         options,
         files: files.map(({ name, type, size, duration }) => ({ name, type, size, duration: duration ?? null })),
         media: post.media.map((_, n) => n),
-        // The laptop works out the next free time when the post is ready there; a picked time is kept.
-        when: post.when?.mode === 'picked' ? 'picked' : 'auto',
+        // When Post was tapped, for the laptop's timing summary in its log.
+        madeAt: post.readyAt ?? post.createdAt,
+        // The laptop works out the next free time when the post is ready there; a picked time is kept; now goes at once.
+        when: post.when?.mode === 'picked' ? 'picked' : post.when?.mode === 'now' ? 'now' : 'auto',
         ...(post.when?.mode === 'picked' && { at: post.when.at }),
       },
     });
@@ -84,6 +87,20 @@ async function send(pairing, post, onChange) {
   }
 }
 
+// Posts deleted for good on the laptop (from the web page or another check): their copies here go too.
+export function removeDeleted(deletedIds, onChange) {
+  const gone = new Set(deletedIds ?? []);
+  let changed = false;
+  for (const post of listPosts()) {
+    if (post.sendId && gone.has(post.sendId) && post.state !== 'draft' && post.state !== 'ready') {
+      deletePost(post.id);
+      log(`Post ${short(post.sendId)}: deleted on the laptop, so removed here too`);
+      changed = true;
+    }
+  }
+  if (changed) onChange();
+}
+
 async function collect(pairing, onChange) {
   const handed = listPosts().filter((p) => p.state === 'handed');
   if (!handed.length) return {};
@@ -98,6 +115,15 @@ async function collect(pairing, onChange) {
       for (const r of s.results) for (const w of r.warnings ?? []) log(`Post ${short(post.sendId)}: ${r.name} warning: ${w}`);
       // Only once the results are safe here; if this fails, the next check collects them again.
       await call(pairing, 'DELETE', `/app/posts/${post.sendId}`).catch(() => {});
+    } else if (s.state === 'cancelled') {
+      savePost({ ...post, state: 'cancelled', cancelledAt: s.cancelledAt ?? Date.now() });
+      onChange();
+      log(`Post ${short(post.sendId)}: cancelled on the laptop`);
+      await call(pairing, 'DELETE', `/app/posts/${post.sendId}`).catch(() => {});
+    } else if (s.state === 'deleted') {
+      deletePost(post.id);
+      onChange();
+      log(`Post ${short(post.sendId)}: deleted on the laptop, so removed here too`);
     } else if (s.state === 'missing') {
       savePost({ ...post, state: 'done', results: post.platforms.map((id) => ({ id, name: id, ok: false, error: LOST })) });
       onChange();

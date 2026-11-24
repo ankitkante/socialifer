@@ -5,6 +5,7 @@
 // terminal during development. Posts are named by the start of their laptop id (sendId), the same name the
 // server's terminal uses ("Phone post 1a2b3c4d").
 import { File, Paths } from 'expo-file-system';
+import { zoneOffset } from '../../public/rules.js';
 
 const MAX_LINES = 500;
 let lines = null;
@@ -14,8 +15,9 @@ let dropped = 0;
 const logFile = () => new File(Paths.document, 'activity.log');
 const pad = (n) => String(n).padStart(2, '0');
 
+// With the phone's time zone (e.g. +05:30), as on the laptop's lines.
 function stamp(d = new Date()) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${zoneOffset(d.getTime())}`;
 }
 
 function load() {

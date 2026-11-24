@@ -2,7 +2,8 @@
 // and platforms' own items from their results (YouTube: make a private video public in YouTube Studio).
 // The dialog opens right after Post (once the post is on the laptop, or saved here when the laptop isn't
 // around), before any results, so it covers Substack only. The finished post shows everything until Done.
-import { Linking, Modal, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Linking, Modal, Share, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import { mediaFile } from './store';
@@ -16,15 +17,26 @@ const isVideo = (item) => item.type.startsWith('video/');
 export const todosOf = (post) => (post.todoDone ? [] : (post.results ?? []).filter((r) => r.ok && r.todo).map((r) => r.todo));
 export const needsFinishing = (post) => (post.results ?? []).some((r) => r.ok) && (!post.substackDone || todosOf(post).length > 0);
 
-// Copy text, Share for each photo. Videos aren't shared: Substack's app isn't offered for them in the
+// Share text (Android's share sheet: pick Substack's app and the text is already in it, decided 2026-11-19, so
+// text posts reach Substack too), Copy text, and Share for each photo. Videos aren't shared: Substack's app isn't offered for them in the
 // share sheet, so they're picked from the gallery inside Substack instead.
 function SubstackPart({ post }) {
+  // Shown in the part itself: a snackbar would sit behind the Finish by hand dialog.
+  const [copied, setCopied] = useState(false);
   const media = post.mediaRemoved ? [] : post.media;
   const photos = media.filter((item) => !isVideo(item));
   const videos = post.media.filter(isVideo).length;
   const copy = async () => {
     await Clipboard.setStringAsync(post.text);
     log(`Post ${short(post.sendId)}: text copied for Substack`);
+  };
+  // The full text goes to Android as shared text, but Substack's app has opened empty for posts with several
+  // paragraphs (2026-11-20), so it's copied too: if Substack opens empty, paste it.
+  const shareText = async () => {
+    await Clipboard.setStringAsync(post.text);
+    setCopied(true);
+    await Share.share({ message: post.text });
+    log(`Post ${short(post.sendId)}: text shared (and copied) for Substack`);
   };
   const share = async (item) => {
     if (!(await Sharing.isAvailableAsync())) return;
@@ -34,15 +46,17 @@ function SubstackPart({ post }) {
     <View style={{ gap: 8 }}>
       <Text style={styles.heading}>Post this on Substack too</Text>
       <Text style={styles.note}>
-        Substack has no way for apps to post, so copy the text{photos.length ? ' and share the photos to Substack\'s app' : ''}.
+        Substack has no way for apps to post, so share the text to Substack's app, or copy it{photos.length ? ', and share the photos' : ''}.
         {videos ? ` Add the video${videos > 1 ? 's' : ''} from your gallery inside Substack's app.` : ''}
       </Text>
       <View style={styles.row}>
-        {post.text.trim() ? <Button kind="secondary" label="Copy text" onPress={copy} /> : null}
+        {post.text.trim() ? <Button kind="secondary" icon="share-variant" label="Share text" onPress={shareText} /> : null}
+        {post.text.trim() ? <Button kind="secondary" icon="content-copy" label="Copy text" onPress={copy} /> : null}
         {photos.map((item, i) => (
           <Button key={item.file} kind="secondary" label={photos.length > 1 ? `Share photo ${i + 1}` : 'Share photo'} onPress={() => share(item)} />
         ))}
       </View>
+      {copied ? <Text style={styles.note}>The text is copied too. If Substack opens empty, paste it there.</Text> : null}
     </View>
   );
 }
@@ -81,7 +95,8 @@ function youtubeNote(post) {
 }
 
 // Closes only with Done, so it can't be dismissed by accident: the back button does nothing.
-export function FinishByHandDialog({ post, onDone }) {
+// paired: false while the phone has never been paired, so the post can't go anywhere yet.
+export function FinishByHandDialog({ post, paired, onDone }) {
   return (
     <Modal transparent animationType="fade" visible onRequestClose={() => {}}>
       <View style={styles.backdrop}>
@@ -89,7 +104,8 @@ export function FinishByHandDialog({ post, onDone }) {
           <Text style={styles.status}>
             {post.state === 'done' ? '✓ Posted.'
               : post.state === 'handed' ? (post.at > Date.now() ? `✓ On the laptop. It goes out ${whenLabel(post.at)}.` : '✓ Posting now.')
-              : '✓ Saved. It goes to your laptop when they\'re on the same Wi-Fi.'}
+              : paired ? '✓ Saved. It goes to your laptop when they\'re on the same Wi-Fi.'
+              : '✓ Saved on this phone. Pair with your laptop to send it.'}
           </Text>
           <FinishByHand post={post} note={youtubeNote(post)} onDone={onDone} />
         </View>

@@ -3,15 +3,17 @@ import { StatusBar } from 'expo-status-bar';
 import { BackHandler, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFonts } from 'expo-font';
+import { BottomNavigation, PaperProvider } from 'react-native-paper';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { call, forgetPairing, loadPairing, parsePairing, savePairing } from './src/laptop';
-import { handOver } from './src/handover';
-import { listPosts, loadPlatforms, loadSchedule, loadSettings, newId, pruneOldMedia, savePlatforms, savePost, saveSchedule } from './src/store';
+import { handOver, removeDeleted } from './src/handover';
+import { deletePost, listPosts, loadPlatforms, loadSchedule, loadSettings, newId, pruneOldMedia, readPost, savePlatforms, savePost, saveSchedule } from './src/store';
 import Compose from './src/Compose';
 import Posts from './src/Posts';
-import Calendar from './src/Calendar';
+import Calendar, { withPhonePosts } from './src/Calendar';
 import { FinishByHandDialog, todosOf } from './src/Substack';
-import { Button, FONTS, Screen, colors, Text } from './src/ui';
-import { log, logErrors, readLog, unsentLog } from './src/log';
+import { Button, FONTS, Screen, ToastProvider, colors, theme, Text } from './src/ui';
+import { log, logErrors, readLog, short, unsentLog } from './src/log';
 import { statusLines, tunnelProblem } from './src/status';
 
 logErrors();
@@ -20,9 +22,23 @@ logErrors();
 const CHECK_MS = 5000;
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <PaperProvider theme={theme}>
+        <ToastProvider>
+          <Main />
+        </ToastProvider>
+      </PaperProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function Main() {
   // Bundled with the app, so this takes a moment; an error leaves the system font rather than a blank screen.
   const [fontsLoaded, fontError] = useFonts(FONTS);
-  const [pairing, setPairing] = useState(undefined); // undefined while loading, null when not paired
+  // undefined while loading, null when not paired: the app works without a laptop, and pairs when asked to
+  // (Laptop screen) or when a post is ready to go (decided 2026-11-19).
+  const [pairing, setPairing] = useState(undefined);
   const [screen, setScreen] = useState({ name: 'posts' });
   const [connection, setConnection] = useState({ state: 'checking' });
   const [posts, setPosts] = useState(() => {
@@ -47,6 +63,7 @@ export default function App() {
   }, [screen]);
 
   useEffect(() => {
+    if (pairing === null) setConnection({ state: 'unpaired', message: 'Not paired with a laptop yet' });
     if (!pairing) return undefined;
     let stopped = false;
     // Logged only when it changes: every 5 seconds would bury everything else.
@@ -78,10 +95,11 @@ export default function App() {
         if (!stopped && now) setLive(now);
       } catch {}
       try {
-        const { posts: laptopPosts } = await call(pairing, 'GET', '/app/schedule');
+        const { posts: laptopPosts, deleted } = await call(pairing, 'GET', '/app/schedule');
         if (!stopped && Array.isArray(laptopPosts)) {
           saveSchedule(laptopPosts);
           setSchedule(loadSchedule());
+          removeDeleted(deleted, refresh);
         }
       } catch {}
       // After the hand-over, so its lines go too. A failure (or a laptop too old to take it) waits for the next check.
@@ -105,11 +123,18 @@ export default function App() {
     refresh();
   }, [refresh]);
 
-  // Move, Post now, Edit or Cancel a waiting post on the laptop, then load its schedule again.
+  // Move, Post now, Edit, Cancel or Delete a post on the laptop (post.id: the laptop's id), then load its schedule
+  // again. Cancel and Delete also change this phone's own copy at once, rather than on the next check.
   const act = useCallback(async (post, action, body) => {
+    if (!pairing) throw new Error('Pair with your laptop first.');
     const path = `/app/posts/${post.id}${action === 'edit' ? '' : `/${action}`}`;
     const data = await call(pairing, action === 'edit' ? 'PATCH' : 'POST', path, { json: body ?? {} });
-    log(`Post ${post.id.slice(0, 8)}: ${action === 'now' ? 'posting now' : action === 'edit' ? 'text changed' : action === 'move' ? `moved to ${new Date(body.at).toLocaleString()}` : 'cancelled'} from the app`);
+    const did = { now: 'posting now', edit: 'text changed', cancel: 'cancelled', delete: 'deleted everywhere' }[action] ?? `moved to ${new Date(body.at).toLocaleString()}`;
+    log(`Post ${short(post.id)}: ${did} from the app`);
+    const own = listPosts().find((p) => p.sendId === post.id);
+    if (own && action === 'delete') deletePost(own.id);
+    if (own && action === 'cancel' && data?.post?.state === 'cancelled') savePost({ ...own, state: 'cancelled', cancelledAt: Date.now() });
+    refresh();
     try {
       const { posts: laptopPosts } = await call(pairing, 'GET', '/app/schedule');
       saveSchedule(laptopPosts);
@@ -117,14 +142,19 @@ export default function App() {
     } catch {}
     checkNow.current?.();
     return data;
-  }, [pairing]);
+  }, [pairing, refresh]);
+
+  // Cancel or Delete from the post's own screen or the list, for a phone post the laptop has (by its sendId).
+  const actOnOwn = useCallback((post, action) => act({ id: post.sendId }, action), [act]);
 
   const newPost = () => setScreen({
     name: 'compose',
-    post: { id: newId(), text: '', platforms: loadSettings().selected, media: [], options: {}, state: 'draft', createdAt: Date.now() },
+    // The platforms last chosen, minus any no longer set up on the laptop.
+    post: { id: newId(), text: '', platforms: loadSettings().selected.filter((id) => platforms.some((p) => p.id === id && p.configured)), media: [], options: {}, state: 'draft', createdAt: Date.now() },
   });
 
   // Post tapped: hand it over now rather than on the next 5-second check, so the reminder isn't kept waiting.
+  // Not paired yet: it's just saved, ready; Posts says the phone isn't paired.
   const posted = useCallback((post) => {
     setRemind(post.id);
     openId.current = null;
@@ -138,11 +168,12 @@ export default function App() {
   }, [remind, reminding]);
 
   if (pairing === undefined || (!fontsLoaded && !fontError)) return <View style={styles.blank} />;
-  if (!pairing || screen.name === 'pair') {
+  if (screen.name === 'pair') {
     return (
       <Scanner
+        reason={screen.reason}
         onPaired={async (next) => { await savePairing(next); log(`Paired with the laptop at ${next.host}:${next.port}`); setPairing(next); setScreen({ name: 'posts' }); }}
-        onCancel={pairing ? () => setScreen({ name: 'laptop' }) : null}
+        onCancel={() => setScreen({ name: screen.back ?? 'laptop' })}
       />
     );
   }
@@ -160,30 +191,34 @@ export default function App() {
     );
   }
   if (screen.name === 'log') return <ActivityLog pairing={pairing} connected={connection.state === 'connected'} onBack={() => setScreen({ name: 'laptop' })} />;
-  // Write · Calendar · Posts, under the writing screens and the lists.
-  const tab = screen.name === 'compose' ? 'write' : screen.name === 'calendar' ? 'calendar' : 'posts';
+  // Posts · Calendar under the lists (decided 2026-11-19: the ＋ button starts a post, so there's no Write tab).
+  // Writing a post is full screen, with ‹ Posts to go back.
+  const tab = screen.name === 'calendar' ? 'calendar' : 'posts';
   const tabs = (
     <Tabs
       current={tab}
-      onWrite={() => { if (screen.name !== 'compose') newPost(); }}
-      onCalendar={() => { refresh(); setScreen({ name: 'calendar' }); }}
-      onPosts={close}
+      onTab={(key) => {
+        if (key === 'calendar') { refresh(); setScreen({ name: 'calendar' }); }
+        else close();
+      }}
     />
   );
   const connected = connection.state === 'connected';
+  // The laptop's schedule plus this phone's posts it doesn't have yet, for Calendar, the day strip and Move.
+  const allPosts = { ...schedule, posts: withPhonePosts(schedule.posts, posts) };
   if (screen.name === 'compose') {
     return (
       <View style={styles.fill}>
-        <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} schedule={schedule.posts}
-          onClose={close} onPosted={posted} onOpen={(post) => setScreen({ name: 'compose', post })} />
-        {tabs}
+        <Compose key={screen.post.id} initial={screen.post} platforms={platforms} settings={loadSettings()} schedule={allPosts.posts}
+          connected={connected} onAct={actOnOwn} onClose={close} onPosted={posted} onOpen={(post) => setScreen({ name: 'compose', post })} />
       </View>
     );
   }
   if (screen.name === 'calendar') {
     return (
       <View style={styles.fill}>
-        <Calendar schedule={schedule} platforms={platforms} connected={connected} act={act} />
+        <Calendar schedule={allPosts} platforms={platforms} connected={connected} act={act}
+          onOpenPhone={(id) => { const post = readPost(id); if (post) setScreen({ name: 'compose', post }); }} />
         {tabs}
       </View>
     );
@@ -195,16 +230,20 @@ export default function App() {
         live={live}
         platforms={platforms}
         connection={connection}
-        schedule={schedule}
+        schedule={allPosts}
         act={act}
+        onAct={actOnOwn}
         onOpen={(post) => setScreen({ name: 'compose', post })}
         onNew={newPost}
         onPair={() => setScreen({ name: 'laptop' })}
+        onPairNow={() => setScreen({ name: 'pair', back: 'posts' })}
+        onChange={refresh}
       />
       {tabs}
       {reminding ? (
         <FinishByHandDialog
           post={reminding}
+          paired={Boolean(pairing)}
           // Results usually come later; if they're already here, their items were shown too.
           onDone={() => { savePost({ ...reminding, substackDone: true, ...(todosOf(reminding).length && { todoDone: true }) }); setRemind(null); refresh(); }}
         />
@@ -214,18 +253,21 @@ export default function App() {
   );
 }
 
-function Tabs({ current, onWrite, onCalendar, onPosts }) {
-  const tab = (id, label, onPress) => (
-    <Pressable key={id} onPress={onPress} style={styles.tab} accessibilityRole="tab" accessibilityState={{ selected: current === id }}>
-      <Text style={[styles.tabText, current === id && styles.tabOn]}>{label}</Text>
-    </Pressable>
-  );
+// Paper's bottom tab bar, with the mockup's icons (list, calendar). Posts first: the app opens there.
+const TABS = [
+  { key: 'posts', title: 'Posts', focusedIcon: 'format-list-bulleted', unfocusedIcon: 'format-list-bulleted' },
+  { key: 'calendar', title: 'Calendar', focusedIcon: 'calendar-month', unfocusedIcon: 'calendar-month-outline' },
+];
+
+function Tabs({ current, onTab }) {
   return (
-    <View style={styles.tabs}>
-      {tab('write', 'Write', onWrite)}
-      {tab('calendar', 'Calendar', onCalendar)}
-      {tab('posts', 'Posts', onPosts)}
-    </View>
+    <BottomNavigation.Bar
+      navigationState={{ index: TABS.findIndex((t) => t.key === current), routes: TABS }}
+      onTabPress={({ route }) => onTab(route.key)}
+      activeColor={colors.accent}
+      inactiveColor={colors.muted}
+      style={styles.tabs}
+    />
   );
 }
 
@@ -233,9 +275,9 @@ function Tabs({ current, onWrite, onCalendar, onPosts }) {
 // or saved here when it isn't. It doesn't wait for the platforms. Returns the post to remind about, false to
 // keep waiting, or null when there's nothing to remind about (refused, deleted, or already done).
 function reminderFor(post, connection) {
-  if (!post || post.substackDone || post.state === 'draft') return null;
+  if (!post || post.substackDone || post.state === 'draft' || post.state === 'cancelled') return null;
   if (post.state === 'handed' || post.state === 'done' || post.retryError) return post;
-  return connection.state === 'away' ? post : false;
+  return connection.state === 'away' || connection.state === 'unpaired' ? post : false;
 }
 
 function Laptop({ pairing, connection, platforms, onBack, onPair, onUnpair, onLog }) {
@@ -243,6 +285,19 @@ function Laptop({ pairing, connection, platforms, onBack, onPair, onUnpair, onLo
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
     return () => sub.remove();
   }, [onBack]);
+  if (!pairing) {
+    return (
+      <Screen>
+        <Pressable onPress={onBack} hitSlop={12}><Text style={styles.back}>‹ Posts</Text></Pressable>
+        <View style={styles.center}>
+          <Text style={styles.title}>Laptop</Text>
+          <Text style={styles.line}>Not paired yet. Posts are saved on this phone, and go to the laptop once it's paired and on the same Wi-Fi.</Text>
+          <Button label="Pair with your laptop" icon="qrcode-scan" onPress={onPair} />
+          <Button kind="secondary" label="Activity log" onPress={onLog} />
+        </View>
+      </Screen>
+    );
+  }
   return (
     <Screen>
       <Pressable onPress={onBack} hitSlop={12}><Text style={styles.back}>‹ Posts</Text></Pressable>
@@ -301,7 +356,8 @@ function ActivityLog({ pairing, connected, onBack }) {
   );
 }
 
-function Scanner({ onPaired, onCancel }) {
+// reason: why pairing is asked for now (e.g. a post is ready to go).
+function Scanner({ reason, onPaired, onCancel }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [problem, setProblem] = useState('');
   // The camera reports the same code many times a second; handle it once.
@@ -313,8 +369,10 @@ function Scanner({ onPaired, onCancel }) {
       <Screen>
         <View style={styles.center}>
           <Text style={styles.title}>Pair with your laptop</Text>
+          {reason ? <Text style={styles.line}>{reason}</Text> : null}
           <Text style={styles.line}>The camera is needed to scan the QR code in the server's terminal.</Text>
           <Button label="Allow camera" onPress={requestPermission} />
+          <Button kind="secondary" label="Not now" onPress={onCancel} />
         </View>
       </Screen>
     );
@@ -335,10 +393,11 @@ function Scanner({ onPaired, onCancel }) {
     <Screen>
       <View style={styles.center}>
         <Text style={styles.title}>Pair with your laptop</Text>
+        {reason ? <Text style={styles.line}>{reason}</Text> : null}
         <Text style={styles.line}>Scan the QR code printed in the server's terminal.</Text>
         <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={scanned} />
         {problem ? <Text style={styles.error}>{problem}</Text> : null}
-        {onCancel ? <Button kind="secondary" label="Cancel" onPress={onCancel} /> : null}
+        <Button kind="secondary" label="Not now" onPress={onCancel} />
       </View>
     </Screen>
   );
@@ -358,8 +417,5 @@ const styles = StyleSheet.create({
   logHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   logLine: { fontSize: 12, fontFamily: 'monospace', color: colors.text, paddingVertical: 2 },
   fill: { flex: 1, backgroundColor: colors.bg },
-  tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg, paddingBottom: 12 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  tabText: { fontSize: 14, color: colors.muted },
-  tabOn: { color: colors.accent, fontWeight: '700' },
+  tabs: { borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg },
 });
