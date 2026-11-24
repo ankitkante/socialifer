@@ -235,7 +235,8 @@ const json = (method, path, body) =>
 
 test('schedules a post from the page, lists it, and changes it while it waits', async () => {
   const { id: image } = await (await upload(PNG, 'image/png')).json();
-  const later = Date.now() + 3 * 24 * 60 * 60 * 1000;
+  // Noon in 3 days, inside posting hours whenever the test runs.
+  const later = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).setHours(12, 0, 0, 0);
 
   // Like the other write endpoints, a cross-site form post is refused.
   const plain = await fetch(`${base}/api/schedule`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
@@ -259,8 +260,10 @@ test('schedules a post from the page, lists it, and changes it while it waits', 
   assert.equal(moved.post.at, later + 60_000);
   const edited = await (await json('PUT', `/api/schedule/${post.id}`, { text: 'Edited', options: {} })).json();
   assert.equal(edited.post.text, 'Edited');
-  assert.equal((await json('POST', `/api/schedule/${post.id}/cancel`, {})).status, 200);
-  assert.equal((await json('POST', `/api/schedule/${post.id}/cancel`, {})).status, 404);
+  assert.equal((await (await json('POST', `/api/schedule/${post.id}/cancel`, {})).json()).post.state, 'cancelled');
+  assert.equal((await json('POST', `/api/schedule/${post.id}/cancel`, {})).status, 409);
+  assert.equal((await json('POST', `/api/schedule/${post.id}/delete`, {})).status, 200);
+  assert.equal((await json('POST', `/api/schedule/${post.id}/delete`, {})).status, 404);
 });
 
 test('a post sent straight from the page is kept for the Calendar', async () => {

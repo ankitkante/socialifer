@@ -362,6 +362,20 @@ export function nextFreeTime(taken, kind, from = Date.now(), platforms = []) {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// The device's time zone as an ISO 8601 offset, e.g. "+05:30", so logs sent from another country are unambiguous.
+export function zoneOffset(ms = Date.now()) {
+  const minutes = -new Date(ms).getTimezoneOffset();
+  const abs = Math.abs(minutes);
+  return `${minutes < 0 ? '-' : '+'}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+}
+
+// A moment in local time as ISO 8601 with its offset, e.g. 2026-11-19T10:00:02+05:30 (for the logs' summaries).
+export function isoTime(ms) {
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}${zoneOffset(ms)}`;
+}
+
 // Written out by hand: the phone's engine and Node format dates differently.
 export function formatTime(ms) {
   const d = new Date(ms);
@@ -392,15 +406,21 @@ function gapRule(kind, other) {
   return `Text and image or video posts on the same platform are kept ${plural(SCHEDULE.mixedGapHours, 'hour')} apart.`;
 }
 
-// What's wrong with posting at `at`: `past` blocks it; `warnings` don't (the user may post close together
-// on purpose), and `nextFree` offers the next time without them. taken and platforms as for nextFreeTime.
+// Why a picked time can't be used at all, or null: posts only go out in posting hours (decided 2026-11-19;
+// it was a warning before). Checked by the page, the app and the laptop.
+export function outsideHours(at) {
+  if (at >= dayStart(at) && at <= dayEnd(at)) return null;
+  return `${formatTime(at)} is outside posting hours. Pick a time between ${formatTime(atHour(at, SCHEDULE.startHour))} and ${formatTime(atHour(at, SCHEDULE.endHour))}.`;
+}
+
+// What's wrong with posting at `at`: `past` and `outside` (a message) block it; `warnings` don't (the user may
+// post close together on purpose), and `nextFree` offers the next time without them. taken and platforms as for nextFreeTime.
 export function slotProblems(taken, kind, at, now = Date.now(), platforms = []) {
-  if (!Number.isFinite(at)) return { past: false, invalid: true, warnings: [], nextFree: null };
-  if (at <= now) return { past: true, invalid: false, warnings: [], nextFree: null };
+  if (!Number.isFinite(at)) return { past: false, invalid: true, outside: null, warnings: [], nextFree: null };
+  if (at <= now) return { past: true, invalid: false, outside: null, warnings: [], nextFree: null };
+  const outside = outsideHours(at);
+  if (outside) return { past: false, invalid: false, outside, warnings: [], nextFree: nextFreeTime(taken, kind, at, platforms) };
   const warnings = [];
-  if (at < dayStart(at) || at > dayEnd(at)) {
-    warnings.push(`${formatTime(at)} is outside posting hours (${formatTime(atHour(at, SCHEDULE.startHour))} to ${formatTime(atHour(at, SCHEDULE.endHour))}).`);
-  }
   if (isMedia(kind)) {
     const sameKind = mediaPosts(taken).filter((p) => p.kind === kind && sameDay(p.at, at)).length;
     if (sameKind >= SCHEDULE.perDay[kind]) {
@@ -414,7 +434,33 @@ export function slotProblems(taken, kind, at, now = Date.now(), platforms = []) 
     warnings.push(`${where} the ${KIND_NAMES[p.kind] ?? 'post'} at ${formatTime(p.at)}${sameDay(p.at, at) ? '' : ` on ${formatDay(p.at)}`}.`);
   }
   for (const rule of new Set(close.map((p) => gapRule(kind, p.kind)))) warnings.push(rule);
-  return { past: false, invalid: false, warnings, nextFree: warnings.length ? nextFreeTime(taken, kind, at, platforms) : null };
+  return { past: false, invalid: false, outside: null, warnings, nextFree: warnings.length ? nextFreeTime(taken, kind, at, platforms) : null };
+}
+
+// Calendar layout, shared by the page and the app: posts that overlap on the day view (the same or nearby times)
+// sit side by side, as in other calendars. boxes: [{ top, bottom }] in drawing order (sorted by top). Returns, for
+// each box, its column and how many columns its group of overlapping boxes has.
+export function sideBySide(boxes) {
+  const out = boxes.map(() => ({ col: 0, cols: 1 }));
+  let group = [];
+  let groupBottom = -Infinity;
+  const close = () => {
+    const cols = Math.max(1, ...group.map((i) => out[i].col + 1));
+    for (const i of group) out[i].cols = cols;
+    group = [];
+  };
+  boxes.forEach((box, i) => {
+    if (box.top >= groupBottom) { close(); groupBottom = -Infinity; }
+    // The first column whose last box has ended.
+    const used = group.filter((j) => boxes[j].bottom > box.top).map((j) => out[j].col);
+    let col = 0;
+    while (used.includes(col)) col++;
+    out[i].col = col;
+    group.push(i);
+    groupBottom = Math.max(groupBottom, box.bottom);
+  });
+  close();
+  return out;
 }
 
 // What the day strip draws for `day` (any time that day): the posting hours, the posts in them, and the

@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { zoneOffset } from './public/rules.js';
 
 // Every platform posts inside its own context ({ postId, platform, step, onStep }), so any code, however
 // deep, can log with the right "[post 7] YouTube:" prefix and report what it's doing to the page.
@@ -24,7 +25,8 @@ let logDir = null;
 let failed = false;
 const pad = (n) => String(n).padStart(2, '0');
 const month = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-const stamp = (d = new Date()) => `${month(d)}-${pad(d.getDate())} ${time()}`;
+// With the time zone (e.g. +05:30), so a log sent from another country is unambiguous (decided 2026-11-20).
+const stamp = (d = new Date()) => `${month(d)}-${pad(d.getDate())} ${time()} ${zoneOffset(d.getTime())}`;
 
 export function startLogFiles() {
   logDir = process.env.LOG_DIR?.trim() || fileURLToPath(new URL('./logs/', import.meta.url));

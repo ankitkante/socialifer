@@ -32,7 +32,8 @@ async function fakePublish(text, ids, media, options) {
 
 before(async () => {
   dir = await mkdtemp(join(tmpdir(), 'sp-queue-'));
-  queue = createQueue({ dir: pathToFileURL(`${dir}/`), publish: fakePublish });
+  // Off-hours allowed, so these tests can pick a time a moment ahead whenever they run.
+  queue = createQueue({ dir: pathToFileURL(`${dir}/`), publish: fakePublish, postingHours: false });
   await queue.load();
   server = createPhoneServer(KEY, queue);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -123,6 +124,15 @@ test('a post arrives in parts, is queued, posted and collected', async () => {
 
 // Text posts are kept an hour apart, so these tests pick a time a moment ahead (picked times aren't moved).
 const soon = (ms = 400) => ({ when: 'picked', at: Date.now() + ms });
+
+test('Immediately (when: now) goes out at once, even right after another text post', async () => {
+  for (const text of ['First', 'Second']) {
+    const id = newId();
+    await send('PUT', `/app/posts/${id}`, { json: { text, platforms: ['x'], when: 'now' } });
+    assert.equal((await send('POST', `/app/posts/${id}/ready`)).status, 200);
+    assert.equal((await until(id, 'done')).when, 'now');
+  }
+});
 
 test('a text-only post needs no files', async () => {
   const id = newId();
@@ -277,8 +287,16 @@ test('a waiting post can be moved, edited, posted now or cancelled; a finished o
   for (let i = 0; i < 50 && q.status([waiting.id])[0].state !== 'done'; i++) await new Promise((resolve) => setTimeout(resolve, 10));
   assert.deepEqual(posted.map((p) => p.text), ['After']);
 
-  assert.deepEqual(await q.cancel(other.id), { post: null, note: null });
-  assert.equal(q.status([other.id])[0].state, 'missing');
+  // Cancelled posts stay as history and hold no slot; Delete removes them for good, keeping only the id.
+  const cancelled = await q.cancel(other.id);
+  assert.equal(cancelled.post.state, 'cancelled');
+  assert.equal(q.status([other.id])[0].state, 'cancelled');
+  assert.ok(!q.taken().some((p) => p.id === other.id));
+  await assert.rejects(q.move(other.id, at(19, 20)), /was cancelled/);
+  assert.deepEqual(await q.deleteForever(other.id), { post: null, note: null });
+  assert.equal(q.status([other.id])[0].state, 'deleted');
+  assert.ok(q.deletedIds().includes(other.id));
+  assert.equal(q.status([newId()])[0].state, 'missing');
 
   for (const change of [() => q.move(finished.id, at(19, 18)), () => q.cancel(finished.id), () => q.postNow(finished.id), () => q.edit(finished.id, { text: 'x' })]) {
     await assert.rejects(change(), /already on the platforms/);

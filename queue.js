@@ -1,8 +1,9 @@
 // Every post the laptop keeps: scheduled posts from the web page and the phone, and the history of finished ones.
 // Each lives in POSTS_DIR/<id>/ (post.json, and its files named by index). Posts go out one at a time, each at its
-// time. States: receiving (phone files still arriving) → waiting → posting → done. A post caught mid-posting by a
-// restart becomes unknown and is never retried, since some platforms may already have it. Finished posts keep
-// their post.json for the Calendar; their files are deleted. A waiting post is only ever removed by Cancel.
+// time. States: receiving (phone files still arriving) → waiting → posting → done, or waiting → cancelled. A post
+// caught mid-posting by a restart becomes unknown and is never retried, since some platforms may already have it.
+// Finished and cancelled posts keep their post.json as history; their files are deleted. Delete removes a post
+// for good; only its id is kept (deleted.json), so the phone can remove its own copy.
 import { createWriteStream } from 'node:fs';
 import { cp, copyFile, mkdir, readFile, readdir, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -12,7 +13,7 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import crypto from 'node:crypto';
 import { platforms } from './platforms/index.js';
-import { isVideo, isSubtitleLanguage, postKind, nextFreeTime, problemsFor, formatTime, formatDay } from './public/rules.js';
+import { isVideo, isSubtitleLanguage, postKind, nextFreeTime, outsideHours, problemsFor, formatTime, formatDay, isoTime } from './public/rules.js';
 import { EXTENSIONS, MAX_UPLOAD_BYTES, httpError, importFile, getMedia, deleteMedia, probeDuration } from './media.js';
 import { describe } from './publish.js';
 import { log } from './log.js';
@@ -30,7 +31,8 @@ const MAX_WAIT_MS = 2 ** 31 - 1;
 const SRT = 'application/x-subrip';
 const POST_TYPES = new Set(Object.keys(EXTENSIONS).filter((t) => /^(image|video)\//.test(t)));
 const KNOWN = new Set(platforms.map((p) => p.id));
-const WHEN = new Set(['auto', 'picked']);
+// 'now': Immediately, whatever the posting hours and gaps (decided 2026-11-19).
+const WHEN = new Set(['auto', 'picked', 'now']);
 // Keys of platform fields that hold an image (YouTube's thumbnail, Instagram's cover).
 const IMAGE_FIELDS = Object.fromEntries(platforms.map((p) => [p.id, new Set(p.mediaOptions ?? [])]));
 
@@ -94,7 +96,9 @@ function checkPost(body) {
   if (used.size !== cleanFiles.length) throw bad('Invalid request');
   const anyText = text.trim() || Object.values(options).some((o) => typeof o.text === 'string' && o.text.trim());
   if (!anyText && media.length === 0) throw bad('Add some text, an image or a video');
-  return { text: text.trim(), platforms: ids, options, files: cleanFiles, media, subtitles: {}, ...checkWhen(body) };
+  // When Post was tapped on the phone, for the log's timing summary; ignored if it isn't a plausible time.
+  const madeAt = Number.isSafeInteger(body.madeAt) && body.madeAt > 0 && body.madeAt <= Date.now() + 60 * 60 * 1000 ? body.madeAt : null;
+  return { text: text.trim(), platforms: ids, options, files: cleanFiles, media, subtitles: {}, ...checkWhen(body), ...(madeAt && { madeAt }) };
 }
 
 function checkOptions(options) {
@@ -126,7 +130,8 @@ function withUploadIds(options, ids) {
 
 const resultFor = (id, error) => ({ id, name: platforms.find((p) => p.id === id)?.name ?? id, ok: false, url: null, warnings: [], error });
 
-export function createQueue({ dir, publish, now = () => Date.now() }) {
+// postingHours: false lets tests pick a time a moment ahead at any hour.
+export function createQueue({ dir, publish, now = () => Date.now(), postingHours = true }) {
   const posts = new Map();
   // What each platform of the post being posted is doing right now: { [postId]: { [platformId]: { step, progress } } }.
   const live = new Map();
@@ -142,6 +147,15 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
   const missing = (post) => post.files.map((_, n) => n).filter((n) => !post.received.includes(n));
   // When a post went or goes out: its posting time once posted, else its scheduled time.
   const timeOf = (post) => post.postedAt ?? post.at;
+  // Ids of deleted posts, kept so the phone learns its copy is gone (no text or files).
+  const deleted = new Set();
+  const deletedFile = () => new URL('deleted.json', dir);
+  const isHistory = (post) => post.state === 'done' || post.state === 'unknown' || post.state === 'cancelled';
+  // A picked time must be in posting hours. One already passed isn't refused: a phone post that arrives late is
+  // moved instead (see schedule()).
+  const refuseOutsideHours = (at) => {
+    if (postingHours && at > now() && outsideHours(at)) throw httpError(400, outsideHours(at));
+  };
 
   async function save(post) {
     const tmp = new URL('post.json.tmp', folder(post.id));
@@ -164,12 +178,15 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
   // The other posts that hold a time, for the slot rules: waiting ones and those already out.
   function taken(except) {
     return [...posts.values()]
-      .filter((p) => p !== except && p.state !== 'receiving' && Number.isFinite(timeOf(p)))
+      .filter((p) => p !== except && p.state !== 'receiving' && p.state !== 'cancelled' && Number.isFinite(timeOf(p)))
       .map((p) => ({ id: p.id, at: timeOf(p), kind: p.kind, platforms: p.platforms }));
   }
 
   async function load() {
     await mkdir(dir, { recursive: true });
+    try {
+      for (const id of JSON.parse(await readFile(deletedFile(), 'utf8'))) if (ID_RE.test(id)) deleted.add(id);
+    } catch {}
     for (const name of await readdir(dir)) {
       if (!ID_RE.test(name)) continue;
       try {
@@ -238,7 +255,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
       if (post.state === 'receiving' && t - post.createdAt > KEEP_MS) {
         await forget(post);
         log.info(`${label(post)}: removed after a week (its files never all arrived)`);
-      } else if ((post.state === 'done' || post.state === 'unknown') && !post.filesRemoved) {
+      } else if (isHistory(post) && !post.filesRemoved) {
         // Posts finished before history was kept still have their files.
         await removeFiles(post);
       }
@@ -261,6 +278,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
   // passed before the post reached the laptop counts as missed.
   function schedule(post) {
     const t = now();
+    if (post.when === 'now') { post.at = t; return; }
     if (post.when === 'picked' && post.at > t) return;
     if (post.when === 'picked') post.moved = { from: post.at, at: t };
     post.at = nextFreeTime(taken(post), post.kind, t, post.platforms);
@@ -273,6 +291,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
     if (!ID_RE.test(id)) throw httpError(400, 'Invalid request');
     if (posts.has(id)) return summary(posts.get(id));
     const checked = checkPost(body);
+    if (checked.when === 'picked') refuseOutsideHours(checked.at);
     const post = {
       id, source: 'phone', ...checked, kind: postKind(checked.media.map((n) => checked.files[n])),
       state: 'receiving', received: [], results: null, createdAt: now(),
@@ -337,14 +356,14 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
     + (post.moved ? ` (its time, ${when(post.moved.from)}, had passed)` : '')
     + (post.youtube ? '; YouTube gets it now and publishes it then' : '');
 
-  const status = (ids) => ids.map((id) => (posts.has(id) ? summary(posts.get(id)) : { id, state: 'missing' }));
+  const status = (ids) => ids.map((id) => (posts.has(id) ? summary(posts.get(id)) : { id, state: deleted.has(id) ? 'deleted' : 'missing' }));
 
   // The phone has the results of a finished post: it stays as history. Anything not finished is removed,
   // as the phone asked (it deletes a post it hasn't finished sending).
   async function remove(id) {
     const post = find(id);
     if (post.state === 'posting' || current === post) throw httpError(409, 'This post is being posted right now.');
-    if (post.state === 'done' || post.state === 'unknown') {
+    if (isHistory(post)) {
       if (!post.collected) {
         post.collected = true;
         await save(post);
@@ -431,6 +450,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
       state: 'receiving', received: [], results: null, createdAt: t,
     };
     if (post.when === 'picked' && post.at <= t) throw bad('That time has passed. Pick a later time.');
+    if (post.when === 'picked') refuseOutsideHours(post.at);
     const problems = problemsOf(post);
     if (problems.length) throw bad(problems.join('. '));
 
@@ -467,6 +487,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
     await mkdir(folder(post.id), { recursive: true });
     await save(post);
     posts.set(post.id, post);
+    log.info(timing(post));
     return summary(post);
   }
 
@@ -475,6 +496,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
   function changeable(id) {
     const post = find(id);
     if (post.state === 'posting' || current === post) throw httpError(409, "This post is being posted right now, so it can't be changed.");
+    if (post.state === 'cancelled') throw httpError(409, 'This post was cancelled.');
     if (post.state !== 'waiting') throw httpError(409, 'This post is already on the platforms. Change it there.');
     return post;
   }
@@ -487,6 +509,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
     const post = changeable(id);
     checkTime(at);
     if (at <= now()) throw httpError(400, 'That time has passed. Pick a later time.');
+    refuseOutsideHours(at);
     const old = post.at;
     post.at = at;
     post.when = 'picked';
@@ -535,7 +558,8 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
     return { post: summary(post), note: youtubeNote(post) };
   }
 
-  // Removes a waiting post. If YouTube already has its video, the post stays as history with only YouTube.
+  // Stops a waiting post; it stays as history, marked cancelled. If YouTube already has its video, the post
+  // stays as YouTube's alone.
   async function cancel(id) {
     const post = changeable(id);
     if (post.youtube === 'done') {
@@ -549,13 +573,32 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
       reschedule();
       return { post: summary(post), note: 'Cancelled. YouTube already has this video and will still publish it at its time. Delete or change it in YouTube Studio.' };
     }
-    await forget(post);
+    post.state = 'cancelled';
+    post.cancelledAt = now();
+    await removeFiles(post);
     log.info(`${label(post)}: cancelled`);
     reschedule();
-    return { post: null, note: null };
+    return { post: summary(post), note: null };
+  }
+
+  // Removes a post for good, waiting or history, everywhere: its folder goes, and its id is kept in deleted.json
+  // so the phone deletes its copy too. A waiting post is cancelled first, with the same note about YouTube.
+  async function deleteForever(id) {
+    const post = find(id);
+    if (post.state === 'posting' || current === post) throw httpError(409, "This post is being posted right now, so it can't be deleted.");
+    const note = post.state === 'waiting' && post.youtube === 'done'
+      ? 'Deleted here. YouTube already has this video and will still publish it at its time. Delete or change it in YouTube Studio.'
+      : post.youtube === 'done' || post.results?.some((r) => r.ok) ? 'Deleted here. Anything already on the platforms stays there.' : null;
+    await forget(post);
+    deleted.add(post.id);
+    await writeFile(deletedFile(), JSON.stringify([...deleted]));
+    log.info(`${label(post)}: deleted`);
+    reschedule();
+    return { post: null, note };
   }
 
   const list = () => [...posts.values()].filter((p) => p.state !== 'receiving').map(summary);
+  const deletedIds = () => [...deleted];
 
   // ---- Posting ----
 
@@ -655,6 +698,22 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
     await removeFiles(post);
     const outcome = post.results.map((r) => `${r.name} ${r.ok ? 'posted' : 'failed'}`).join(', ');
     log.info(`${label(post)}: done (${outcome})${post.source === 'phone' ? '; waiting for the phone to collect the results' : ''}`);
+    log.info(timing(post));
+  }
+
+  // One line per finished post with every time that matters, to check the scheduling: when it was made, reached
+  // the laptop, was due and went out (ISO 8601 with the zone, decided 2026-11-20).
+  function timing(post) {
+    const how = { picked: 'time you picked', now: 'immediately', auto: 'next free time' }[post.when] ?? post.when;
+    const late = Math.round((post.postedAt - post.at) / 1000);
+    const lateness = Math.abs(late) < 60 ? `${late} s after its time` : `${Math.round(Math.abs(late) / 60)} min ${late < 0 ? 'before' : 'after'} its time`;
+    return [
+      `${label(post)}: timing`,
+      ...(post.source === 'phone' && post.madeAt ? [`made ${isoTime(post.madeAt)} on the phone`] : []),
+      `reached the laptop ${isoTime(post.createdAt)}`,
+      `scheduled for ${isoTime(post.at)} (${how}${post.moved ? `, moved from ${isoTime(post.moved.from)}` : ''})`,
+      `posted ${isoTime(post.postedAt)}, ${lateness}`,
+    ].join(' · ');
   }
 
   function stop() {
@@ -664,7 +723,7 @@ export function createQueue({ dir, publish, now = () => Date.now() }) {
 
   return {
     load, cleanup, create, receiveFile, ready, status, remove, createFromUploads, record, move, postNow, edit, cancel,
-    list, taken: () => taken(), stop, idle: () => !running,
+    deleteForever, list, deletedIds, taken: () => taken(), stop, idle: () => !running,
   };
 }
 

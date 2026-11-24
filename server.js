@@ -285,8 +285,8 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 201, await queue.createFromUploads(await readJsonBody(req)));
     }
 
-    // Changing a waiting post: move it, cancel it, post it now, or edit its text and settings.
-    const scheduled = /^\/api\/schedule\/([a-f0-9]{32})(\/move|\/cancel|\/now)?$/.exec(pathname);
+    // Changing a waiting post: move it, cancel it, post it now, or edit its text and settings; or delete any post for good.
+    const scheduled = /^\/api\/schedule\/([a-f0-9]{32})(\/move|\/cancel|\/now|\/delete)?$/.exec(pathname);
     if (scheduled && (req.method === 'POST' || req.method === 'PUT')) {
       requireType(req, (t) => t.startsWith('application/json'), 'Content-Type must be application/json');
       const [, id, action] = scheduled;
@@ -295,6 +295,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST' && action === '/move') return sendJson(res, 200, await queue.move(id, body?.at));
       if (req.method === 'POST' && action === '/cancel') return sendJson(res, 200, await queue.cancel(id));
       if (req.method === 'POST' && action === '/now') return sendJson(res, 200, await queue.postNow(id));
+      if (req.method === 'POST' && action === '/delete') return sendJson(res, 200, await queue.deleteForever(id));
     }
 
     sendJson(res, 404, { error: 'Not found' });

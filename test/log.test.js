@@ -21,11 +21,11 @@ before(() => {
 
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-test('server lines go to this month\'s file with the date, details included', () => {
+test('server lines go to this month\'s file with the date and time zone, details included', () => {
   log.info('Hello from the test');
   log.error('It broke', 'stack line 1\nstack line 2');
   const text = readFileSync(join(dir, `server-${thisMonth}.log`), 'utf8');
-  assert.match(text, new RegExp(`^${thisMonth}-\\d{2} \\d{2}:\\d{2}:\\d{2} Hello from the test$`, 'm'));
+  assert.match(text, new RegExp(`^${thisMonth}-\\d{2} \\d{2}:\\d{2}:\\d{2} [+-]\\d{2}:\\d{2} Hello from the test$`, 'm'));
   assert.match(text, /✕ It broke\nstack line 1\nstack line 2\n/);
 });
 

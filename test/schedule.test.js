@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SCHEDULE, postKind, nextFreeTime, slotProblems, dayStrip, formatTime, formatDay } from '../public/rules.js';
+import { SCHEDULE, postKind, nextFreeTime, slotProblems, dayStrip, sideBySide, isoTime, zoneOffset, formatTime, formatDay } from '../public/rules.js';
 
 // Local times, as the laptop sees them. 19 Nov 2026 is a Thursday.
 const at = (day, hour, minute = 0) => new Date(2026, 10, day, hour, minute).getTime();
@@ -99,10 +99,11 @@ test('a picked time too close to another post warns and offers the next free tim
   assert.equal(r.nextFree, at(19, 17));
 });
 
-test('a picked time warns outside posting hours and over the daily limit', () => {
+test('a picked time outside posting hours is refused, and over the daily limit warns', () => {
   const taken = [{ at: at(19, 9), kind: 'video' }, { at: at(19, 13), kind: 'video' }];
   const late = slotProblems([], 'video', at(19, 23, 30), at(19, 8));
-  assert.match(late.warnings[0], /11:30 PM is outside posting hours \(9:00 AM to 11:00 PM\)/);
+  assert.match(late.outside, /11:30 PM is outside posting hours. Pick a time between 9:00 AM and 11:00 PM/);
+  assert.equal(late.nextFree, at(20, 9));
   const full = slotProblems(taken, 'video', at(19, 18), at(19, 8));
   assert.match(full.warnings[0], /Thu 19 Nov already has 2 videos/);
   assert.equal(full.nextFree, at(20, 9));
@@ -117,7 +118,19 @@ test('a text post warns near another text post, and near an image or video on th
   const nearVideo = slotProblems(taken, 'text', at(19, 15, 30), at(19, 8), ['x']);
   assert.match(nearVideo.warnings.at(-1), /on the same platform are kept 1 hour apart/);
   assert.deepEqual(slotProblems(taken, 'text', at(19, 15, 30), at(19, 8), ['bluesky']).warnings, []);
-  assert.match(slotProblems([], 'text', at(19, 7), at(19, 6), ['x']).warnings[0], /outside posting hours/);
+  assert.match(slotProblems([], 'text', at(19, 7), at(19, 6), ['x']).outside, /outside posting hours/);
+});
+
+test('posts at the same or overlapping times sit side by side on the day view', () => {
+  const layout = sideBySide([{ top: 0, bottom: 40 }, { top: 0, bottom: 40 }, { top: 20, bottom: 60 }, { top: 100, bottom: 140 }]);
+  assert.deepEqual(layout, [{ col: 0, cols: 3 }, { col: 1, cols: 3 }, { col: 2, cols: 3 }, { col: 0, cols: 1 }]);
+  assert.deepEqual(sideBySide([{ top: 0, bottom: 40 }, { top: 30, bottom: 70 }, { top: 50, bottom: 90 }]),
+    [{ col: 0, cols: 2 }, { col: 1, cols: 2 }, { col: 0, cols: 2 }]);
+});
+
+test('log times are ISO 8601 with the local time zone', () => {
+  assert.match(isoTime(at(19, 10, 0)), /^2026-11-19T10:00:00[+-]\d{2}:\d{2}$/);
+  assert.match(zoneOffset(), /^[+-]\d{2}:\d{2}$/);
 });
 
 test('a free time has no warnings', () => {

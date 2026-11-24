@@ -170,9 +170,10 @@ export function createPhoneServer(key, queue) {
       }
       // Every post on the laptop, from the page and the phone, for the app's Calendar and Posts tabs.
       if (req.method === 'GET' && pathname === '/app/schedule') {
-        return sendJson(res, 200, { posts: queue.list(), now: Date.now() });
+        // deleted: ids of posts deleted for good, so the phone removes its copies.
+        return sendJson(res, 200, { posts: queue.list(), deleted: queue.deletedIds(), now: Date.now() });
       }
-      const post = /^\/app\/posts\/([a-f0-9]{32})(\/ready|\/move|\/cancel|\/now|\/files\/(\d{1,3}))?$/.exec(pathname);
+      const post = /^\/app\/posts\/([a-f0-9]{32})(\/ready|\/move|\/cancel|\/now|\/delete|\/files\/(\d{1,3}))?$/.exec(pathname);
       if (post) {
         const [, id, rest, n] = post;
         if (req.method === 'PUT' && !rest) return sendJson(res, 200, await queue.create(id, parseJson(raw)));
@@ -181,6 +182,7 @@ export function createPhoneServer(key, queue) {
         if (req.method === 'POST' && rest === '/move') return sendJson(res, 200, await queue.move(id, parseJson(raw)?.at));
         if (req.method === 'POST' && rest === '/cancel') return sendJson(res, 200, await queue.cancel(id));
         if (req.method === 'POST' && rest === '/now') return sendJson(res, 200, await queue.postNow(id));
+        if (req.method === 'POST' && rest === '/delete') return sendJson(res, 200, await queue.deleteForever(id));
         if (req.method === 'PATCH' && !rest) return sendJson(res, 200, await queue.edit(id, parseJson(raw)));
         if (req.method === 'DELETE' && !rest) {
           await queue.remove(id);
